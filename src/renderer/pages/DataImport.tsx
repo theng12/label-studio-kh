@@ -5,6 +5,9 @@ import {
   IconAlertTriangle,
   IconCheck,
   IconX,
+  IconDownload,
+  IconPlus,
+  IconDeviceFloppy,
 } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
@@ -13,10 +16,12 @@ import { useImportStore } from '../stores/importStore';
 import { STANDARD_COLUMNS, REQUIRED_COLUMNS } from '../../shared/types/import';
 import type { DedupAction } from '../../shared/types/import';
 
+type DataTab = 'import' | 'manual' | 'lookup' | 'history';
+
 export default function DataImport() {
   const { brands, refresh } = useBrandStore();
   const im = useImportStore();
-  const [tab, setTab] = useState<'import' | 'lookup' | 'history'>('import');
+  const [tab, setTab] = useState<DataTab>('import');
 
   useEffect(() => {
     void refresh();
@@ -32,6 +37,9 @@ export default function DataImport() {
         <TabBtn active={tab === 'import'} onClick={() => setTab('import')}>
           Import
         </TabBtn>
+        <TabBtn active={tab === 'manual'} onClick={() => setTab('manual')}>
+          Manual entry
+        </TabBtn>
         <TabBtn active={tab === 'lookup'} onClick={() => setTab('lookup')}>
           SKU lookup
         </TabBtn>
@@ -46,6 +54,8 @@ export default function DataImport() {
         </div>
       ) : tab === 'import' ? (
         <ImportFlow />
+      ) : tab === 'manual' ? (
+        <ManualEntry />
       ) : tab === 'lookup' ? (
         <SkuLookup />
       ) : (
@@ -143,33 +153,102 @@ function StepPickFile() {
   };
 
   return (
-    <div
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDrag(true);
-      }}
-      onDragLeave={() => setDrag(false)}
-      onDrop={onDrop}
-      className={[
-        'rounded-lg border-2 border-dashed p-12 text-center transition-colors',
-        drag ? 'border-accent bg-accent/5' : 'border-border-base bg-bg-surface',
-      ].join(' ')}
-    >
-      <IconFileImport size={32} className="mx-auto text-fg-subtle" />
-      <h3 className="mt-3 text-sm font-semibold text-fg-base">
-        Drop a CSV or Excel file here
-      </h3>
-      <p className="mx-auto mt-1 max-w-md text-xs text-fg-muted">
-        Supported: .csv, .tsv, .xlsx, .xls — up to 50,000 rows. Standard column
-        names are auto-detected; you'll be able to confirm the mapping next.
-      </p>
-      <div className="mt-4 inline-block">
-        <Button variant="primary" onClick={onPick}>
-          <IconFileSpreadsheet size={14} /> Browse for file…
+    <div className="space-y-3">
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDrag(true);
+        }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={onDrop}
+        className={[
+          'rounded-lg border-2 border-dashed p-12 text-center transition-colors',
+          drag ? 'border-accent bg-accent/5' : 'border-border-base bg-bg-surface',
+        ].join(' ')}
+      >
+        <IconFileImport size={32} className="mx-auto text-fg-subtle" />
+        <h3 className="mt-3 text-sm font-semibold text-fg-base">
+          Drop a CSV or Excel file here
+        </h3>
+        <p className="mx-auto mt-1 max-w-md text-xs text-fg-muted">
+          Supported: .csv, .tsv, .xlsx, .xls — up to 50,000 rows. Standard column
+          names are auto-detected; you'll be able to confirm the mapping next.
+        </p>
+        <div className="mt-4 inline-block">
+          <Button variant="primary" onClick={onPick}>
+            <IconFileSpreadsheet size={14} /> Browse for file…
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between rounded-md border border-border-subtle bg-bg-surface px-4 py-3">
+        <div>
+          <div className="text-sm font-medium text-fg-base">
+            Don't have a file yet?
+          </div>
+          <div className="text-xs text-fg-muted">
+            Download a CSV template with all standard columns and one example row.
+            Required columns are <code>sku</code>, <code>product_name</code>, and{' '}
+            <code>brand</code>; the rest are optional.
+          </div>
+        </div>
+        <Button variant="secondary" onClick={downloadCsvTemplate}>
+          <IconDownload size={14} /> Download template
         </Button>
       </div>
     </div>
   );
+}
+
+function downloadCsvTemplate(): void {
+  // Standard 12 columns per spec §4.5, with one example row showing realistic
+  // values. Required columns are flagged in the column-mapping UI; this CSV
+  // includes all of them so users can fill or delete what they need.
+  const headers = [
+    'sku',
+    'product_name',
+    'brand',
+    'barcode',
+    'description',
+    'variant',
+    'unit_qty',
+    'unit_word',
+    'product_url',
+    'product_image_path',
+    'date',
+    'notes',
+  ];
+  const exampleRow = [
+    'EXAMPLE-001',
+    'Stainless Grab Bar 60cm',
+    'Your Brand',
+    '8851234567890',
+    'Bathroom safety, wall-mounted',
+    'SATIN',
+    '1',
+    'UNIT',
+    'https://example.com/p/EXAMPLE-001',
+    'images/grab-bar-60cm.jpg',
+    '06/05/2026',
+    'Internal note (not printed on the label)',
+  ];
+
+  const escape = (v: string) =>
+    /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const csv = [
+    headers.join(','),
+    exampleRow.map(escape).join(','),
+  ].join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'label-studio-kh-template.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function StepMapAndPreview() {
@@ -476,15 +555,298 @@ function StepDone() {
 
 // ── Sub-tabs ─────────────────────────────────────────────────────────────────
 
+function ManualEntry() {
+  const { brands } = useBrandStore();
+  const [brandId, setBrandId] = useState<string>(brands[0]?.id ?? '');
+  const [draft, setDraft] = useState({
+    sku: '',
+    product_name: '',
+    barcode: '',
+    description: '',
+    variant: '',
+    unit_qty: '',
+    unit_word: '',
+    product_url: '',
+    product_image_path: '',
+    date: '',
+    notes: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [status, setStatus] = useState<
+    | null
+    | { kind: 'created'; sku: string }
+    | { kind: 'updated'; sku: string }
+    | { kind: 'error'; message: string }
+  >(null);
+
+  useEffect(() => {
+    if (!brandId && brands.length > 0) setBrandId(brands[0]!.id);
+  }, [brands, brandId]);
+
+  const set = (patch: Partial<typeof draft>) =>
+    setDraft((d) => ({ ...d, ...patch }));
+
+  const reset = () => {
+    setDraft({
+      sku: '',
+      product_name: '',
+      barcode: '',
+      description: '',
+      variant: '',
+      unit_qty: '',
+      unit_word: '',
+      product_url: '',
+      product_image_path: '',
+      date: '',
+      notes: '',
+    });
+  };
+
+  const onSave = async (andAddAnother: boolean) => {
+    if (!brandId || !draft.sku.trim()) return;
+    setSubmitting(true);
+    setStatus(null);
+    try {
+      // Detect "created" vs "updated" so we can give honest feedback.
+      const existing = await window.api.sku.get(brandId, draft.sku.trim());
+      const result = await window.api.sku.upsert({
+        sku: draft.sku.trim(),
+        brand_id: brandId,
+        product_name: draft.product_name || null,
+        barcode: draft.barcode || null,
+        description: draft.description || null,
+        variant: draft.variant || null,
+        unit_qty: draft.unit_qty || null,
+        unit_word: draft.unit_word || null,
+        product_url: draft.product_url || null,
+        product_image_path: draft.product_image_path || null,
+        date: draft.date || null,
+        notes: draft.notes || null,
+      });
+      if (!result) {
+        setStatus({ kind: 'error', message: 'Save failed (no result returned).' });
+        return;
+      }
+      setStatus({
+        kind: existing ? 'updated' : 'created',
+        sku: result.sku,
+      });
+      if (andAddAnother) reset();
+    } catch (err) {
+      setStatus({ kind: 'error', message: String(err) });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (brands.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-fg-muted">Add to brand</span>
+        <select
+          value={brandId}
+          onChange={(e) => setBrandId(e.target.value)}
+          className="rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm text-fg-base"
+        >
+          {brands.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {status && (
+        <div
+          className={[
+            'rounded-md border p-3 text-sm',
+            status.kind === 'error'
+              ? 'border-danger/40 bg-danger/10 text-danger'
+              : 'border-success/40 bg-success/10 text-success',
+          ].join(' ')}
+        >
+          {status.kind === 'created' && (
+            <span className="flex items-center gap-2">
+              <IconCheck size={14} /> Created SKU <strong>{status.sku}</strong>.
+            </span>
+          )}
+          {status.kind === 'updated' && (
+            <span className="flex items-center gap-2">
+              <IconCheck size={14} /> Updated existing SKU <strong>{status.sku}</strong>.
+            </span>
+          )}
+          {status.kind === 'error' && status.message}
+        </div>
+      )}
+
+      <div className="rounded-lg border border-border-base bg-bg-surface p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <ManualField
+            label="SKU"
+            required
+            value={draft.sku}
+            onChange={(v) => set({ sku: v })}
+            placeholder="e.g. GH-001"
+            mono
+          />
+          <ManualField
+            label="Product name"
+            required
+            value={draft.product_name}
+            onChange={(v) => set({ product_name: v })}
+            placeholder="Stainless Grab Bar 60cm"
+          />
+          <ManualField
+            label="Barcode"
+            value={draft.barcode}
+            onChange={(v) => set({ barcode: v })}
+            placeholder="8851234567890"
+            mono
+            hint="EAN-13, Code128, etc. Leave blank if no barcode."
+          />
+          <ManualField
+            label="Variant"
+            value={draft.variant}
+            onChange={(v) => set({ variant: v })}
+            placeholder="SATIN, WHITE, 60cm"
+          />
+          <ManualField
+            label="Description"
+            value={draft.description}
+            onChange={(v) => set({ description: v })}
+            placeholder="Short product benefit"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <ManualField
+              label="Unit qty"
+              value={draft.unit_qty}
+              onChange={(v) => set({ unit_qty: v })}
+              placeholder="1"
+            />
+            <ManualField
+              label="Unit word"
+              value={draft.unit_word}
+              onChange={(v) => set({ unit_word: v })}
+              placeholder="UNIT, SET, PCS"
+            />
+          </div>
+          <ManualField
+            label="Product URL"
+            value={draft.product_url}
+            onChange={(v) => set({ product_url: v })}
+            placeholder="https://example.com/p/sku"
+            hint="Used by dynamic QR code elements."
+          />
+          <ManualField
+            label="Image path"
+            value={draft.product_image_path}
+            onChange={(v) => set({ product_image_path: v })}
+            placeholder="images/grab-bar-60.jpg"
+            hint="Used by image elements bound to a CSV column."
+          />
+          <ManualField
+            label="Date"
+            value={draft.date}
+            onChange={(v) => set({ date: v })}
+            placeholder="DD/MM/YYYY"
+          />
+          <ManualField
+            label="Notes"
+            value={draft.notes}
+            onChange={(v) => set({ notes: v })}
+            placeholder="Internal — not printed"
+          />
+        </div>
+
+        <div className="mt-4 flex items-center justify-end gap-2 border-t border-border-subtle pt-4">
+          <Button
+            variant="ghost"
+            onClick={reset}
+            disabled={submitting}
+          >
+            Reset form
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => void onSave(true)}
+            disabled={submitting || !draft.sku.trim() || !draft.product_name.trim()}
+          >
+            <IconPlus size={14} /> Save and add another
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => void onSave(false)}
+            disabled={submitting || !draft.sku.trim() || !draft.product_name.trim()}
+          >
+            <IconDeviceFloppy size={14} />{' '}
+            {submitting ? 'Saving…' : 'Save SKU'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-md border border-border-subtle bg-bg-base px-4 py-3 text-xs text-fg-muted">
+        Saving an existing SKU (same brand + same SKU code) updates the row
+        rather than creating a duplicate. To remove a SKU, use the trash icon
+        on the SKU lookup tab.
+      </div>
+    </div>
+  );
+}
+
+function ManualField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  hint,
+  required,
+  mono,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  hint?: string;
+  required?: boolean;
+  mono?: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-medium text-fg-muted">
+        {label}
+        {required && <span className="ml-1 text-danger">*</span>}
+      </span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={[
+          'mt-1 w-full rounded-md border border-border-base bg-bg-base px-2 py-1.5 text-sm text-fg-base placeholder:text-fg-subtle focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent',
+          mono ? 'font-mono' : '',
+        ].join(' ')}
+      />
+      {hint && <div className="mt-1 text-[10px] text-fg-subtle">{hint}</div>}
+    </label>
+  );
+}
+
 function SkuLookup() {
   const { brands } = useBrandStore();
   const [brandId, setBrandId] = useState<string>(brands[0]?.id ?? '');
   const [skus, setSkus] = useState<Awaited<ReturnType<typeof window.api.import.listSkus>>>([]);
   const [query, setQuery] = useState('');
 
-  useEffect(() => {
+  const reload = async () => {
     if (!brandId) return;
-    window.api.import.listSkus(brandId).then(setSkus);
+    const list = await window.api.import.listSkus(brandId);
+    setSkus(list);
+  };
+
+  useEffect(() => {
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brandId]);
 
   const filtered = skus.filter(
@@ -492,6 +854,15 @@ function SkuLookup() {
       s.sku.toLowerCase().includes(query.toLowerCase()) ||
       (s.product_name ?? '').toLowerCase().includes(query.toLowerCase()),
   );
+
+  const onDelete = async (sku: string) => {
+    if (!brandId) return;
+    if (!window.confirm(`Delete SKU "${sku}"? Generated label files on disk are not affected.`)) {
+      return;
+    }
+    await window.api.sku.delete(brandId, sku);
+    await reload();
+  };
 
   return (
     <div className="space-y-3">
@@ -518,7 +889,7 @@ function SkuLookup() {
 
       {skus.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border-base p-8 text-center text-sm text-fg-muted">
-          No SKUs imported yet for this brand.
+          No SKUs for this brand yet. Import a CSV or add one on the Manual entry tab.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border-base">
@@ -529,15 +900,25 @@ function SkuLookup() {
                 <th className="px-2 py-1.5 text-left">Product</th>
                 <th className="px-2 py-1.5 text-left">Barcode</th>
                 <th className="px-2 py-1.5 text-left">Variant</th>
+                <th className="px-2 py-1.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.slice(0, 200).map((s) => (
-                <tr key={s.sku}>
+                <tr key={s.sku} className="hover:bg-bg-hover">
                   <td className="border-b border-border-subtle px-2 py-1.5 font-mono">{s.sku}</td>
                   <td className="border-b border-border-subtle px-2 py-1.5">{s.product_name ?? '—'}</td>
                   <td className="border-b border-border-subtle px-2 py-1.5">{s.barcode ?? '—'}</td>
                   <td className="border-b border-border-subtle px-2 py-1.5">{s.variant ?? '—'}</td>
+                  <td className="border-b border-border-subtle px-2 py-1.5 text-right">
+                    <button
+                      onClick={() => void onDelete(s.sku)}
+                      title="Delete this SKU"
+                      className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-danger"
+                    >
+                      <IconX size={12} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

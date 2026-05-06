@@ -163,6 +163,27 @@ const api = {
     ): Promise<{ files: string[]; errors: string[] } | null> =>
       ipcRenderer.invoke('file:reprint', id),
   },
+  sku: {
+    get: (brandId: string, sku: string): Promise<SkuRow | null> =>
+      ipcRenderer.invoke('sku:get', brandId, sku),
+    upsert: (input: {
+      sku: string;
+      brand_id: string;
+      product_name?: string | null;
+      barcode?: string | null;
+      description?: string | null;
+      variant?: string | null;
+      unit_qty?: string | null;
+      unit_word?: string | null;
+      product_url?: string | null;
+      product_image_path?: string | null;
+      date?: string | null;
+      notes?: string | null;
+      extra_json?: string | null;
+    }): Promise<SkuRow | null> => ipcRenderer.invoke('sku:upsert', input),
+    delete: (brandId: string, sku: string): Promise<boolean> =>
+      ipcRenderer.invoke('sku:delete', brandId, sku),
+  },
   license: {
     status: (): Promise<{ licensed: boolean; name?: string }> =>
       ipcRenderer.invoke('license:status'),

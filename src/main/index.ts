@@ -9,6 +9,7 @@ import { registerDashboardIpc } from './ipc/dashboard';
 import { registerFileIpc } from './ipc/file';
 import { registerSettingsIpc } from './ipc/settings';
 import { registerLicenseIpc } from './ipc/license';
+import { registerSkuIpc } from './ipc/sku';
 import { shutdownBrowser } from './services/ExportService';
 import { closeDb } from './services/Database';
 import { DemoSeed } from './services/DemoSeed';
@@ -62,6 +63,7 @@ app.whenReady().then(() => {
   registerFileIpc();
   registerSettingsIpc();
   registerLicenseIpc();
+  registerSkuIpc();
   try {
     DemoSeed.ensure();
   } catch (err) {

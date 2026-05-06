@@ -18,6 +18,7 @@ export function loadEnv(): void {
     if (!existsSync(path)) continue;
     try {
       const text = readFileSync(path, 'utf8');
+      const loaded: string[] = [];
       for (const line of text.split(/\r?\n/)) {
         const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
         if (!m) continue;
@@ -31,10 +32,13 @@ export function loadEnv(): void {
           value = value.slice(1, -1);
         }
         process.env[key] = value;
+        loaded.push(key);
       }
+      console.log(`[env] loaded ${loaded.length} key(s) from ${path}: ${loaded.join(', ')}`);
       return; // first match wins
     } catch (err) {
       console.error('Failed to read .env:', err);
     }
   }
+  console.log(`[env] no .env file found at any of: ${candidates.join(' | ')}`);
 }
