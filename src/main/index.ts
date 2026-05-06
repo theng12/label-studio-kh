@@ -3,6 +3,10 @@ import { join } from 'node:path';
 import { registerAppIpc } from './ipc/app';
 import { registerBrandIpc } from './ipc/brand';
 import { registerTemplateIpc } from './ipc/template';
+import { registerImportIpc } from './ipc/import';
+import { registerExportIpc } from './ipc/export';
+import { shutdownBrowser } from './services/ExportService';
+import { closeDb } from './services/Database';
 
 const isDev = !app.isPackaged;
 
@@ -44,6 +48,8 @@ app.whenReady().then(() => {
   registerAppIpc();
   registerBrandIpc();
   registerTemplateIpc();
+  registerImportIpc();
+  registerExportIpc();
   createMainWindow();
 
   app.on('activate', () => {
@@ -53,4 +59,9 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', async () => {
+  await shutdownBrowser();
+  closeDb();
 });

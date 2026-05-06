@@ -1,6 +1,64 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { Brand, NewBrandInput } from '../shared/types/brand';
 import type { Template, NewTemplateInput } from '../shared/types/template';
+import type {
+  ColumnMapping,
+  CommitInput,
+  CommitResult,
+  ParsedFile,
+  SkuConflict,
+  ValidationResult,
+} from '../shared/types/import';
+
+interface ImportListEntry {
+  id: string;
+  source_filename: string | null;
+  brand_id: string | null;
+  row_count: number;
+  created_at: string;
+}
+
+interface SkuRow {
+  sku: string;
+  brand_id: string;
+  product_name: string | null;
+  barcode: string | null;
+  description: string | null;
+  variant: string | null;
+  unit_qty: string | null;
+  unit_word: string | null;
+  product_url: string | null;
+  product_image_path: string | null;
+  date: string | null;
+  notes: string | null;
+  extra_json: string | null;
+}
+
+export type ExportFormat = 'pdf' | 'png' | 'jpeg';
+
+export interface ExportSettings {
+  formats: ExportFormat[];
+  dpi: 150 | 300 | 600;
+  outputDir: string;
+  filenamePattern: string;
+  folderOrganization: 'none' | 'brand' | 'brand_size' | 'brand_template';
+  overwrite: boolean;
+}
+
+export interface ExportProgressInfo {
+  index: number;
+  total: number;
+  sku: string;
+  result: { files: string[]; errors: string[] };
+}
+
+export interface BulkExportSummary {
+  batchId: string;
+  total: number;
+  generated: number;
+  errors: string[];
+  outputDir: string;
+}
 
 const api = {
   app: {
@@ -24,6 +82,66 @@ const api = {
       ipcRenderer.invoke('template:save', input),
     delete: (brandId: string, templateId: string): Promise<boolean> =>
       ipcRenderer.invoke('template:delete', brandId, templateId),
+  },
+  import: {
+    pickFile: (): Promise<string | null> => ipcRenderer.invoke('import:pickFile'),
+    parseFile: (path: string): Promise<ParsedFile> =>
+      ipcRenderer.invoke('import:parseFile', path),
+    autoMap: (columns: string[]): Promise<ColumnMapping> =>
+      ipcRenderer.invoke('import:autoMap', columns),
+    validate: (
+      rows: Record<string, string>[],
+      mapping: ColumnMapping,
+    ): Promise<ValidationResult> =>
+      ipcRenderer.invoke('import:validate', rows, mapping),
+    findConflicts: (
+      brandId: string,
+      rows: Record<string, string>[],
+      mapping: ColumnMapping,
+    ): Promise<SkuConflict[]> =>
+      ipcRenderer.invoke('import:findConflicts', brandId, rows, mapping),
+    commit: (input: CommitInput): Promise<CommitResult> =>
+      ipcRenderer.invoke('import:commit', input),
+    listSkus: (brandId: string): Promise<SkuRow[]> =>
+      ipcRenderer.invoke('import:listSkus', brandId),
+    listImports: (brandId?: string): Promise<ImportListEntry[]> =>
+      ipcRenderer.invoke('import:listImports', brandId),
+  },
+  export: {
+    pickFolder: (defaultPath?: string): Promise<string | null> =>
+      ipcRenderer.invoke('export:pickFolder', defaultPath),
+    openInOS: (filePath: string): Promise<void> =>
+      ipcRenderer.invoke('export:openInOS', filePath),
+    revealInFinder: (filePath: string): Promise<void> =>
+      ipcRenderer.invoke('export:revealInFinder', filePath),
+    single: (input: {
+      template: Template;
+      brand: Brand | null;
+      row: Record<string, string>;
+      index: number;
+      total: number;
+      settings: ExportSettings;
+      batchId?: string;
+    }): Promise<{ files: string[]; errors: string[] }> =>
+      ipcRenderer.invoke('export:single', input),
+    bulk: (payload: {
+      runId: string;
+      template: Template;
+      brand: Brand | null;
+      rows: Record<string, string>[];
+      settings: ExportSettings;
+    }): Promise<BulkExportSummary> => ipcRenderer.invoke('export:bulk', payload),
+    cancel: (runId: string): Promise<void> =>
+      ipcRenderer.invoke('export:cancel', runId),
+    onProgress: (
+      runId: string,
+      cb: (info: ExportProgressInfo) => void,
+    ): (() => void) => {
+      const channel = `export:progress:${runId}`;
+      const handler = (_e: unknown, info: ExportProgressInfo) => cb(info);
+      ipcRenderer.on(channel, handler);
+      return () => ipcRenderer.removeListener(channel, handler);
+    },
   },
 };
 
