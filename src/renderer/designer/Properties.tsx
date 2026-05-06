@@ -12,12 +12,21 @@ export function Properties() {
   const bringToFront = useDesignerStore((s) => s.bringToFront);
   const sendToBack = useDesignerStore((s) => s.sendToBack);
   const patchTemplate = useDesignerStore((s) => s.patchTemplate);
+  const setOrientation = useDesignerStore((s) => s.setOrientation);
+  const setDimensions = useDesignerStore((s) => s.setDimensions);
   const pushHistory = useDesignerStore((s) => s.pushHistory);
 
   if (!template) return null;
 
   if (selectedIds.length === 0) {
-    return <TemplateProperties template={template} onPatch={patchTemplate} />;
+    return (
+      <TemplateProperties
+        template={template}
+        onPatch={patchTemplate}
+        onSetOrientation={setOrientation}
+        onSetDimensions={setDimensions}
+      />
+    );
   }
 
   if (selectedIds.length > 1) {
@@ -48,9 +57,13 @@ export function Properties() {
 function TemplateProperties({
   template,
   onPatch,
+  onSetOrientation,
+  onSetDimensions,
 }: {
   template: NonNullable<ReturnType<typeof useDesignerStore.getState>['template']>;
   onPatch: (p: Partial<typeof template>) => void;
+  onSetOrientation: (o: 'portrait' | 'landscape') => void;
+  onSetDimensions: (w: number, h: number) => void;
 }) {
   return (
     <div className="space-y-3 p-3">
@@ -68,13 +81,13 @@ function TemplateProperties({
         <Field label="Width (mm)">
           <NumberInput
             value={template.width_mm}
-            onChange={(v) => onPatch({ width_mm: v })}
+            onChange={(v) => onSetDimensions(v, template.height_mm)}
           />
         </Field>
         <Field label="Height (mm)">
           <NumberInput
             value={template.height_mm}
-            onChange={(v) => onPatch({ height_mm: v })}
+            onChange={(v) => onSetDimensions(template.width_mm, v)}
           />
         </Field>
       </div>
@@ -84,11 +97,11 @@ function TemplateProperties({
           onChange={(v) => onPatch({ background: v })}
         />
       </Field>
-      <Field label="Orientation">
+      <Field label="Orientation" hint="Switching swaps width and height.">
         <select
           value={template.orientation}
           onChange={(e) =>
-            onPatch({ orientation: e.target.value as 'portrait' | 'landscape' })
+            onSetOrientation(e.target.value as 'portrait' | 'landscape')
           }
           className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm text-fg-base"
         >

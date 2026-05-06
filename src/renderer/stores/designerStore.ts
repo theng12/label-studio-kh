@@ -14,6 +14,8 @@ interface DesignerState {
 
   setTemplate: (t: Template) => void;
   patchTemplate: (patch: Partial<Template>) => void;
+  setOrientation: (orientation: 'portrait' | 'landscape') => void;
+  setDimensions: (width_mm: number, height_mm: number) => void;
 
   select: (ids: string[]) => void;
   toggleSelect: (id: string) => void;
@@ -66,6 +68,48 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     const t = get().template;
     if (!t) return;
     set({ template: { ...t, ...patch, updatedAt: new Date().toISOString() } });
+    get().pushHistory();
+  },
+
+  setOrientation: (orientation) => {
+    const t = get().template;
+    if (!t) return;
+    // Swap dimensions if they don't match the new orientation.
+    const isCurrentlyLandscape = t.width_mm > t.height_mm;
+    const wantsLandscape = orientation === 'landscape';
+    const needsSwap = wantsLandscape !== isCurrentlyLandscape && t.width_mm !== t.height_mm;
+    set({
+      template: {
+        ...t,
+        orientation,
+        width_mm: needsSwap ? t.height_mm : t.width_mm,
+        height_mm: needsSwap ? t.width_mm : t.height_mm,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    get().pushHistory();
+  },
+
+  setDimensions: (width_mm, height_mm) => {
+    const t = get().template;
+    if (!t) return;
+    // Auto-derive orientation from dimensions so the dropdown stays in sync
+    // when the user types width/height directly. Square stays as-is.
+    const orientation: 'portrait' | 'landscape' =
+      width_mm > height_mm
+        ? 'landscape'
+        : width_mm < height_mm
+          ? 'portrait'
+          : t.orientation;
+    set({
+      template: {
+        ...t,
+        width_mm,
+        height_mm,
+        orientation,
+        updatedAt: new Date().toISOString(),
+      },
+    });
     get().pushHistory();
   },
 

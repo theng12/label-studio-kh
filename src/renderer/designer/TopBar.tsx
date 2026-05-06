@@ -11,6 +11,8 @@ interface Props {
 export function TopBar({ onSave, saving }: Props) {
   const template = useDesignerStore((s) => s.template);
   const patchTemplate = useDesignerStore((s) => s.patchTemplate);
+  const setOrientation = useDesignerStore((s) => s.setOrientation);
+  const setDimensions = useDesignerStore((s) => s.setDimensions);
   const undo = useDesignerStore((s) => s.undo);
   const redo = useDesignerStore((s) => s.redo);
   const canUndo = useDesignerStore((s) => s.canUndo);
@@ -44,9 +46,7 @@ export function TopBar({ onSave, saving }: Props) {
         <select
           value={template.orientation}
           onChange={(e) =>
-            patchTemplate({
-              orientation: e.target.value as 'portrait' | 'landscape',
-            })
+            setOrientation(e.target.value as 'portrait' | 'landscape')
           }
           className="rounded-md border border-border-base bg-bg-base px-2 py-1 text-xs text-fg-base"
         >
@@ -57,12 +57,12 @@ export function TopBar({ onSave, saving }: Props) {
         <NumberPill
           label="W"
           value={template.width_mm}
-          onChange={(v) => patchTemplate({ width_mm: v })}
+          onChange={(v) => setDimensions(v, template.height_mm)}
         />
         <NumberPill
           label="H"
           value={template.height_mm}
-          onChange={(v) => patchTemplate({ height_mm: v })}
+          onChange={(v) => setDimensions(template.width_mm, v)}
         />
       </div>
 
