@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -25,19 +26,17 @@ const sizes: Record<Size, string> = {
   md: 'h-9 px-3.5 text-sm',
 };
 
-export function Button({
-  variant = 'secondary',
-  size = 'md',
-  className = '',
-  children,
-  ...rest
-}: Props) {
+export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
+  { variant = 'secondary', size = 'md', className = '', children, ...rest },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       className={[base, variants[variant], sizes[size], className].join(' ')}
       {...rest}
     >
       {children}
     </button>
   );
-}
+});

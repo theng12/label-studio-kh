@@ -23,6 +23,7 @@ interface DesignerState {
   addElement: (type: ElementType, x_mm: number, y_mm: number) => void;
   updateElement: (id: string, patch: Partial<TemplateElement>) => void;
   removeSelected: () => void;
+  clearAllElements: () => void;
   duplicateSelected: () => void;
   bringToFront: (id: string) => void;
   sendToBack: (id: string) => void;
@@ -161,6 +162,17 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
         elements: t.elements.filter((e) => !selectedIds.includes(e.id)),
         updatedAt: new Date().toISOString(),
       },
+      selectedIds: [],
+    });
+    get().pushHistory();
+  },
+
+  clearAllElements: () => {
+    const t = get().template;
+    if (!t) return;
+    if (t.elements.length === 0) return;
+    set({
+      template: { ...t, elements: [], updatedAt: new Date().toISOString() },
       selectedIds: [],
     });
     get().pushHistory();

@@ -1,7 +1,15 @@
-import { IconDeviceFloppy, IconCopy, IconArrowBackUp, IconArrowForwardUp } from '@tabler/icons-react';
+import { useState } from 'react';
+import {
+  IconDeviceFloppy,
+  IconCopy,
+  IconArrowBackUp,
+  IconArrowForwardUp,
+  IconTrash,
+} from '@tabler/icons-react';
 import { useDesignerStore } from '../stores/designerStore';
 import { Button } from '../components/Button';
 import { useBrandStore } from '../stores/brandStore';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface Props {
   onSave: () => void;
@@ -11,16 +19,19 @@ interface Props {
 export function TopBar({ onSave, saving }: Props) {
   const template = useDesignerStore((s) => s.template);
   const patchTemplate = useDesignerStore((s) => s.patchTemplate);
-  const setOrientation = useDesignerStore((s) => s.setOrientation);
   const setDimensions = useDesignerStore((s) => s.setDimensions);
   const undo = useDesignerStore((s) => s.undo);
   const redo = useDesignerStore((s) => s.redo);
   const canUndo = useDesignerStore((s) => s.canUndo);
   const canRedo = useDesignerStore((s) => s.canRedo);
+  const clearAllElements = useDesignerStore((s) => s.clearAllElements);
   const brands = useBrandStore((s) => s.brands);
+
+  const [confirmClear, setConfirmClear] = useState(false);
 
   if (!template) return null;
   const brand = brands.find((b) => b.id === template.brandId);
+  const hasElements = template.elements.length > 0;
 
   return (
     <header className="flex h-12 items-center justify-between border-b border-border-base bg-bg-surface px-3">
@@ -42,17 +53,6 @@ export function TopBar({ onSave, saving }: Props) {
         />
 
         <span className="mx-1 h-5 w-px bg-border-base" />
-
-        <select
-          value={template.orientation}
-          onChange={(e) =>
-            setOrientation(e.target.value as 'portrait' | 'landscape')
-          }
-          className="rounded-md border border-border-base bg-bg-base px-2 py-1 text-xs text-fg-base"
-        >
-          <option value="portrait">Portrait</option>
-          <option value="landscape">Landscape</option>
-        </select>
 
         <NumberPill
           label="W"
@@ -86,6 +86,15 @@ export function TopBar({ onSave, saving }: Props) {
           <IconArrowForwardUp size={14} />
         </Button>
         <span className="mx-1 h-5 w-px bg-border-base" />
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setConfirmClear(true)}
+          disabled={!hasElements}
+          title="Remove all elements from this template"
+        >
+          <IconTrash size={14} /> Clear all
+        </Button>
         <Button size="sm" variant="secondary" disabled title="Duplicate template (coming soon)">
           <IconCopy size={14} /> Duplicate
         </Button>
@@ -93,6 +102,31 @@ export function TopBar({ onSave, saving }: Props) {
           <IconDeviceFloppy size={14} /> {saving ? 'Saving…' : 'Save'}
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear all elements?"
+        message={
+          <>
+            This will remove <strong>{template.elements.length}</strong> element
+            {template.elements.length === 1 ? '' : 's'} from{' '}
+            <strong>{template.name}</strong>. The template itself stays — only its
+            contents are cleared.
+            <br />
+            <br />
+            You can undo this with <kbd>⌘Z</kbd>, but the change won't be saved to
+            disk until you click <strong>Save</strong>.
+          </>
+        }
+        confirmLabel="Clear all"
+        cancelLabel="Keep elements"
+        tone="danger"
+        onConfirm={() => {
+          clearAllElements();
+          setConfirmClear(false);
+        }}
+        onCancel={() => setConfirmClear(false)}
+      />
     </header>
   );
 }

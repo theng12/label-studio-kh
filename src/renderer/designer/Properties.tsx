@@ -12,7 +12,6 @@ export function Properties() {
   const bringToFront = useDesignerStore((s) => s.bringToFront);
   const sendToBack = useDesignerStore((s) => s.sendToBack);
   const patchTemplate = useDesignerStore((s) => s.patchTemplate);
-  const setOrientation = useDesignerStore((s) => s.setOrientation);
   const setDimensions = useDesignerStore((s) => s.setDimensions);
   const pushHistory = useDesignerStore((s) => s.pushHistory);
 
@@ -23,7 +22,6 @@ export function Properties() {
       <TemplateProperties
         template={template}
         onPatch={patchTemplate}
-        onSetOrientation={setOrientation}
         onSetDimensions={setDimensions}
       />
     );
@@ -57,12 +55,10 @@ export function Properties() {
 function TemplateProperties({
   template,
   onPatch,
-  onSetOrientation,
   onSetDimensions,
 }: {
   template: NonNullable<ReturnType<typeof useDesignerStore.getState>['template']>;
   onPatch: (p: Partial<typeof template>) => void;
-  onSetOrientation: (o: 'portrait' | 'landscape') => void;
   onSetDimensions: (w: number, h: number) => void;
 }) {
   return (
@@ -97,18 +93,9 @@ function TemplateProperties({
           onChange={(v) => onPatch({ background: v })}
         />
       </Field>
-      <Field label="Orientation" hint="Switching swaps width and height.">
-        <select
-          value={template.orientation}
-          onChange={(e) =>
-            onSetOrientation(e.target.value as 'portrait' | 'landscape')
-          }
-          className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm text-fg-base"
-        >
-          <option value="portrait">Portrait</option>
-          <option value="landscape">Landscape</option>
-        </select>
-      </Field>
+      <div className="text-[10px] text-fg-subtle">
+        Orientation: {template.orientation} (set automatically by W and H).
+      </div>
     </div>
   );
 }
