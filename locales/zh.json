@@ -1,0 +1,46 @@
+{
+  "nav": {
+    "dashboard": "仪表盘",
+    "brands": "品牌",
+    "templates": "模板",
+    "production": "生产",
+    "data": "数据与导入",
+    "generate": "生成",
+    "files": "文件管理器",
+    "system": "系统",
+    "settings": "设置",
+    "support": "支持本应用"
+  },
+  "dashboard": {
+    "title": "仪表盘",
+    "stats": {
+      "brands": "品牌",
+      "skus": "SKU",
+      "labelsGenerated": "已生成标签",
+      "timeSaved": "节省时间",
+      "timeSavedHint": "对比 Canva 手动方式"
+    },
+    "recentBrands": "最近品牌",
+    "recentActivity": "最近活动",
+    "nothingYet": "暂无内容"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "confirm": "确认",
+    "back": "返回",
+    "next": "下一步",
+    "loading": "加载中…",
+    "search": "搜索…"
+  },
+  "settings": {
+    "title": "设置",
+    "theme": "主题",
+    "themeDescription": "浅色、深色或跟随系统",
+    "language": "语言",
+    "languageDescription": "更改所有界面文本，无需重启",
+    "saveLocation": "默认保存位置",
+    "saveLocationDescription": "标签文件的默认保存目录"
+  }
+}

@@ -1,8 +1,48 @@
 import JsBarcode from 'jsbarcode';
 import { DOMImplementation, XMLSerializer } from '@xmldom/xmldom';
 import QRCode from 'qrcode';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { app } from 'electron';
 import type { Template, TemplateElement } from '@shared/types/template';
 import type { Brand } from '@shared/types/brand';
+
+// Font loading: each entry maps a CSS family name → file under resources/fonts/.
+// Missing files are silently skipped (font-display: swap → system fallback).
+const FONT_DEFS: Array<{ family: string; weight: 400 | 700; file: string }> = [
+  { family: 'NotoSans', weight: 400, file: 'NotoSans-Regular.ttf' },
+  { family: 'NotoSans', weight: 700, file: 'NotoSans-Bold.ttf' },
+  { family: 'NotoSansKhmer', weight: 400, file: 'NotoSansKhmer-Regular.ttf' },
+  { family: 'NotoSansKhmer', weight: 700, file: 'NotoSansKhmer-Bold.ttf' },
+  { family: 'NotoSansThai', weight: 400, file: 'NotoSansThai-Regular.ttf' },
+  { family: 'NotoSansThai', weight: 700, file: 'NotoSansThai-Bold.ttf' },
+  { family: 'NotoSansKR', weight: 400, file: 'NotoSansKR-Regular.otf' },
+  { family: 'NotoSansKR', weight: 700, file: 'NotoSansKR-Bold.otf' },
+  { family: 'NotoSansSC', weight: 400, file: 'NotoSansSC-Regular.otf' },
+  { family: 'NotoSansSC', weight: 700, file: 'NotoSansSC-Bold.otf' },
+  { family: 'NotoSansJP', weight: 400, file: 'NotoSansJP-Regular.otf' },
+  { family: 'NotoSansJP', weight: 700, file: 'NotoSansJP-Bold.otf' },
+];
+
+function fontFaceCss(): string {
+  // Resolve fonts dir at runtime: in dev, resources/fonts is at the project root.
+  // In production it'll be inside the asar resources.
+  const root = app.isPackaged
+    ? join(process.resourcesPath, 'fonts')
+    : join(process.cwd(), 'resources', 'fonts');
+
+  const blocks: string[] = [];
+  for (const def of FONT_DEFS) {
+    const path = join(root, def.file);
+    if (!existsSync(path)) continue;
+    const format = def.file.endsWith('.otf') ? 'opentype' : 'truetype';
+    blocks.push(
+      `@font-face{font-family:'${def.family}';font-weight:${def.weight};` +
+        `font-style:normal;font-display:swap;src:url('file://${path}') format('${format}');}`,
+    );
+  }
+  return blocks.join('\n');
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -269,9 +309,14 @@ export async function renderStickerHtml(
 <head>
 <meta charset="utf-8" />
 <style>
+  ${fontFaceCss()}
   @page { size: ${w}mm ${h}mm; margin: 0; }
   html, body { margin: 0; padding: 0; background: ${template.background}; }
-  body { width: ${w}mm; height: ${h}mm; position: relative; overflow: hidden; }
+  body {
+    width: ${w}mm; height: ${h}mm; position: relative; overflow: hidden;
+    font-family: 'NotoSans', 'NotoSansKhmer', 'NotoSansThai', 'NotoSansKR',
+                 'NotoSansSC', 'NotoSansJP', system-ui, sans-serif;
+  }
   * { box-sizing: border-box; }
 </style>
 </head>

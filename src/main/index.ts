@@ -5,8 +5,12 @@ import { registerBrandIpc } from './ipc/brand';
 import { registerTemplateIpc } from './ipc/template';
 import { registerImportIpc } from './ipc/import';
 import { registerExportIpc } from './ipc/export';
+import { registerDashboardIpc } from './ipc/dashboard';
+import { registerFileIpc } from './ipc/file';
+import { registerSettingsIpc } from './ipc/settings';
 import { shutdownBrowser } from './services/ExportService';
 import { closeDb } from './services/Database';
+import { DemoSeed } from './services/DemoSeed';
 
 const isDev = !app.isPackaged;
 
@@ -50,6 +54,14 @@ app.whenReady().then(() => {
   registerTemplateIpc();
   registerImportIpc();
   registerExportIpc();
+  registerDashboardIpc();
+  registerFileIpc();
+  registerSettingsIpc();
+  try {
+    DemoSeed.ensure();
+  } catch (err) {
+    console.error('Demo seed failed:', err);
+  }
   createMainWindow();
 
   app.on('activate', () => {

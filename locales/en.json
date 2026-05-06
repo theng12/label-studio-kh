@@ -1,0 +1,46 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "brands": "Brands",
+    "templates": "Templates",
+    "production": "Production",
+    "data": "Data & Import",
+    "generate": "Generate",
+    "files": "File Manager",
+    "system": "System",
+    "settings": "Settings",
+    "support": "Support this app"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "stats": {
+      "brands": "Brands",
+      "skus": "SKUs",
+      "labelsGenerated": "Labels generated",
+      "timeSaved": "Time saved",
+      "timeSavedHint": "vs manual Canva method"
+    },
+    "recentBrands": "Recent brands",
+    "recentActivity": "Recent activity",
+    "nothingYet": "Nothing yet."
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "loading": "Loading…",
+    "search": "Search…"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "themeDescription": "Light, Dark, or follow your operating system.",
+    "language": "Language",
+    "languageDescription": "Changes all UI text. Restart not required.",
+    "saveLocation": "Default save location",
+    "saveLocationDescription": "Where generated label files are saved by default."
+  }
+}

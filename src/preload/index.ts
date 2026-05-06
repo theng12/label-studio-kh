@@ -107,6 +107,77 @@ const api = {
     listImports: (brandId?: string): Promise<ImportListEntry[]> =>
       ipcRenderer.invoke('import:listImports', brandId),
   },
+  dashboard: {
+    stats: (): Promise<{
+      brandCount: number;
+      skuCount: number;
+      totalGenerated: number;
+      timeSavedMinutes: number;
+    }> => ipcRenderer.invoke('dashboard:stats'),
+    recentBrands: (
+      limit?: number,
+    ): Promise<
+      Array<{
+        id: string;
+        name: string;
+        color: string;
+        templateCount: number;
+        updatedAt: string;
+      }>
+    > => ipcRenderer.invoke('dashboard:recentBrands', limit),
+    recentActivity: (
+      limit?: number,
+    ): Promise<
+      Array<{ type: 'import' | 'export'; at: string; summary: string; detail: string }>
+    > => ipcRenderer.invoke('dashboard:recentActivity', limit),
+  },
+  files: {
+    list: (filters: {
+      query?: string;
+      brandId?: string;
+      format?: 'pdf' | 'png' | 'jpeg';
+      dateFrom?: string;
+      dateTo?: string;
+      sizeLabel?: string;
+    }): Promise<
+      Array<{
+        id: string;
+        sku: string;
+        brand_id: string;
+        brand_name: string | null;
+        template_id: string;
+        format: string;
+        dpi: number;
+        size_label: string;
+        file_path: string;
+        file_size: number | null;
+        created_at: string;
+        exists: boolean;
+      }>
+    > => ipcRenderer.invoke('file:list', filters),
+    distinctSizes: (): Promise<string[]> => ipcRenderer.invoke('file:distinctSizes'),
+    delete: (id: string, alsoFromDisk: boolean): Promise<boolean> =>
+      ipcRenderer.invoke('file:delete', id, alsoFromDisk),
+    reprint: (
+      id: string,
+    ): Promise<{ files: string[]; errors: string[] } | null> =>
+      ipcRenderer.invoke('file:reprint', id),
+  },
+  settings: {
+    get: (): Promise<{
+      defaultSaveLocation: string;
+      defaultNamingPattern: string;
+      defaultExportFormat: 'pdf' | 'png' | 'jpeg' | 'all';
+      defaultDpi: 150 | 300 | 600;
+      timeSavedMinutesPerLabel: number;
+      snapGridMm: number;
+      sizeWarningAreaMm2: number;
+      hideDemoBrand: boolean;
+      uiLanguage: string;
+    }> => ipcRenderer.invoke('settings:get'),
+    set: (patch: Record<string, unknown>): Promise<unknown> =>
+      ipcRenderer.invoke('settings:set', patch),
+  },
   export: {
     pickFolder: (defaultPath?: string): Promise<string | null> =>
       ipcRenderer.invoke('export:pickFolder', defaultPath),

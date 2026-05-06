@@ -1,0 +1,46 @@
+{
+  "nav": {
+    "dashboard": "ផ្ទាំងគ្រប់គ្រង",
+    "brands": "ម៉ាក",
+    "templates": "ទម្រង់",
+    "production": "ផលិតកម្ម",
+    "data": "ទិន្នន័យ និងនាំចូល",
+    "generate": "បង្កើត",
+    "files": "កម្មវិធីគ្រប់គ្រងឯកសារ",
+    "system": "ប្រព័ន្ធ",
+    "settings": "ការកំណត់",
+    "support": "គាំទ្រកម្មវិធីនេះ"
+  },
+  "dashboard": {
+    "title": "ផ្ទាំងគ្រប់គ្រង",
+    "stats": {
+      "brands": "ម៉ាក",
+      "skus": "SKU",
+      "labelsGenerated": "ស្លាកដែលបានបង្កើត",
+      "timeSaved": "ពេលវេលាបានសន្សំ",
+      "timeSavedHint": "ធៀបនឹងវិធី Canva ដោយដៃ"
+    },
+    "recentBrands": "ម៉ាកថ្មីៗ",
+    "recentActivity": "សកម្មភាពថ្មីៗ",
+    "nothingYet": "មិនទាន់មានទេ"
+  },
+  "common": {
+    "save": "រក្សាទុក",
+    "cancel": "បោះបង់",
+    "delete": "លុប",
+    "confirm": "បញ្ជាក់",
+    "back": "ត្រឡប់",
+    "next": "បន្ទាប់",
+    "loading": "កំពុងផ្ទុក…",
+    "search": "ស្វែងរក…"
+  },
+  "settings": {
+    "title": "ការកំណត់",
+    "theme": "រូបរាង",
+    "themeDescription": "ភ្លឺ ងងឹត ឬ​​ដូចប្រព័ន្ធ",
+    "language": "ភាសា",
+    "languageDescription": "ផ្លាស់ប្តូរអត្ថបទ UI ទាំងអស់ មិនចាំបាច់ចាប់ផ្តើមឡើងវិញ",
+    "saveLocation": "ទីតាំងរក្សាទុកលំនាំដើម",
+    "saveLocationDescription": "កន្លែងដែលឯកសារស្លាកត្រូវបានរក្សាទុកតាមលំនាំដើម"
+  }
+}

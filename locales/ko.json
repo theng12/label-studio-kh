@@ -1,0 +1,46 @@
+{
+  "nav": {
+    "dashboard": "대시보드",
+    "brands": "브랜드",
+    "templates": "템플릿",
+    "production": "생산",
+    "data": "데이터 및 가져오기",
+    "generate": "생성",
+    "files": "파일 관리자",
+    "system": "시스템",
+    "settings": "설정",
+    "support": "앱 후원"
+  },
+  "dashboard": {
+    "title": "대시보드",
+    "stats": {
+      "brands": "브랜드",
+      "skus": "SKU",
+      "labelsGenerated": "생성된 라벨",
+      "timeSaved": "절약된 시간",
+      "timeSavedHint": "수작업 Canva 대비"
+    },
+    "recentBrands": "최근 브랜드",
+    "recentActivity": "최근 활동",
+    "nothingYet": "아직 없음"
+  },
+  "common": {
+    "save": "저장",
+    "cancel": "취소",
+    "delete": "삭제",
+    "confirm": "확인",
+    "back": "뒤로",
+    "next": "다음",
+    "loading": "로딩 중…",
+    "search": "검색…"
+  },
+  "settings": {
+    "title": "설정",
+    "theme": "테마",
+    "themeDescription": "라이트, 다크, 시스템 따르기",
+    "language": "언어",
+    "languageDescription": "모든 UI 텍스트 변경. 재시작 불필요.",
+    "saveLocation": "기본 저장 위치",
+    "saveLocationDescription": "라벨 파일 기본 저장 폴더"
+  }
+}

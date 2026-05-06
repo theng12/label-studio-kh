@@ -10,6 +10,7 @@ import {
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 import { useBrandStore } from '../stores/brandStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { NewBrandWizard } from '../components/NewBrandWizard';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { Brand } from '../../shared/types/brand';
@@ -21,6 +22,8 @@ type WizardState =
 
 export default function Brands() {
   const { brands, loading, refresh, remove } = useBrandStore();
+  const settings = useSettingsStore((s) => s.settings);
+  const refreshSettings = useSettingsStore((s) => s.refresh);
   const [wizard, setWizard] = useState<WizardState>({ mode: 'closed' });
   const [confirmDelete, setConfirmDelete] = useState<Brand | null>(null);
   const [query, setQuery] = useState('');
@@ -28,9 +31,13 @@ export default function Brands() {
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshSettings();
+  }, [refresh, refreshSettings]);
 
-  const filtered = brands.filter((b) =>
+  const visible = settings?.hideDemoBrand
+    ? brands.filter((b) => !b.isDemo)
+    : brands;
+  const filtered = visible.filter((b) =>
     b.name.toLowerCase().includes(query.toLowerCase()),
   );
 
@@ -58,7 +65,7 @@ export default function Brands() {
             />
           </div>
           <span className="text-xs text-fg-muted">
-            {brands.length} {brands.length === 1 ? 'brand' : 'brands'}
+            {visible.length} {visible.length === 1 ? 'brand' : 'brands'}
           </span>
         </div>
 
@@ -69,7 +76,7 @@ export default function Brands() {
         ) : filtered.length === 0 ? (
           <EmptyState
             onAdd={() => setWizard({ mode: 'create' })}
-            hasBrands={brands.length > 0}
+            hasBrands={visible.length > 0}
           />
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">

@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   IconLayoutDashboard,
   IconBuildingStore,
@@ -23,29 +24,30 @@ interface NavSection {
   items: NavItem[];
 }
 
-const sections: NavSection[] = [
-  {
-    items: [
-      { to: '/', label: 'Dashboard', icon: IconLayoutDashboard },
-      { to: '/brands', label: 'Brands', icon: IconBuildingStore },
-      { to: '/templates', label: 'Templates', icon: IconTemplate },
-    ],
-  },
-  {
-    heading: 'Production',
-    items: [
-      { to: '/data', label: 'Data & Import', icon: IconDatabaseImport },
-      { to: '/generate', label: 'Generate', icon: IconWand },
-      { to: '/files', label: 'File Manager', icon: IconFiles },
-    ],
-  },
-  {
-    heading: 'System',
-    items: [{ to: '/settings', label: 'Settings', icon: IconSettings }],
-  },
-];
-
 export function Sidebar() {
+  const { t } = useTranslation();
+
+  const sections: NavSection[] = [
+    {
+      items: [
+        { to: '/', label: t('nav.dashboard'), icon: IconLayoutDashboard },
+        { to: '/brands', label: t('nav.brands'), icon: IconBuildingStore },
+        { to: '/templates', label: t('nav.templates'), icon: IconTemplate },
+      ],
+    },
+    {
+      heading: t('nav.production'),
+      items: [
+        { to: '/data', label: t('nav.data'), icon: IconDatabaseImport },
+        { to: '/generate', label: t('nav.generate'), icon: IconWand },
+        { to: '/files', label: t('nav.files'), icon: IconFiles },
+      ],
+    },
+    {
+      heading: t('nav.system'),
+      items: [{ to: '/settings', label: t('nav.settings'), icon: IconSettings }],
+    },
+  ];
   return (
     <aside className="flex h-full w-60 flex-col border-r border-border-base bg-bg-surface">
       <div className="drag-region flex h-12 items-center px-4 text-sm font-semibold tracking-wide text-fg-base">
@@ -68,7 +70,7 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-border-subtle p-2">
-        <SidebarLink to="/support" label="Support this app" icon={IconHeart} />
+        <SidebarLink to="/support" label={t('nav.support')} icon={IconHeart} />
       </div>
     </aside>
   );

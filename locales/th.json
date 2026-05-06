@@ -1,0 +1,46 @@
+{
+  "nav": {
+    "dashboard": "แดชบอร์ด",
+    "brands": "แบรนด์",
+    "templates": "เทมเพลต",
+    "production": "การผลิต",
+    "data": "ข้อมูลและนำเข้า",
+    "generate": "สร้าง",
+    "files": "จัดการไฟล์",
+    "system": "ระบบ",
+    "settings": "ตั้งค่า",
+    "support": "สนับสนุนแอป"
+  },
+  "dashboard": {
+    "title": "แดชบอร์ด",
+    "stats": {
+      "brands": "แบรนด์",
+      "skus": "SKU",
+      "labelsGenerated": "สติกเกอร์ที่สร้าง",
+      "timeSaved": "เวลาที่ประหยัด",
+      "timeSavedHint": "เทียบกับวิธี Canva แบบมือ"
+    },
+    "recentBrands": "แบรนด์ล่าสุด",
+    "recentActivity": "กิจกรรมล่าสุด",
+    "nothingYet": "ยังไม่มี"
+  },
+  "common": {
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "delete": "ลบ",
+    "confirm": "ยืนยัน",
+    "back": "ย้อน",
+    "next": "ถัดไป",
+    "loading": "กำลังโหลด…",
+    "search": "ค้นหา…"
+  },
+  "settings": {
+    "title": "ตั้งค่า",
+    "theme": "ธีม",
+    "themeDescription": "สว่าง มืด หรือใช้ตามระบบ",
+    "language": "ภาษา",
+    "languageDescription": "เปลี่ยนข้อความทั้งหมด ไม่ต้องเริ่มใหม่",
+    "saveLocation": "ตำแหน่งบันทึก",
+    "saveLocationDescription": "ตำแหน่งบันทึกไฟล์เริ่มต้น"
+  }
+}

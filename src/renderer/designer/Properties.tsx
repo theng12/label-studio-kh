@@ -234,7 +234,10 @@ function TypeSpecificFields({
 }) {
   switch (element.type) {
     case 'text':
-    case 'sku':
+    case 'sku': {
+      const currentLen =
+        element.dataSource === 'static' ? element.staticText.length : 0;
+      const cap = element.maxChars ?? null;
       return (
         <>
           <Field label="Source">
@@ -253,14 +256,26 @@ function TypeSpecificFields({
             </select>
           </Field>
           {element.dataSource === 'static' ? (
-            <Field label="Static text">
+            <Field
+              label="Static text"
+              hint={
+                cap
+                  ? `${currentLen} / ${cap} characters${currentLen > cap ? ' — will be truncated with …' : ''}`
+                  : undefined
+              }
+            >
               <input
                 value={element.staticText}
                 onChange={(e) =>
                   onPatch({ staticText: e.target.value } as Partial<TemplateElement>)
                 }
                 onBlur={onCommit}
-                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                className={[
+                  'w-full rounded-md border bg-bg-surface px-2 py-1.5 text-sm',
+                  cap && currentLen > cap
+                    ? 'border-warning focus:border-warning focus:ring-1 focus:ring-warning'
+                    : 'border-border-base focus:border-accent focus:ring-1 focus:ring-accent',
+                ].join(' ')}
               />
             </Field>
           ) : (
@@ -311,8 +326,32 @@ function TypeSpecificFields({
               }}
             />
           </Field>
+          <Field
+            label="Max characters"
+            hint={
+              cap
+                ? 'Resolved text longer than this is truncated with "…"'
+                : 'Leave blank to allow any length.'
+            }
+          >
+            <input
+              type="number"
+              min={1}
+              value={cap ?? ''}
+              placeholder="(no limit)"
+              onChange={(e) => {
+                const v = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                onPatch({
+                  maxChars: Number.isNaN(v as number) ? null : v,
+                } as Partial<TemplateElement>);
+              }}
+              onBlur={onCommit}
+              className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+            />
+          </Field>
         </>
       );
+    }
 
     case 'colorbar':
       return (
