@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme tokens. Tailwind reads these via CSS variables (see tailwind.config.ts).
+ * Light is the default. The .dark class on <html> swaps to dark values. */
+:root {
+  --bg-base: 248 249 251;
+  --bg-surface: 255 255 255;
+  --bg-elevated: 255 255 255;
+  --bg-hover: 241 243 246;
+
+  --fg-base: 22 24 28;
+  --fg-muted: 90 96 108;
+  --fg-subtle: 140 146 158;
+
+  --border-base: 224 227 232;
+  --border-subtle: 235 237 241;
+
+  --accent: 16 99 232;
+  --accent-hover: 12 80 200;
+  --accent-fg: 255 255 255;
+
+  --warning: 217 138 8;
+  --danger: 213 47 47;
+  --success: 35 138 80;
+}
+
+.dark {
+  --bg-base: 14 15 18;
+  --bg-surface: 22 24 28;
+  --bg-elevated: 30 33 38;
+  --bg-hover: 38 41 47;
+
+  --fg-base: 232 234 238;
+  --fg-muted: 162 168 178;
+  --fg-subtle: 120 126 138;
+
+  --border-base: 45 49 56;
+  --border-subtle: 35 38 44;
+
+  --accent: 99 160 255;
+  --accent-hover: 130 180 255;
+  --accent-fg: 14 15 18;
+
+  --warning: 240 175 65;
+  --danger: 240 96 96;
+  --success: 80 188 122;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Hide scrollbar in webkit while preserving scroll. Used in sidebar lists. */
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgb(var(--border-base));
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+
+/* Drag region for the custom title bar (macOS). Click-through except in interactive zones. */
+.drag-region { -webkit-app-region: drag; }
+.no-drag { -webkit-app-region: no-drag; }

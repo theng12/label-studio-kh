@@ -1,0 +1,25 @@
+appId: com.labelstudiokh.app
+productName: Label Studio KH
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - out/**/*
+  - resources/**/*
+asarUnpack:
+  - resources/**
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  hardenedRuntime: false
+  gatekeeperAssess: false
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
