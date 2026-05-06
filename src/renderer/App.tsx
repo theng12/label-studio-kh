@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Brands from './pages/Brands';
 import Templates from './pages/Templates';
+import Designer from './pages/Designer';
 import DataImport from './pages/DataImport';
 import Generate from './pages/Generate';
 import Files from './pages/Files';
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/brands" element={<Brands />} />
           <Route path="/templates" element={<Templates />} />
+          <Route path="/designer/:brandId/:templateId" element={<Designer />} />
           <Route path="/data" element={<DataImport />} />
           <Route path="/generate" element={<Generate />} />
           <Route path="/files" element={<Files />} />
