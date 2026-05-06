@@ -3,7 +3,7 @@ import { IconX, IconArrowLeft, IconArrowRight, IconCheck } from '@tabler/icons-r
 import { Button } from './Button';
 import { Field, TextInput, TextArea, ColorInput } from './FormField';
 import { useBrandStore } from '../stores/brandStore';
-import type { NewBrandInput } from '../../shared/types/brand';
+import type { Brand, NewBrandInput } from '../../shared/types/brand';
 
 const CATEGORIES = ['FMCG', 'Electronics', 'Hardware', 'Beauty', 'Other'] as const;
 const FONTS = ['NotoSans', 'Inter', 'System default'] as const;
@@ -20,27 +20,56 @@ const STEPS = [
 interface Props {
   onClose: () => void;
   onCreated: (brandId: string) => void;
+  // If provided, the wizard runs in "edit" mode — pre-fills fields and updates
+  // the existing brand instead of creating a new one.
+  existing?: Brand;
 }
 
-export function NewBrandWizard({ onClose, onCreated }: Props) {
+const DEFAULT_DRAFT: NewBrandInput = {
+  name: '',
+  color: '#1063E8',
+  logoPath: null,
+  defaultFont: 'NotoSans',
+  website: '',
+  address: '',
+  phone: '',
+  email: '',
+  certBadges: [],
+  tagline: '',
+  establishedYear: '',
+  category: 'FMCG',
+  customerCareLabel: 'Customer care',
+};
+
+function brandToDraft(b: Brand): NewBrandInput {
+  return {
+    name: b.name,
+    color: b.color,
+    logoPath: b.logoPath,
+    defaultFont: b.defaultFont,
+    website: b.website,
+    address: b.address,
+    phone: b.phone,
+    email: b.email,
+    certBadges: b.certBadges,
+    tagline: b.tagline,
+    establishedYear: b.establishedYear,
+    category: b.category ?? 'FMCG',
+    customerCareLabel: b.customerCareLabel ?? 'Customer care',
+    isDemo: b.isDemo,
+    hidden: b.hidden,
+  };
+}
+
+export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
   const create = useBrandStore((s) => s.create);
+  const update = useBrandStore((s) => s.update);
+  const isEdit = !!existing;
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [draft, setDraft] = useState<NewBrandInput>({
-    name: '',
-    color: '#1063E8',
-    logoPath: null,
-    defaultFont: 'NotoSans',
-    website: '',
-    address: '',
-    phone: '',
-    email: '',
-    certBadges: [],
-    tagline: '',
-    establishedYear: '',
-    category: 'FMCG',
-    customerCareLabel: 'Customer care',
-  });
+  const [draft, setDraft] = useState<NewBrandInput>(() =>
+    existing ? brandToDraft(existing) : DEFAULT_DRAFT,
+  );
 
   const set = (patch: Partial<NewBrandInput>) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -55,8 +84,13 @@ export function NewBrandWizard({ onClose, onCreated }: Props) {
   const submit = async () => {
     setSubmitting(true);
     try {
-      const brand = await create(draft);
-      onCreated(brand.id);
+      if (isEdit && existing) {
+        await update(existing.id, draft);
+        onCreated(existing.id);
+      } else {
+        const brand = await create(draft);
+        onCreated(brand.id);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -67,7 +101,9 @@ export function NewBrandWizard({ onClose, onCreated }: Props) {
       {/* Top bar */}
       <header className="flex h-14 items-center justify-between border-b border-border-base px-6">
         <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold text-fg-base">New brand</h2>
+          <h2 className="text-sm font-semibold text-fg-base">
+            {isEdit ? `Edit brand — ${existing?.name}` : 'New brand'}
+          </h2>
           <span className="text-xs text-fg-muted">
             Step {step + 1} of {STEPS.length}
           </span>
@@ -291,7 +327,13 @@ export function NewBrandWizard({ onClose, onCreated }: Props) {
             </Button>
           ) : (
             <Button variant="primary" disabled={submitting} onClick={submit}>
-              {submitting ? 'Creating…' : 'Create brand'}
+              {submitting
+                ? isEdit
+                  ? 'Saving…'
+                  : 'Creating…'
+                : isEdit
+                  ? 'Save changes'
+                  : 'Create brand'}
             </Button>
           )}
         </div>
