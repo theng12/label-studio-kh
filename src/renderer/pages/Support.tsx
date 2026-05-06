@@ -28,6 +28,10 @@ export default function Support() {
         setInputName('');
         setInputKey('');
       }
+    } catch (err) {
+      // Surface IPC-layer failures (e.g. no handler registered, secret missing)
+      // so the user gets feedback instead of a silent no-op.
+      setError(`Activation failed: ${String(err)}`);
     } finally {
       setSubmitting(false);
     }

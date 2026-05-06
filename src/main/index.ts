@@ -13,6 +13,7 @@ import { shutdownBrowser } from './services/ExportService';
 import { closeDb } from './services/Database';
 import { DemoSeed } from './services/DemoSeed';
 import { initUpdater } from './services/Updater';
+import { loadEnv } from './services/EnvLoader';
 
 const isDev = !app.isPackaged;
 
@@ -51,6 +52,7 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  loadEnv();
   registerAppIpc();
   registerBrandIpc();
   registerTemplateIpc();
