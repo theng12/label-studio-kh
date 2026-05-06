@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { IconDatabaseImport, IconWand, IconHeart, IconX } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
+import { useLicenseStore } from '../stores/licenseStore';
 
 type Stats = Awaited<ReturnType<typeof window.api.dashboard.stats>>;
 type RecentBrand = Awaited<ReturnType<typeof window.api.dashboard.recentBrands>>[number];
@@ -16,6 +17,8 @@ export default function Dashboard() {
   const [recentBrands, setRecentBrands] = useState<RecentBrand[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [showDonate, setShowDonate] = useState(false);
+  const licensed = useLicenseStore((s) => s.licensed);
+  const refreshLicense = useLicenseStore((s) => s.refresh);
 
   useEffect(() => {
     const load = async () => {
@@ -29,10 +32,16 @@ export default function Dashboard() {
       setActivity(a);
     };
     void load();
-  }, []);
+    void refreshLicense();
+  }, [refreshLicense]);
 
-  // Donation nudge: show if never dismissed, or dismissed > 7 days ago.
+  // Donation nudge: hidden entirely when licensed; otherwise show if never
+  // dismissed, or dismissed > 7 days ago.
   useEffect(() => {
+    if (licensed) {
+      setShowDonate(false);
+      return;
+    }
     const at = localStorage.getItem(DONATION_DISMISS_KEY);
     if (!at) {
       setShowDonate(true);
@@ -41,7 +50,7 @@ export default function Dashboard() {
     const lastMs = parseInt(at, 10);
     const ageDays = (Date.now() - lastMs) / (1000 * 60 * 60 * 24);
     setShowDonate(ageDays >= 7);
-  }, []);
+  }, [licensed]);
 
   const dismissDonate = () => {
     localStorage.setItem(DONATION_DISMISS_KEY, String(Date.now()));

@@ -8,9 +8,11 @@ import { registerExportIpc } from './ipc/export';
 import { registerDashboardIpc } from './ipc/dashboard';
 import { registerFileIpc } from './ipc/file';
 import { registerSettingsIpc } from './ipc/settings';
+import { registerLicenseIpc } from './ipc/license';
 import { shutdownBrowser } from './services/ExportService';
 import { closeDb } from './services/Database';
 import { DemoSeed } from './services/DemoSeed';
+import { initUpdater } from './services/Updater';
 
 const isDev = !app.isPackaged;
 
@@ -57,11 +59,13 @@ app.whenReady().then(() => {
   registerDashboardIpc();
   registerFileIpc();
   registerSettingsIpc();
+  registerLicenseIpc();
   try {
     DemoSeed.ensure();
   } catch (err) {
     console.error('Demo seed failed:', err);
   }
+  initUpdater();
   createMainWindow();
 
   app.on('activate', () => {

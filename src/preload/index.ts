@@ -163,6 +163,17 @@ const api = {
     ): Promise<{ files: string[]; errors: string[] } | null> =>
       ipcRenderer.invoke('file:reprint', id),
   },
+  license: {
+    status: (): Promise<{ licensed: boolean; name?: string }> =>
+      ipcRenderer.invoke('license:status'),
+    activate: (
+      name: string,
+      key: string,
+    ): Promise<{ licensed: boolean; name?: string }> =>
+      ipcRenderer.invoke('license:activate', name, key),
+    deactivate: (): Promise<{ licensed: boolean; name?: string }> =>
+      ipcRenderer.invoke('license:deactivate'),
+  },
   settings: {
     get: (): Promise<{
       defaultSaveLocation: string;

@@ -28,6 +28,10 @@ Thumbs.db
 # Runtime user data (created by the app at runtime; never commit)
 data/
 
+# Bundled fonts — too large for git; download via scripts/download-fonts.mjs
+resources/fonts/*.ttf
+resources/fonts/*.otf
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

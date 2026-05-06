@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -9,8 +10,10 @@ import {
   IconFiles,
   IconSettings,
   IconHeart,
+  IconCheck,
   type Icon,
 } from '@tabler/icons-react';
+import { useLicenseStore } from '../stores/licenseStore';
 
 interface NavItem {
   to: string;
@@ -26,6 +29,12 @@ interface NavSection {
 
 export function Sidebar() {
   const { t } = useTranslation();
+  const licensed = useLicenseStore((s) => s.licensed);
+  const refreshLicense = useLicenseStore((s) => s.refresh);
+
+  useEffect(() => {
+    void refreshLicense();
+  }, [refreshLicense]);
 
   const sections: NavSection[] = [
     {
@@ -50,8 +59,17 @@ export function Sidebar() {
   ];
   return (
     <aside className="flex h-full w-60 flex-col border-r border-border-base bg-bg-surface">
-      <div className="drag-region flex h-12 items-center px-4 text-sm font-semibold tracking-wide text-fg-base">
+      <div className="drag-region flex h-12 items-center justify-between px-4 text-sm font-semibold tracking-wide text-fg-base">
         <span className="ml-16">Label Studio KH</span>
+        {licensed && (
+          <span
+            className="no-drag flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-medium text-success"
+            title="Licensed"
+          >
+            <IconCheck size={10} stroke={3} />
+            Licensed
+          </span>
+        )}
       </div>
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto px-2 py-2">
