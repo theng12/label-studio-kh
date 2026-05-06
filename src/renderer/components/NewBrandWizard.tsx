@@ -99,8 +99,8 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-bg-base">
       {/* Top bar */}
-      <header className="flex h-14 items-center justify-between border-b border-border-base px-6">
-        <div className="flex items-center gap-3">
+      <header className="drag-region flex h-14 items-center justify-between border-b border-border-base px-6">
+        <div className="flex items-center gap-3 ml-16">
           <h2 className="text-sm font-semibold text-fg-base">
             {isEdit ? `Edit brand — ${existing?.name}` : 'New brand'}
           </h2>
@@ -111,7 +111,7 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
         <button
           onClick={onClose}
           aria-label="Close"
-          className="rounded-md p-2 text-fg-muted hover:bg-bg-hover hover:text-fg-base"
+          className="no-drag rounded-md p-2 text-fg-muted hover:bg-bg-hover hover:text-fg-base"
         >
           <IconX size={18} />
         </button>

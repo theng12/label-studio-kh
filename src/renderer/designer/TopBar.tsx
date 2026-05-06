@@ -34,8 +34,8 @@ export function TopBar({ onSave, saving }: Props) {
   const hasElements = template.elements.length > 0;
 
   return (
-    <header className="flex h-12 items-center justify-between border-b border-border-base bg-bg-surface px-3">
-      <div className="flex items-center gap-2">
+    <header className="drag-region flex h-12 items-center justify-between border-b border-border-base bg-bg-surface px-3">
+      <div className="no-drag flex items-center gap-2">
         {brand && (
           <div className="flex items-center gap-2 px-2">
             <span
@@ -66,7 +66,7 @@ export function TopBar({ onSave, saving }: Props) {
         />
       </div>
 
-      <div className="flex items-center gap-1.5">
+      <div className="no-drag flex items-center gap-1.5">
         <Button
           size="sm"
           variant="ghost"
