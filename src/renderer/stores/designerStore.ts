@@ -4,6 +4,40 @@ import { defaultElement } from '../designer/elementDefaults';
 
 export type Zoom = 'fit' | number;
 
+export type AlignMode = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
+export type DistributeAxis = 'horizontal' | 'vertical';
+
+/**
+ * Anchor for bounding-box resizes. Identifies the corner/midpoint of the
+ * union bounding box that stays put while the opposite handle is dragged.
+ */
+export type BBoxAnchor =
+  | 'top-left' | 'top' | 'top-right'
+  | 'left' | 'right'
+  | 'bottom-left' | 'bottom' | 'bottom-right';
+
+export interface Bounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export function unionBounds(elements: Pick<TemplateElement, 'x_mm' | 'y_mm' | 'width_mm' | 'height_mm'>[]): Bounds | null {
+  if (elements.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const el of elements) {
+    if (el.x_mm < minX) minX = el.x_mm;
+    if (el.y_mm < minY) minY = el.y_mm;
+    if (el.x_mm + el.width_mm > maxX) maxX = el.x_mm + el.width_mm;
+    if (el.y_mm + el.height_mm > maxY) maxY = el.y_mm + el.height_mm;
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
 interface DesignerState {
   template: Template | null;
   selectedIds: string[];
@@ -56,6 +90,24 @@ interface DesignerState {
    * Reassigns sequential zIndex values so the new visual order sticks.
    */
   reorderLayer: (fromIndex: number, toIndex: number) => void;
+
+  alignSelected: (mode: AlignMode) => void;
+  distributeSelected: (axis: DistributeAxis) => void;
+  /**
+   * Scale every selected element relative to the union bounding box's anchor
+   * (the opposite corner/edge of the dragged handle). Positions and sizes
+   * scale together so the visual relationships are preserved.
+   *
+   * Takes a snapshot of the selected elements' initial geometry so each call
+   * during a drag is idempotent (no compounding). Caller is responsible for
+   * `pushHistory()` once on mouseup so the whole drag is one history entry.
+   */
+  resizeSelectionBoundingBox: (
+    snapshot: Array<Pick<TemplateElement, 'id' | 'x_mm' | 'y_mm' | 'width_mm' | 'height_mm'>>,
+    scaleX: number,
+    scaleY: number,
+    anchor: BBoxAnchor,
+  ) => void;
 
   setZoom: (z: Zoom) => void;
   toggleSnap: () => void;
@@ -327,6 +379,124 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       template: { ...t, elements, updatedAt: new Date().toISOString() },
     });
     get().pushHistory();
+  },
+
+  alignSelected: (mode) => {
+    const t = get().template;
+    if (!t) return;
+    const { selectedIds } = get();
+    if (selectedIds.length < 2) return;
+    const sel = t.elements.filter((e) => selectedIds.includes(e.id));
+    const bb = unionBounds(sel);
+    if (!bb) return;
+    const elements = t.elements.map((e) => {
+      if (!selectedIds.includes(e.id)) return e;
+      switch (mode) {
+        case 'left':
+          return { ...e, x_mm: bb.x } as TemplateElement;
+        case 'right':
+          return { ...e, x_mm: bb.x + bb.width - e.width_mm } as TemplateElement;
+        case 'center':
+          return { ...e, x_mm: bb.x + (bb.width - e.width_mm) / 2 } as TemplateElement;
+        case 'top':
+          return { ...e, y_mm: bb.y } as TemplateElement;
+        case 'bottom':
+          return { ...e, y_mm: bb.y + bb.height - e.height_mm } as TemplateElement;
+        case 'middle':
+          return { ...e, y_mm: bb.y + (bb.height - e.height_mm) / 2 } as TemplateElement;
+      }
+    });
+    set({
+      template: { ...t, elements, updatedAt: new Date().toISOString() },
+    });
+    get().pushHistory();
+  },
+
+  distributeSelected: (axis) => {
+    const t = get().template;
+    if (!t) return;
+    const { selectedIds } = get();
+    if (selectedIds.length < 3) return;
+    const sel = t.elements.filter((e) => selectedIds.includes(e.id));
+    // Sort by leading edge along the chosen axis, then keep the outer two
+    // pinned and re-space everything in between with equal gaps.
+    const sorted = [...sel].sort((a, b) =>
+      axis === 'horizontal' ? a.x_mm - b.x_mm : a.y_mm - b.y_mm,
+    );
+    const first = sorted[0]!;
+    const last = sorted[sorted.length - 1]!;
+    const totalSize = sorted.reduce(
+      (sum, e) => sum + (axis === 'horizontal' ? e.width_mm : e.height_mm),
+      0,
+    );
+    const span =
+      axis === 'horizontal'
+        ? last.x_mm + last.width_mm - first.x_mm
+        : last.y_mm + last.height_mm - first.y_mm;
+    const gap = (span - totalSize) / (sorted.length - 1);
+    const newPos = new Map<string, number>();
+    let cursor = axis === 'horizontal' ? first.x_mm : first.y_mm;
+    for (const e of sorted) {
+      newPos.set(e.id, cursor);
+      cursor += (axis === 'horizontal' ? e.width_mm : e.height_mm) + gap;
+    }
+    const elements = t.elements.map((e) => {
+      const p = newPos.get(e.id);
+      if (p === undefined) return e;
+      return axis === 'horizontal'
+        ? ({ ...e, x_mm: p } as TemplateElement)
+        : ({ ...e, y_mm: p } as TemplateElement);
+    });
+    set({
+      template: { ...t, elements, updatedAt: new Date().toISOString() },
+    });
+    get().pushHistory();
+  },
+
+  resizeSelectionBoundingBox: (snapshot, scaleX, scaleY, anchor) => {
+    const t = get().template;
+    if (!t) return;
+    if (snapshot.length === 0) return;
+    const bb = unionBounds(snapshot.map((s) => ({
+      x_mm: s.x_mm,
+      y_mm: s.y_mm,
+      width_mm: s.width_mm,
+      height_mm: s.height_mm,
+    })));
+    if (!bb) return;
+    // Anchor point = the corner/edge that stays put. Edge anchors collapse
+    // one axis to the centerline of the bounding box.
+    const ax =
+      anchor === 'top-left' || anchor === 'left' || anchor === 'bottom-left'
+        ? bb.x
+        : anchor === 'top-right' || anchor === 'right' || anchor === 'bottom-right'
+          ? bb.x + bb.width
+          : bb.x + bb.width / 2;
+    const ay =
+      anchor === 'top-left' || anchor === 'top' || anchor === 'top-right'
+        ? bb.y
+        : anchor === 'bottom-left' || anchor === 'bottom' || anchor === 'bottom-right'
+          ? bb.y + bb.height
+          : bb.y + bb.height / 2;
+    const byId = new Map(snapshot.map((s) => [s.id, s]));
+    const elements = t.elements.map((e) => {
+      const s = byId.get(e.id);
+      if (!s) return e;
+      const newX = ax + (s.x_mm - ax) * scaleX;
+      const newY = ay + (s.y_mm - ay) * scaleY;
+      const newW = Math.max(0.5, s.width_mm * Math.abs(scaleX));
+      const newH = Math.max(0.5, s.height_mm * Math.abs(scaleY));
+      return {
+        ...e,
+        x_mm: newX,
+        y_mm: newY,
+        width_mm: newW,
+        height_mm: newH,
+      } as TemplateElement;
+    });
+    set({
+      template: { ...t, elements, updatedAt: new Date().toISOString() },
+    });
   },
 
   setZoom: (zoom) => set({ zoom }),

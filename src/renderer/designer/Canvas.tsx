@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useDesignerStore } from '../stores/designerStore';
+import { useDesignerStore, unionBounds } from '../stores/designerStore';
+import type { BBoxAnchor } from '../stores/designerStore';
 import { useBrandStore } from '../stores/brandStore';
 import {
   isAspectLocked,
   type TemplateElement,
 } from '../../shared/types/template';
 import { ElementView } from './ElementView';
+
+/**
+ * Snap distance when dragging an element near another element's edge or
+ * center line, in mm. Loose enough to feel sticky, tight enough that you can
+ * still place freely with a small extra wiggle.
+ */
+const SMART_GUIDE_SNAP_MM = 1;
+
+interface Guide {
+  axis: 'x' | 'y';
+  /** Position in mm along the perpendicular axis. */
+  value: number;
+}
 
 const PX_PER_MM_BASE = 4; // 1mm = 4px at 1× zoom
 
@@ -49,6 +63,7 @@ export function Canvas() {
   const redo = useDesignerStore((s) => s.redo);
   const pushHistory = useDesignerStore((s) => s.pushHistory);
   const setCursorMm = useDesignerStore((s) => s.setCursorMm);
+  const resizeSelectionBoundingBox = useDesignerStore((s) => s.resizeSelectionBoundingBox);
   const brands = useBrandStore((s) => s.brands);
   const brand = template ? (brands.find((b) => b.id === template.brandId) ?? null) : null;
 
@@ -66,6 +81,7 @@ export function Canvas() {
     y: number;
     elementId: string;
   }>(null);
+  const [guides, setGuides] = useState<Guide[]>([]);
 
   useEffect(() => {
     if (!wrapRef.current || !template) return;
@@ -345,16 +361,52 @@ export function Canvas() {
               pxPerMm={pxPerMm}
               snapOn={snapOn}
               selected={selectedIds.includes(el.id)}
+              hideHandles={selectedIds.length >= 2}
+              siblings={template.elements}
               onSelect={(shift) => {
                 if (shift) toggleSelect(el.id);
                 else select([el.id]);
               }}
               onUpdate={(patch) => updateElement(el.id, patch)}
               onDragEnd={pushHistory}
+              onGuides={setGuides}
               clientToMm={clientToMm}
               onContextMenu={(e) => openContextMenuFor(e, el.id)}
             />
           ))}
+        {selectedIds.length >= 2 && (
+          <BoundingBoxOverlay
+            elements={template.elements.filter((el) => selectedIds.includes(el.id))}
+            pxPerMm={pxPerMm}
+            onResize={resizeSelectionBoundingBox}
+            onResizeEnd={pushHistory}
+            clientToMm={clientToMm}
+          />
+        )}
+        {guides.map((g, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              pointerEvents: 'none',
+              background: '#ff00aa',
+              zIndex: 9998,
+              ...(g.axis === 'x'
+                ? {
+                    left: g.value * pxPerMm,
+                    top: 0,
+                    width: 1,
+                    height: canvasH,
+                  }
+                : {
+                    top: g.value * pxPerMm,
+                    left: 0,
+                    height: 1,
+                    width: canvasW,
+                  }),
+            }}
+          />
+        ))}
         {marquee && (
           <div
             style={{
@@ -495,9 +547,14 @@ interface BoxProps {
   pxPerMm: number;
   snapOn: boolean;
   selected: boolean;
+  /** When true, suppress per-element resize handles (multi-select bbox owns them). */
+  hideHandles: boolean;
+  /** Every element in the template, used to compute alignment guides during drag. */
+  siblings: TemplateElement[];
   onSelect: (shift: boolean) => void;
   onUpdate: (patch: Partial<TemplateElement>) => void;
   onDragEnd: () => void;
+  onGuides: (guides: Guide[]) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   clientToMm: (cx: number, cy: number) => { x: number; y: number };
 }
@@ -508,9 +565,12 @@ function ElementBox({
   pxPerMm,
   snapOn,
   selected,
+  hideHandles,
+  siblings,
   onSelect,
   onUpdate,
   onDragEnd,
+  onGuides,
   onContextMenu,
   clientToMm,
 }: BoxProps) {
@@ -525,21 +585,76 @@ function ElementBox({
     const initial = { x_mm: element.x_mm, y_mm: element.y_mm };
     const start = clientToMm(e.clientX, e.clientY);
     let moved = false;
+    // Snapshot siblings (excluding the dragged element & invisible ones) once
+    // at drag start so guide candidates don't churn on every mousemove.
+    const otherEls = siblings.filter((e) => e.visible && e.id !== element.id);
 
     const onMove = (ev: MouseEvent) => {
       const mm = clientToMm(ev.clientX, ev.clientY);
       const dx = mm.x - start.x;
       const dy = mm.y - start.y;
       if (Math.abs(dx) + Math.abs(dy) > 0.05) moved = true;
+      let nextX = Math.max(0, snapMm(initial.x_mm + dx, snapOn));
+      let nextY = Math.max(0, snapMm(initial.y_mm + dy, snapOn));
+
+      const active: Guide[] = [];
+      if (otherEls.length > 0) {
+        const w = element.width_mm;
+        const h = element.height_mm;
+        // X-axis: try aligning left, center, right against every sibling's
+        // left, center, right. Pick the smallest delta within the threshold
+        // and snap; record the matched line(s) so we can render them.
+        const xCandidates = otherEls.flatMap((s) => [
+          s.x_mm,
+          s.x_mm + s.width_mm / 2,
+          s.x_mm + s.width_mm,
+        ]);
+        const yCandidates = otherEls.flatMap((s) => [
+          s.y_mm,
+          s.y_mm + s.height_mm / 2,
+          s.y_mm + s.height_mm,
+        ]);
+        const xEdges = [nextX, nextX + w / 2, nextX + w];
+        const yEdges = [nextY, nextY + h / 2, nextY + h];
+        let bestX: { delta: number; target: number } | null = null;
+        for (let i = 0; i < xEdges.length; i++) {
+          for (const tgt of xCandidates) {
+            const d = tgt - xEdges[i]!;
+            if (Math.abs(d) <= SMART_GUIDE_SNAP_MM && (!bestX || Math.abs(d) < Math.abs(bestX.delta))) {
+              bestX = { delta: d, target: tgt };
+            }
+          }
+        }
+        if (bestX) {
+          nextX = Math.max(0, nextX + bestX.delta);
+          active.push({ axis: 'x', value: bestX.target });
+        }
+        let bestY: { delta: number; target: number } | null = null;
+        for (let i = 0; i < yEdges.length; i++) {
+          for (const tgt of yCandidates) {
+            const d = tgt - yEdges[i]!;
+            if (Math.abs(d) <= SMART_GUIDE_SNAP_MM && (!bestY || Math.abs(d) < Math.abs(bestY.delta))) {
+              bestY = { delta: d, target: tgt };
+            }
+          }
+        }
+        if (bestY) {
+          nextY = Math.max(0, nextY + bestY.delta);
+          active.push({ axis: 'y', value: bestY.target });
+        }
+      }
+      onGuides(active);
+
       onUpdate({
-        x_mm: Math.max(0, snapMm(initial.x_mm + dx, snapOn)),
-        y_mm: Math.max(0, snapMm(initial.y_mm + dy, snapOn)),
+        x_mm: nextX,
+        y_mm: nextY,
       } as Partial<TemplateElement>);
     };
 
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      onGuides([]);
       if (moved) onDragEnd();
     };
 
@@ -651,7 +766,7 @@ function ElementBox({
       <div style={{ pointerEvents: 'none', width: '100%', height: '100%' }}>
         <ElementView element={element} brand={brand} pxPerMm={pxPerMm} />
       </div>
-      {selected && !element.locked && (
+      {selected && !element.locked && !hideHandles && (
         <>
           <ResizeHandle dir="nw" onMouseDown={startResize} />
           <ResizeHandle dir="n" onMouseDown={startResize} />
@@ -670,9 +785,11 @@ function ElementBox({
 function ResizeHandle({
   dir,
   onMouseDown,
+  styleOverride,
 }: {
   dir: ResizeDir;
   onMouseDown: (e: React.MouseEvent, dir: ResizeDir) => void;
+  styleOverride?: React.CSSProperties;
 }) {
   // 8 absolute positions around the box. Corner handles are 10×10 squares;
   // edge handles are thinner rectangles centred on the edge.
@@ -737,7 +854,135 @@ function ResizeHandle({
         border: '1.5px solid white',
         borderRadius: 2,
         cursor: RESIZE_CURSORS[dir],
+        ...(styleOverride ?? {}),
       }}
     />
+  );
+}
+
+// Maps a handle direction to the anchor point that stays put while dragging
+// it. The opposite corner/edge always anchors so the box scales away from the
+// fixed reference instead of around its center.
+const ANCHOR_FOR_DIR: Record<ResizeDir, BBoxAnchor> = {
+  nw: 'bottom-right',
+  n: 'bottom',
+  ne: 'bottom-left',
+  e: 'left',
+  se: 'top-left',
+  s: 'top',
+  sw: 'top-right',
+  w: 'right',
+};
+
+interface BBoxProps {
+  elements: TemplateElement[];
+  pxPerMm: number;
+  onResize: (
+    snapshot: Array<Pick<TemplateElement, 'id' | 'x_mm' | 'y_mm' | 'width_mm' | 'height_mm'>>,
+    scaleX: number,
+    scaleY: number,
+    anchor: BBoxAnchor,
+  ) => void;
+  onResizeEnd: () => void;
+  clientToMm: (cx: number, cy: number) => { x: number; y: number };
+}
+
+function BoundingBoxOverlay({
+  elements,
+  pxPerMm,
+  onResize,
+  onResizeEnd,
+  clientToMm,
+}: BBoxProps) {
+  const bb = unionBounds(elements);
+  if (!bb || bb.width <= 0 || bb.height <= 0) return null;
+
+  function startBBoxResize(e: React.MouseEvent, dir: ResizeDir) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    const initialBB = { ...bb! };
+    const snapshot = elements.map((el) => ({
+      id: el.id,
+      x_mm: el.x_mm,
+      y_mm: el.y_mm,
+      width_mm: el.width_mm,
+      height_mm: el.height_mm,
+    }));
+    const start = clientToMm(e.clientX, e.clientY);
+    const anchor = ANCHOR_FOR_DIR[dir];
+    let moved = false;
+
+    const onMove = (ev: MouseEvent) => {
+      const mm = clientToMm(ev.clientX, ev.clientY);
+      const dx = mm.x - start.x;
+      const dy = mm.y - start.y;
+      if (Math.abs(dx) + Math.abs(dy) > 0.05) moved = true;
+
+      let newW = initialBB.width;
+      let newH = initialBB.height;
+      if (dir.includes('e')) newW = initialBB.width + dx;
+      if (dir.includes('w')) newW = initialBB.width - dx;
+      if (dir.includes('s')) newH = initialBB.height + dy;
+      if (dir.includes('n')) newH = initialBB.height - dy;
+      // Clamp to a tiny minimum so the user can't collapse the box and lose
+      // the elements; sign is preserved so flipping past zero is still a flip.
+      const min = 0.5;
+      if (Math.abs(newW) < min) newW = newW < 0 ? -min : min;
+      if (Math.abs(newH) < min) newH = newH < 0 ? -min : min;
+
+      let scaleX = (dir.includes('e') || dir.includes('w')) ? newW / initialBB.width : 1;
+      let scaleY = (dir.includes('n') || dir.includes('s')) ? newH / initialBB.height : 1;
+
+      // Shift = uniform scale. Use the larger magnitude so the user feels in
+      // control; sign tracks the dominant axis.
+      if (ev.shiftKey) {
+        if (scaleX !== 1 && scaleY !== 1) {
+          const mag = Math.max(Math.abs(scaleX), Math.abs(scaleY));
+          scaleX = (scaleX < 0 ? -1 : 1) * mag;
+          scaleY = (scaleY < 0 ? -1 : 1) * mag;
+        } else if (scaleX !== 1) {
+          scaleY = scaleX;
+        } else if (scaleY !== 1) {
+          scaleX = scaleY;
+        }
+      }
+      onResize(snapshot, scaleX, scaleY, anchor);
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (moved) onResizeEnd();
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  const dirs: ResizeDir[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: bb.x * pxPerMm,
+        top: bb.y * pxPerMm,
+        width: bb.width * pxPerMm,
+        height: bb.height * pxPerMm,
+        outline: '1.5px dashed rgb(var(--accent))',
+        outlineOffset: 1,
+        pointerEvents: 'none',
+        zIndex: 9997,
+      }}
+    >
+      {dirs.map((d) => (
+        <ResizeHandle
+          key={d}
+          dir={d}
+          onMouseDown={startBBoxResize}
+          styleOverride={{ pointerEvents: 'auto' }}
+        />
+      ))}
+    </div>
   );
 }

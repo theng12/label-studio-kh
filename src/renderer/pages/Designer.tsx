@@ -8,6 +8,7 @@ import { Layers } from '../designer/Layers';
 import { Properties } from '../designer/Properties';
 import { TopBar } from '../designer/TopBar';
 import { BottomBar } from '../designer/BottomBar';
+import { AlignmentToolbar } from '../designer/AlignmentToolbar';
 import { useDesignerStore } from '../stores/designerStore';
 import { useBrandStore } from '../stores/brandStore';
 import { toast } from '../components/Toast';
@@ -165,8 +166,9 @@ export default function Designer() {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1">
+          <div className="relative min-h-0 flex-1">
             <Canvas />
+            <AlignmentToolbar />
           </div>
           <BottomBar />
         </div>
