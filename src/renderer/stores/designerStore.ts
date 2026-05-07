@@ -48,6 +48,14 @@ interface DesignerState {
   sendToBack: (id: string) => void;
   toggleLock: (id: string) => void;
   reorderElement: (id: string, direction: 'up' | 'down') => void;
+  /**
+   * Reorder layers using positions in the Layers panel (top-most-first list).
+   * `fromIndex`/`toIndex` follow array-splice semantics: the row being moved
+   * is conceptually removed from `fromIndex` first, then inserted before
+   * `toIndex`. `toIndex === sorted.length` means "drop at the bottom".
+   * Reassigns sequential zIndex values so the new visual order sticks.
+   */
+  reorderLayer: (fromIndex: number, toIndex: number) => void;
 
   setZoom: (z: Zoom) => void;
   toggleSnap: () => void;
@@ -292,6 +300,31 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     b.zIndex = aZ;
     set({
       template: { ...t, elements: [...t.elements], updatedAt: new Date().toISOString() },
+    });
+    get().pushHistory();
+  },
+
+  reorderLayer: (fromIndex, toIndex) => {
+    const t = get().template;
+    if (!t) return;
+    // Top-most-first matches the order shown in the Layers panel.
+    const sorted = [...t.elements].sort((a, b) => b.zIndex - a.zIndex);
+    if (fromIndex < 0 || fromIndex >= sorted.length) return;
+    if (toIndex < 0 || toIndex > sorted.length) return;
+    // Drop directly above or below the dragged row → no movement.
+    if (toIndex === fromIndex || toIndex === fromIndex + 1) return;
+    const [moved] = sorted.splice(fromIndex, 1);
+    if (!moved) return;
+    const insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    sorted.splice(insertAt, 0, moved);
+    // Reassign zIndex sequentially: top of list = highest zIndex.
+    const n = sorted.length;
+    const byId = new Map(sorted.map((el, i) => [el.id, n - i]));
+    const elements = t.elements.map((e) =>
+      byId.has(e.id) ? ({ ...e, zIndex: byId.get(e.id)! } as TemplateElement) : e,
+    );
+    set({
+      template: { ...t, elements, updatedAt: new Date().toISOString() },
     });
     get().pushHistory();
   },
