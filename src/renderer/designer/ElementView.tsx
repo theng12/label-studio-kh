@@ -8,6 +8,8 @@ import {
   parseDateLoose,
   ptToPx,
 } from '../../shared/format';
+import { BarcodeView } from './BarcodeView';
+import { QRView } from './QRView';
 
 function localFileUrl(path: string): string {
   const segments = path.split('/').map(encodeURIComponent).join('/');
@@ -117,70 +119,60 @@ export function ElementView({
     }
 
     case 'barcode': {
-      // Simple striped placeholder
-      const bars = Array.from({ length: 24 }, (_, i) => i);
+      // Live JsBarcode render. Uses manualValue when set, otherwise a sample
+      // for the chosen format so the user can still see the bar shapes when
+      // the value is bound to a CSV column.
+      const value =
+        element.dataSource === 'manual' ? element.manualValue : '';
       return (
-        <div style={{ ...style, display: 'flex', flexDirection: 'column' }}>
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'stretch',
-              gap: 1,
-              padding: '1px 0',
-              background: 'white',
-            }}
-          >
-            {bars.map((b) => (
-              <div
-                key={b}
-                style={{
-                  flex: b % 3 === 0 ? '0 0 2px' : '0 0 1px',
-                  background: element.barColor || '#000',
-                }}
-              />
-            ))}
+        <div style={{ ...style, background: 'white' }}>
+          <BarcodeView
+            value={value}
+            format={element.format}
+            showText={element.showHumanReadable}
+            barColor={element.barColor}
+          />
+        </div>
+      );
+    }
+
+    case 'qr': {
+      // Live qrcode.js render. The mode dictates which value we can preview:
+      // static → show the static URL; everything else → fall back to a
+      // sample URL since per-row data isn't known in the designer.
+      const value =
+        element.mode === 'static' ? element.staticUrl : '';
+      return (
+        <div
+          style={{
+            ...style,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
+            <QRView value={value} errorCorrection={element.errorCorrection} />
           </div>
-          {element.showHumanReadable && (
+          {element.showUrlText && (
             <div
               style={{
-                fontSize: 6,
+                fontSize: 5,
+                lineHeight: 1,
                 textAlign: 'center',
-                fontFamily: 'monospace',
-                color: '#000',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                width: '100%',
               }}
             >
-              {element.csvColumn || element.manualValue || '0000000000000'}
+              {value || '{url}'}
             </div>
           )}
         </div>
       );
     }
-
-    case 'qr':
-      // 8x8 placeholder grid
-      return (
-        <div
-          style={{
-            ...style,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(8, 1fr)',
-            gap: 0,
-            background: 'white',
-          }}
-        >
-          {Array.from({ length: 64 }, (_, i) => {
-            const isFinder =
-              (i < 16 && i % 8 < 2) ||
-              (i < 16 && i % 8 >= 6) ||
-              (i >= 48 && i % 8 < 2) ||
-              ((i + 7) % 13 === 0);
-            return (
-              <div key={i} style={{ background: isFinder ? '#000' : 'transparent' }} />
-            );
-          })}
-        </div>
-      );
 
     case 'sku':
     case 'text': {
