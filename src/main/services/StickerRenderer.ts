@@ -200,7 +200,12 @@ async function renderElement(
 
   switch (el.type) {
     case 'logo': {
-      const path = ctx.brand?.logoPath ?? '';
+      // Resolve which of the brand's logos this element wants. Falls back to
+      // the brand's first logo, then to the legacy single logoPath, then to a
+      // placeholder block so missing-logo doesn't kill the whole render.
+      const logos = ctx.brand?.logos ?? [];
+      const byId = el.logoId ? logos.find((l) => l.id === el.logoId) : null;
+      const path = byId?.path ?? logos[0]?.path ?? ctx.brand?.logoPath ?? '';
       if (!path) {
         return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#f6f6f6;color:#999;font-size:8pt;">LOGO</div>`;
       }

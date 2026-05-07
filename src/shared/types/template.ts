@@ -14,6 +14,20 @@ export type ElementType =
   | 'price'
   | 'country';
 
+/**
+ * Whether resizing should default to maintaining the current aspect ratio for
+ * a given element type. Users can override per-element via the Properties
+ * panel, but these defaults match what people expect for each kind of object:
+ * logos / QR / cert / image keep their ratio, everything else is freeform.
+ */
+export function defaultAspectLock(type: ElementType): boolean {
+  return type === 'qr' || type === 'logo' || type === 'cert' || type === 'image';
+}
+
+export function isAspectLocked(el: BaseElement): boolean {
+  return el.aspectLocked ?? defaultAspectLock(el.type);
+}
+
 export interface BaseElement {
   id: string;
   type: ElementType;
@@ -25,11 +39,22 @@ export interface BaseElement {
   visible: boolean;
   zIndex: number;
   locked: boolean;
+  /**
+   * When true, resizing keeps the current width/height ratio. When false,
+   * dimensions are independent. When undefined, the per-type default applies
+   * (logos / QR / cert / image default to true; everything else to false).
+   */
+  aspectLocked?: boolean;
 }
 
 export interface LogoElement extends BaseElement {
   type: 'logo';
   objectFit: 'contain' | 'cover' | 'fill';
+  /**
+   * Which of the brand's logos to display. References a Brand.logos[].id.
+   * When undefined, the brand's first logo is used.
+   */
+  logoId?: string;
 }
 
 export interface BarcodeElement extends BaseElement {

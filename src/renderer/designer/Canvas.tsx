@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useDesignerStore } from '../stores/designerStore';
-import type { TemplateElement } from '../../shared/types/template';
+import { useBrandStore } from '../stores/brandStore';
+import {
+  isAspectLocked,
+  type TemplateElement,
+} from '../../shared/types/template';
 import { ElementView } from './ElementView';
 
 const PX_PER_MM_BASE = 4; // 1mm = 4px at 1× zoom
@@ -9,6 +13,22 @@ function snapMm(value: number, on: boolean): number {
   if (!on) return value;
   return Math.round(value);
 }
+
+// Eight resize anchors. The first letter is the vertical edge (n/s/'') and
+// the second is the horizontal edge (e/w/''). Corners get two letters; edges
+// get one. The empty-axis means the dimension on that axis is fixed.
+type ResizeDir = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+
+const RESIZE_CURSORS: Record<ResizeDir, string> = {
+  n: 'ns-resize',
+  s: 'ns-resize',
+  e: 'ew-resize',
+  w: 'ew-resize',
+  ne: 'nesw-resize',
+  sw: 'nesw-resize',
+  nw: 'nwse-resize',
+  se: 'nwse-resize',
+};
 
 export function Canvas() {
   const template = useDesignerStore((s) => s.template);
@@ -25,6 +45,8 @@ export function Canvas() {
   const redo = useDesignerStore((s) => s.redo);
   const pushHistory = useDesignerStore((s) => s.pushHistory);
   const setCursorMm = useDesignerStore((s) => s.setCursorMm);
+  const brands = useBrandStore((s) => s.brands);
+  const brand = template ? (brands.find((b) => b.id === template.brandId) ?? null) : null;
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -204,6 +226,7 @@ export function Canvas() {
             <ElementBox
               key={el.id}
               element={el}
+              brand={brand}
               pxPerMm={pxPerMm}
               snapOn={snapOn}
               selected={selectedIds.includes(el.id)}
@@ -223,6 +246,7 @@ export function Canvas() {
 
 interface BoxProps {
   element: TemplateElement;
+  brand: ReturnType<typeof useBrandStore.getState>['brands'][number] | null;
   pxPerMm: number;
   snapOn: boolean;
   selected: boolean;
@@ -234,6 +258,7 @@ interface BoxProps {
 
 function ElementBox({
   element,
+  brand,
   pxPerMm,
   snapOn,
   selected,
@@ -244,7 +269,38 @@ function ElementBox({
 }: BoxProps) {
   if (!element.visible) return null;
 
-  function startDrag(e: React.MouseEvent, kind: 'move' | 'resize') {
+  function startMove(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    onSelect(e.shiftKey);
+    if (element.locked) return;
+
+    const initial = { x_mm: element.x_mm, y_mm: element.y_mm };
+    const start = clientToMm(e.clientX, e.clientY);
+    let moved = false;
+
+    const onMove = (ev: MouseEvent) => {
+      const mm = clientToMm(ev.clientX, ev.clientY);
+      const dx = mm.x - start.x;
+      const dy = mm.y - start.y;
+      if (Math.abs(dx) + Math.abs(dy) > 0.05) moved = true;
+      onUpdate({
+        x_mm: Math.max(0, snapMm(initial.x_mm + dx, snapOn)),
+        y_mm: Math.max(0, snapMm(initial.y_mm + dy, snapOn)),
+      } as Partial<TemplateElement>);
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (moved) onDragEnd();
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function startResize(e: React.MouseEvent, dir: ResizeDir) {
     e.stopPropagation();
     if (e.button !== 0) return;
     onSelect(e.shiftKey);
@@ -257,25 +313,63 @@ function ElementBox({
       height_mm: element.height_mm,
     };
     const start = clientToMm(e.clientX, e.clientY);
+    const aspect = initial.width_mm / Math.max(initial.height_mm, 0.001);
+    // Hold Shift to invert the locked-aspect default during drag.
+    const baseLocked = isAspectLocked(element);
     let moved = false;
+
+    const horizFromDir = dir.includes('w') ? -1 : dir.includes('e') ? 1 : 0;
+    const vertFromDir = dir.includes('n') ? -1 : dir.includes('s') ? 1 : 0;
 
     const onMove = (ev: MouseEvent) => {
       const mm = clientToMm(ev.clientX, ev.clientY);
-      const dx = mm.x - start.x;
-      const dy = mm.y - start.y;
-      if (Math.abs(dx) + Math.abs(dy) > 0.05) moved = true;
+      const dxRaw = mm.x - start.x;
+      const dyRaw = mm.y - start.y;
+      if (Math.abs(dxRaw) + Math.abs(dyRaw) > 0.05) moved = true;
 
-      if (kind === 'move') {
-        onUpdate({
-          x_mm: Math.max(0, snapMm(initial.x_mm + dx, snapOn)),
-          y_mm: Math.max(0, snapMm(initial.y_mm + dy, snapOn)),
-        } as Partial<TemplateElement>);
-      } else {
-        onUpdate({
-          width_mm: Math.max(1, snapMm(initial.width_mm + dx, snapOn)),
-          height_mm: Math.max(1, snapMm(initial.height_mm + dy, snapOn)),
-        } as Partial<TemplateElement>);
+      const lockedNow = ev.shiftKey ? !baseLocked : baseLocked;
+
+      // Start with the deltas implied by the active dir, sign-corrected so
+      // outward dragging always grows the box.
+      let dW = horizFromDir * dxRaw;
+      let dH = vertFromDir * dyRaw;
+
+      if (lockedNow) {
+        if (horizFromDir !== 0 && vertFromDir !== 0) {
+          // Corner: pick the dominant axis and scale the other from aspect.
+          if (Math.abs(dxRaw) * (1 / aspect) >= Math.abs(dyRaw)) {
+            dH = dW / aspect;
+          } else {
+            dW = dH * aspect;
+          }
+        } else if (horizFromDir !== 0) {
+          dH = dW / aspect;
+        } else if (vertFromDir !== 0) {
+          dW = dH * aspect;
+        }
       }
+
+      let newW = Math.max(1, snapMm(initial.width_mm + dW, snapOn));
+      let newH = Math.max(1, snapMm(initial.height_mm + dH, snapOn));
+      // Re-snap to preserve the locked ratio if snapping rounded one axis.
+      if (lockedNow) {
+        if (horizFromDir !== 0 && (vertFromDir === 0 || dir === 'ne' || dir === 'se' || dir === 'nw' || dir === 'sw')) {
+          newH = Math.max(1, newW / aspect);
+        }
+      }
+
+      const patch: Partial<TemplateElement> = {
+        width_mm: newW,
+        height_mm: newH,
+      };
+      // For w/n handles, the position shifts so the opposite edge stays put.
+      if (horizFromDir === -1) {
+        patch.x_mm = Math.max(0, initial.x_mm + (initial.width_mm - newW));
+      }
+      if (vertFromDir === -1) {
+        patch.y_mm = Math.max(0, initial.y_mm + (initial.height_mm - newH));
+      }
+      onUpdate(patch as Partial<TemplateElement>);
     };
 
     const onUp = () => {
@@ -290,7 +384,7 @@ function ElementBox({
 
   return (
     <div
-      onMouseDown={(e) => startDrag(e, 'move')}
+      onMouseDown={startMove}
       style={{
         position: 'absolute',
         left: element.x_mm * pxPerMm,
@@ -307,24 +401,95 @@ function ElementBox({
       }}
     >
       <div style={{ pointerEvents: 'none', width: '100%', height: '100%' }}>
-        <ElementView element={element} />
+        <ElementView element={element} brand={brand} />
       </div>
       {selected && !element.locked && (
-        <div
-          onMouseDown={(e) => startDrag(e, 'resize')}
-          style={{
-            position: 'absolute',
-            right: -5,
-            bottom: -5,
-            width: 10,
-            height: 10,
-            background: 'rgb(var(--accent))',
-            border: '1.5px solid white',
-            borderRadius: 2,
-            cursor: 'nwse-resize',
-          }}
-        />
+        <>
+          <ResizeHandle dir="nw" onMouseDown={startResize} />
+          <ResizeHandle dir="n" onMouseDown={startResize} />
+          <ResizeHandle dir="ne" onMouseDown={startResize} />
+          <ResizeHandle dir="e" onMouseDown={startResize} />
+          <ResizeHandle dir="se" onMouseDown={startResize} />
+          <ResizeHandle dir="s" onMouseDown={startResize} />
+          <ResizeHandle dir="sw" onMouseDown={startResize} />
+          <ResizeHandle dir="w" onMouseDown={startResize} />
+        </>
       )}
     </div>
+  );
+}
+
+function ResizeHandle({
+  dir,
+  onMouseDown,
+}: {
+  dir: ResizeDir;
+  onMouseDown: (e: React.MouseEvent, dir: ResizeDir) => void;
+}) {
+  // 8 absolute positions around the box. Corner handles are 10×10 squares;
+  // edge handles are thinner rectangles centred on the edge.
+  const SIZE = 10;
+  const pos: React.CSSProperties = { position: 'absolute' };
+  switch (dir) {
+    case 'nw':
+      Object.assign(pos, { top: -SIZE / 2, left: -SIZE / 2, width: SIZE, height: SIZE });
+      break;
+    case 'ne':
+      Object.assign(pos, { top: -SIZE / 2, right: -SIZE / 2, width: SIZE, height: SIZE });
+      break;
+    case 'sw':
+      Object.assign(pos, { bottom: -SIZE / 2, left: -SIZE / 2, width: SIZE, height: SIZE });
+      break;
+    case 'se':
+      Object.assign(pos, { bottom: -SIZE / 2, right: -SIZE / 2, width: SIZE, height: SIZE });
+      break;
+    case 'n':
+      Object.assign(pos, {
+        top: -SIZE / 2,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: SIZE * 1.4,
+        height: SIZE,
+      });
+      break;
+    case 's':
+      Object.assign(pos, {
+        bottom: -SIZE / 2,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: SIZE * 1.4,
+        height: SIZE,
+      });
+      break;
+    case 'e':
+      Object.assign(pos, {
+        right: -SIZE / 2,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width: SIZE,
+        height: SIZE * 1.4,
+      });
+      break;
+    case 'w':
+      Object.assign(pos, {
+        left: -SIZE / 2,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width: SIZE,
+        height: SIZE * 1.4,
+      });
+      break;
+  }
+  return (
+    <div
+      onMouseDown={(e) => onMouseDown(e, dir)}
+      style={{
+        ...pos,
+        background: 'rgb(var(--accent))',
+        border: '1.5px solid white',
+        borderRadius: 2,
+        cursor: RESIZE_CURSORS[dir],
+      }}
+    />
   );
 }

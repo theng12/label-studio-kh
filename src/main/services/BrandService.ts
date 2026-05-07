@@ -8,14 +8,30 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+/**
+ * Brands written before 0.3 only have a single `logoPath`. On read, lift it
+ * into a one-entry `logos` array so callers can ignore the legacy field.
+ * Brands with `logos` already populated pass through unchanged.
+ */
+function migrateBrand(brand: Brand): Brand {
+  if (brand.logos && brand.logos.length > 0) return brand;
+  if (brand.logoPath) {
+    return {
+      ...brand,
+      logos: [{ id: 'primary', name: 'Logo', path: brand.logoPath }],
+    };
+  }
+  return { ...brand, logos: [] };
+}
+
 function readBrands(): Brand[] {
   const file = paths.brandsFile();
   if (!existsSync(file)) return [];
   try {
     const raw = readFileSync(file, 'utf8');
     const parsed = JSON.parse(raw) as { brands?: Brand[] } | Brand[];
-    if (Array.isArray(parsed)) return parsed;
-    return parsed.brands ?? [];
+    const list = Array.isArray(parsed) ? parsed : (parsed.brands ?? []);
+    return list.map(migrateBrand);
   } catch (err) {
     console.error('Failed to parse brands.json:', err);
     return [];

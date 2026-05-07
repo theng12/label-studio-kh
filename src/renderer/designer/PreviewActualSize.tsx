@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { IconX, IconGripVertical } from '@tabler/icons-react';
 import { useDesignerStore } from '../stores/designerStore';
+import { useBrandStore } from '../stores/brandStore';
 import { ElementView } from './ElementView';
 
 // CSS pixels to mm at 96dpi: 1 mm = 96 / 25.4 ≈ 3.7795 px.
@@ -14,6 +15,8 @@ interface Props {
 // 96dpi screen estimate. Informational — does not change canvas zoom.
 export function PreviewActualSize({ onClose }: Props) {
   const template = useDesignerStore((s) => s.template);
+  const brands = useBrandStore((s) => s.brands);
+  const brand = template ? (brands.find((b) => b.id === template.brandId) ?? null) : null;
   const [pos, setPos] = useState({ x: 32, y: 80 });
   const dragRef = useRef<{ ox: number; oy: number; sx: number; sy: number } | null>(null);
 
@@ -94,7 +97,7 @@ export function PreviewActualSize({ onClose }: Props) {
                   overflow: 'hidden',
                 }}
               >
-                <ElementView element={el} />
+                <ElementView element={el} brand={brand} />
               </div>
             ))}
         </div>

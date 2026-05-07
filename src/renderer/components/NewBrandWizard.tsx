@@ -11,7 +11,7 @@ import {
 import { Button } from './Button';
 import { Field, TextInput, TextArea, ColorInput } from './FormField';
 import { useBrandStore } from '../stores/brandStore';
-import type { Brand, NewBrandInput } from '../../shared/types/brand';
+import type { Brand, BrandLogo, NewBrandInput } from '../../shared/types/brand';
 
 // Convert an absolute filesystem path to the lskh-file:// URL the renderer
 // can use as an <img src>. The custom protocol is registered in main/index.ts.
@@ -45,6 +45,7 @@ const DEFAULT_DRAFT: NewBrandInput = {
   name: '',
   color: '#1063E8',
   logoPath: null,
+  logos: [],
   defaultFont: 'NotoSans',
   website: '',
   address: '',
@@ -62,6 +63,14 @@ function brandToDraft(b: Brand): NewBrandInput {
     name: b.name,
     color: b.color,
     logoPath: b.logoPath,
+    // Lift the legacy single-logo path into the new logos array so the wizard
+    // sees a single source of truth.
+    logos:
+      b.logos && b.logos.length > 0
+        ? b.logos
+        : b.logoPath
+          ? [{ id: 'primary', name: 'Logo', path: b.logoPath }]
+          : [],
     defaultFont: b.defaultFont,
     website: b.website,
     address: b.address,
@@ -99,21 +108,37 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
 
   /**
    * Copies any newly-picked files into the brand's permanent assets folder
-   * and rewrites the draft's logoPath / certBadges with the resolved paths.
-   * Files already saved on the brand pass through unchanged.
+   * and rewrites the draft's logos / certBadges with the resolved paths.
+   * Logos already saved on the brand (their path is in the brand's assets
+   * folder already) pass through unchanged. The legacy `logoPath` is also
+   * synced to point at the first logo so older readers keep working.
    */
   const finaliseAssets = async (
     brandId: string,
-    original: { logo: string | null; certs: string[] },
-  ): Promise<{ logoPath: string | null; certBadges: string[] }> => {
-    let logoPath = draft.logoPath;
-    if (logoPath && logoPath !== original.logo) {
-      logoPath = await window.api.brand.importAsset(brandId, logoPath, 'logo');
+    original: { existingPaths: Set<string> },
+  ): Promise<{
+    logos: BrandLogo[];
+    logoPath: string | null;
+    certBadges: string[];
+  }> => {
+    const logos: BrandLogo[] = [];
+    for (const logo of draft.logos ?? []) {
+      if (!logo.path) continue;
+      if (original.existingPaths.has(logo.path)) {
+        logos.push(logo);
+      } else {
+        const imported = await window.api.brand.importAsset(
+          brandId,
+          logo.path,
+          'logo',
+        );
+        logos.push({ ...logo, path: imported });
+      }
     }
 
     const certBadges: string[] = [];
     for (const c of draft.certBadges) {
-      if (original.certs.includes(c)) {
+      if (original.existingPaths.has(c)) {
         certBadges.push(c);
       } else {
         const imported = await window.api.brand.importAsset(brandId, c, 'cert');
@@ -121,28 +146,44 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
       }
     }
 
-    return { logoPath, certBadges };
+    return {
+      logos,
+      logoPath: logos[0]?.path ?? null,
+      certBadges,
+    };
   };
 
   const submit = async () => {
     setSubmitting(true);
     try {
       if (isEdit && existing) {
-        // Edit: import any new files into the existing brand's assets folder,
-        // then write the patch in one update.
-        const assets = await finaliseAssets(existing.id, {
-          logo: existing.logoPath,
-          certs: existing.certBadges,
-        });
+        // Edit mode: anything currently saved on the brand keeps its path;
+        // newly-picked files get copied in.
+        const existingPaths = new Set<string>([
+          ...(existing.logos ?? []).map((l) => l.path),
+          ...(existing.logoPath ? [existing.logoPath] : []),
+          ...existing.certBadges,
+        ]);
+        const assets = await finaliseAssets(existing.id, { existingPaths });
         await update(existing.id, { ...draft, ...assets });
         onCreated(existing.id);
       } else {
-        // Create: persist the brand first (we need its id to scope the asset
-        // folder), then import files, then patch the brand with the final
-        // permanent paths.
-        const brand = await create({ ...draft, logoPath: null, certBadges: [] });
-        const assets = await finaliseAssets(brand.id, { logo: null, certs: [] });
-        if (assets.logoPath || assets.certBadges.length > 0) {
+        // Create mode: persist the brand first (we need its id to scope the
+        // asset folder), then import files, then patch the brand with the
+        // final permanent paths.
+        const brand = await create({
+          ...draft,
+          logoPath: null,
+          logos: [],
+          certBadges: [],
+        });
+        const assets = await finaliseAssets(brand.id, {
+          existingPaths: new Set<string>(),
+        });
+        if (
+          assets.logos.length > 0 ||
+          assets.certBadges.length > 0
+        ) {
           await update(brand.id, assets);
         }
         onCreated(brand.id);
@@ -241,13 +282,16 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
 
           {step === 1 && (
             <div className="space-y-4">
-              <LogoUpload
-                logoPath={draft.logoPath}
-                onChange={(path) => set({ logoPath: path })}
+              <LogosManager
+                logos={draft.logos ?? []}
+                onChange={(logos) => set({ logos })}
               />
               <p className="text-xs text-fg-subtle">
-                Optional. PNG, JPG, JPEG, SVG, or WEBP. Files are copied into
-                this brand's assets folder when you finish the wizard.
+                Optional. Add as many variants as you need (icon mark, wordmark,
+                full lockup, monochrome, etc.). The first logo is used by
+                default; templates can pick a specific one per Logo element.
+                PNG, JPG, JPEG, SVG, or WEBP. Files are copied into this
+                brand's assets folder when you finish the wizard.
               </p>
             </div>
           )}
@@ -358,14 +402,20 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
               />
               <ReviewRow label="Category" value={draft.category ?? '—'} />
               <ReviewRow
-                label="Logo"
+                label="Logos"
                 value={
-                  draft.logoPath ? (
-                    <img
-                      src={localFileUrl(draft.logoPath)}
-                      alt="Logo"
-                      className="h-6 w-6 rounded border border-border-base bg-white object-contain"
-                    />
+                  (draft.logos ?? []).length > 0 ? (
+                    <span className="flex items-center gap-1">
+                      {(draft.logos ?? []).map((l) => (
+                        <img
+                          key={l.id}
+                          src={localFileUrl(l.path)}
+                          alt={l.name}
+                          title={l.name}
+                          className="h-6 w-6 rounded border border-border-base bg-white object-contain"
+                        />
+                      ))}
+                    </span>
                   ) : (
                     '—'
                   )
@@ -440,88 +490,171 @@ function ReviewRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-// ── Logo upload ──────────────────────────────────────────────────────────────
+// ── Logos (multi-logo manager) ───────────────────────────────────────────────
 
-function LogoUpload({
-  logoPath,
+const COMMON_LOGO_NAMES = ['Primary', 'Icon', 'Wordmark', 'Lockup', 'Mono', 'Alt'];
+
+function LogosManager({
+  logos,
   onChange,
 }: {
-  logoPath: string | null;
-  onChange: (path: string | null) => void;
+  logos: BrandLogo[];
+  onChange: (logos: BrandLogo[]) => void;
 }) {
   const [drag, setDrag] = useState(false);
 
+  // Suggest a sensible default name for a newly added logo, cycling through
+  // common labels until one isn't taken yet.
+  const nextName = (): string => {
+    const taken = new Set(logos.map((l) => l.name.toLowerCase()));
+    for (const candidate of COMMON_LOGO_NAMES) {
+      if (!taken.has(candidate.toLowerCase())) return candidate;
+    }
+    return `Variant ${logos.length + 1}`;
+  };
+
+  const addPaths = (paths: string[]) => {
+    if (paths.length === 0) return;
+    const next = [...logos];
+    for (const p of paths) {
+      next.push({ id: crypto.randomUUID(), name: nextName(), path: p });
+    }
+    onChange(next);
+  };
+
   const onPick = async () => {
-    const path = await window.api.dialog.pickImage();
-    if (path) onChange(path);
+    const paths = await window.api.dialog.pickImages();
+    addPaths(paths);
   };
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDrag(false);
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    const filePath = (file as File & { path?: string }).path;
-    if (!filePath) return;
-    onChange(filePath);
+    const paths: string[] = [];
+    for (const file of Array.from(e.dataTransfer.files)) {
+      const p = (file as File & { path?: string }).path;
+      if (p) paths.push(p);
+    }
+    addPaths(paths);
   };
 
-  if (logoPath) {
-    return (
-      <div className="rounded-lg border border-border-base bg-bg-surface p-4">
-        <div className="flex items-center gap-4">
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-white p-2">
-            <img
-              src={localFileUrl(logoPath)}
-              alt="Logo preview"
-              className="max-h-full max-w-full object-contain"
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-fg-base">Logo</div>
-            <div
-              className="mt-1 truncate text-xs text-fg-muted"
-              title={logoPath}
-            >
-              {logoPath.split('/').pop()}
-            </div>
-            <div className="mt-3 flex gap-2">
-              <Button size="sm" variant="secondary" onClick={onPick}>
-                <IconUpload size={14} /> Replace
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => onChange(null)}>
-                <IconTrash size={14} /> Remove
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const updateLogo = (id: string, patch: Partial<BrandLogo>) => {
+    onChange(logos.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  };
+
+  const removeLogo = (id: string) => {
+    onChange(logos.filter((l) => l.id !== id));
+  };
+
+  const moveLogo = (id: string, dir: -1 | 1) => {
+    const i = logos.findIndex((l) => l.id === id);
+    if (i < 0) return;
+    const j = i + dir;
+    if (j < 0 || j >= logos.length) return;
+    const next = [...logos];
+    [next[i], next[j]] = [next[j]!, next[i]!];
+    onChange(next);
+  };
 
   return (
-    <div
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDrag(true);
-      }}
-      onDragLeave={() => setDrag(false)}
-      onDrop={onDrop}
-      className={[
-        'rounded-lg border-2 border-dashed p-10 text-center transition-colors',
-        drag ? 'border-accent bg-accent/5' : 'border-border-base bg-bg-surface',
-      ].join(' ')}
-    >
-      <IconPhoto size={28} className="mx-auto text-fg-subtle" />
-      <h3 className="mt-2 text-sm font-semibold text-fg-base">Drop a logo here</h3>
-      <p className="mx-auto mt-1 max-w-md text-xs text-fg-muted">
-        Or pick from your computer. Square or near-square images work best.
-      </p>
-      <div className="mt-3 inline-block">
-        <Button variant="primary" size="sm" onClick={onPick}>
-          <IconUpload size={14} /> Choose file…
-        </Button>
+    <div className="space-y-3">
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDrag(true);
+        }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={onDrop}
+        className={[
+          'rounded-lg border-2 border-dashed p-8 text-center transition-colors',
+          drag ? 'border-accent bg-accent/5' : 'border-border-base bg-bg-surface',
+        ].join(' ')}
+      >
+        <IconPhoto size={28} className="mx-auto text-fg-subtle" />
+        <h3 className="mt-2 text-sm font-semibold text-fg-base">
+          Drop logo file{logos.length === 0 ? '' : 's'} here
+        </h3>
+        <p className="mx-auto mt-1 max-w-md text-xs text-fg-muted">
+          {logos.length === 0
+            ? 'Or pick from your computer. You can add more variants below after the first one.'
+            : 'Or pick more from your computer. Each variant is added to the list below.'}
+        </p>
+        <div className="mt-3 inline-block">
+          <Button variant="primary" size="sm" onClick={onPick}>
+            <IconUpload size={14} />{' '}
+            {logos.length === 0 ? 'Choose file…' : 'Add another logo…'}
+          </Button>
+        </div>
       </div>
+
+      {logos.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-fg-subtle">
+            Variants ({logos.length})
+            <span className="ml-2 font-normal normal-case text-fg-subtle">
+              The first one is the default.
+            </span>
+          </div>
+          {logos.map((logo, i) => (
+            <div
+              key={logo.id}
+              className="flex items-center gap-3 rounded-md border border-border-base bg-bg-surface p-3"
+            >
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded border border-border-subtle bg-white p-1">
+                <img
+                  src={localFileUrl(logo.path)}
+                  alt={logo.name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <input
+                  value={logo.name}
+                  onChange={(e) => updateLogo(logo.id, { name: e.target.value })}
+                  placeholder="Variant name (e.g. Icon, Wordmark)"
+                  className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-sm font-medium text-fg-base hover:border-border-base focus:border-accent focus:bg-bg-base focus:outline-none"
+                />
+                <div
+                  className="mt-0.5 truncate px-1 text-[10px] text-fg-subtle"
+                  title={logo.path}
+                >
+                  {logo.path.split('/').pop()}
+                  {i === 0 && (
+                    <span className="ml-2 rounded bg-accent/15 px-1 text-[9px] font-medium text-accent">
+                      default
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => moveLogo(logo.id, -1)}
+                  disabled={i === 0}
+                  title="Move up (changes default if moved to top)"
+                  className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base disabled:opacity-30"
+                >
+                  <IconArrowLeft size={14} className="rotate-90" />
+                </button>
+                <button
+                  onClick={() => moveLogo(logo.id, 1)}
+                  disabled={i === logos.length - 1}
+                  title="Move down"
+                  className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base disabled:opacity-30"
+                >
+                  <IconArrowLeft size={14} className="-rotate-90" />
+                </button>
+                <button
+                  onClick={() => removeLogo(logo.id)}
+                  title="Remove this logo"
+                  className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-danger"
+                >
+                  <IconTrash size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

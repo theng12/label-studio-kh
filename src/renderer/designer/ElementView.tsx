@@ -1,10 +1,37 @@
 import type { TemplateElement } from '../../shared/types/template';
+import type { Brand } from '../../shared/types/brand';
 import { flagFromCode, formatPrice } from '../../shared/format';
 
+function localFileUrl(path: string): string {
+  const segments = path.split('/').map(encodeURIComponent).join('/');
+  return `lskh-file://${segments}`;
+}
+
+function resolveLogoPath(
+  element: { logoId?: string; type: 'logo' },
+  brand: Brand | null | undefined,
+): string | null {
+  if (!brand) return null;
+  const logos = brand.logos ?? [];
+  if (element.logoId) {
+    const found = logos.find((l) => l.id === element.logoId);
+    if (found) return found.path;
+  }
+  return logos[0]?.path ?? brand.logoPath ?? null;
+}
+
 // Placeholder visuals for the designer canvas. Real barcode/QR/font rendering
-// happens in Phase 2's Puppeteer export; the designer just needs something
-// that looks roughly right so layout decisions are meaningful.
-export function ElementView({ element }: { element: TemplateElement }) {
+// happens in Puppeteer export; the designer just needs something that looks
+// roughly right so layout decisions are meaningful. The Logo element is the
+// exception: when a brand provides a real logo file, we show it directly so
+// the user sees the actual asset while designing.
+export function ElementView({
+  element,
+  brand,
+}: {
+  element: TemplateElement;
+  brand?: Brand | null;
+}) {
   const style: React.CSSProperties = {
     width: '100%',
     height: '100%',
@@ -12,7 +39,30 @@ export function ElementView({ element }: { element: TemplateElement }) {
   };
 
   switch (element.type) {
-    case 'logo':
+    case 'logo': {
+      const path = resolveLogoPath(element, brand);
+      if (path) {
+        return (
+          <div
+            style={{
+              ...style,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <img
+              src={localFileUrl(path)}
+              alt="logo"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: element.objectFit,
+              }}
+            />
+          </div>
+        );
+      }
       return (
         <div
           style={{
@@ -31,6 +81,7 @@ export function ElementView({ element }: { element: TemplateElement }) {
           LOGO
         </div>
       );
+    }
 
     case 'barcode': {
       // Simple striped placeholder

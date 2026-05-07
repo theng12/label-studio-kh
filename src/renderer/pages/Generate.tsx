@@ -280,7 +280,7 @@ export default function Generate() {
           <Section title="Preview">
             {template ? (
               <>
-                <PreviewCanvas template={template} row={previewRow} />
+                <PreviewCanvas template={template} row={previewRow} brand={brand} />
                 <div className="mt-2 flex items-center justify-between text-xs text-fg-muted">
                   <Button
                     size="sm"
@@ -438,9 +438,11 @@ const PX_PER_MM = 4;
 function PreviewCanvas({
   template,
   row,
+  brand,
 }: {
   template: Template;
   row: Record<string, string>;
+  brand: import('../../shared/types/brand').Brand | null;
 }) {
   // Light-weight HTML/CSS preview (same as designer). Real output uses Puppeteer.
   return (
@@ -471,7 +473,7 @@ function PreviewCanvas({
                   overflow: 'hidden',
                 }}
               >
-                <ElementView element={resolveElement(el, row)} />
+                <ElementView element={resolveElement(el, row)} brand={brand} />
               </div>
             ))}
         </div>
