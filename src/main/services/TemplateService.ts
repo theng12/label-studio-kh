@@ -62,4 +62,27 @@ export const TemplateService = {
     unlinkSync(file);
     return true;
   },
+
+  duplicate(brandId: string, templateId: string): Template | null {
+    const source = TemplateService.get(brandId, templateId);
+    if (!source) return null;
+
+    const ts = nowIso();
+    const copy: Template = {
+      ...source,
+      id: randomUUID(),
+      name: `${source.name} (copy)`,
+      elements: source.elements.map((el) => ({ ...el, id: randomUUID() })),
+      createdAt: ts,
+      updatedAt: ts,
+    };
+
+    paths.ensure(paths.templatesDir(copy.brandId));
+    writeFileSync(
+      paths.templateFile(copy.brandId, copy.id),
+      JSON.stringify(copy, null, 2),
+      'utf8',
+    );
+    return copy;
+  },
 };

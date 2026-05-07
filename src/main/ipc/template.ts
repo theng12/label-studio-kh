@@ -15,4 +15,7 @@ export function registerTemplateIpc(): void {
   ipcMain.handle('template:delete', (_e, brandId: string, templateId: string) =>
     TemplateService.delete(brandId, templateId),
   );
+  ipcMain.handle('template:duplicate', (_e, brandId: string, templateId: string) =>
+    TemplateService.duplicate(brandId, templateId),
+  );
 }

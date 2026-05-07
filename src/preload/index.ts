@@ -133,6 +133,8 @@ const api = {
       ipcRenderer.invoke('template:save', input),
     delete: (brandId: string, templateId: string): Promise<boolean> =>
       ipcRenderer.invoke('template:delete', brandId, templateId),
+    duplicate: (brandId: string, templateId: string): Promise<Template | null> =>
+      ipcRenderer.invoke('template:duplicate', brandId, templateId),
   },
   import: {
     pickFile: (): Promise<string | null> => ipcRenderer.invoke('import:pickFile'),
