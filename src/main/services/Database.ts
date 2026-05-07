@@ -5,7 +5,7 @@ import { mkdirSync, existsSync } from 'node:fs';
 
 let _db: Database.Database | null = null;
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS generations (
   file_size    INTEGER,
   template_snapshot TEXT,
   data_snapshot     TEXT,
+  brand_snapshot    TEXT,
   created_at   TEXT NOT NULL
 );
 
@@ -96,6 +97,18 @@ export function getDb(): Database.Database {
     _db
       .prepare('INSERT INTO schema_meta(key, value) VALUES (?, ?)')
       .run('version', String(SCHEMA_VERSION));
+  } else if (row.value === '1') {
+    // v1 → v2: add brand_snapshot column so reprints reproduce the brand state
+    // (logo / address / cert badges) at generation time, not the live brand.
+    try {
+      _db.exec('ALTER TABLE generations ADD COLUMN brand_snapshot TEXT');
+    } catch (e) {
+      // Idempotent: ignore "duplicate column name" if migration partially ran.
+      if (!String(e).includes('duplicate column name')) throw e;
+    }
+    _db
+      .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
+      .run('2', 'version');
   }
 
   return _db;

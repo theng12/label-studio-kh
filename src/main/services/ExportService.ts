@@ -185,8 +185,8 @@ export async function exportSingle(input: SingleExportInput): Promise<ExportResu
           const stats = statSync(filePath);
           getDb()
             .prepare(
-              `INSERT INTO generations (id, batch_id, sku, brand_id, template_id, format, dpi, size_label, file_path, file_size, template_snapshot, data_snapshot, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              `INSERT INTO generations (id, batch_id, sku, brand_id, template_id, format, dpi, size_label, file_path, file_size, template_snapshot, data_snapshot, brand_snapshot, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             )
             .run(
               randomUUID(),
@@ -201,6 +201,7 @@ export async function exportSingle(input: SingleExportInput): Promise<ExportResu
               stats.size,
               JSON.stringify(template),
               JSON.stringify(row),
+              brand ? JSON.stringify(brand) : null,
               new Date().toISOString(),
             );
         } catch (e) {

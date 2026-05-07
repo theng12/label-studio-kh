@@ -3,6 +3,7 @@ import { getDb } from './Database';
 import { BrandService } from './BrandService';
 import { exportSingle, type ExportFormat } from './ExportService';
 import type { Template } from '@shared/types/template';
+import type { Brand } from '@shared/types/brand';
 
 export interface FileEntry {
   id: string;
@@ -123,7 +124,7 @@ export const FileService = {
     const db = getDb();
     const row = db
       .prepare(
-        `SELECT id, sku, brand_id, template_id, format, dpi, size_label, file_path, template_snapshot, data_snapshot
+        `SELECT id, sku, brand_id, template_id, format, dpi, size_label, file_path, template_snapshot, data_snapshot, brand_snapshot
          FROM generations
          WHERE id = ?`,
       )
@@ -139,6 +140,7 @@ export const FileService = {
           file_path: string;
           template_snapshot: string | null;
           data_snapshot: string | null;
+          brand_snapshot: string | null;
         }
       | undefined;
 
@@ -146,7 +148,11 @@ export const FileService = {
 
     const template = JSON.parse(row.template_snapshot) as Template;
     const dataRow = JSON.parse(row.data_snapshot) as Record<string, string>;
-    const brand = BrandService.get(row.brand_id);
+    // Pre-migration rows have no brand_snapshot — fall back to live brand so
+    // older generations stay re-printable.
+    const brand: Brand | null = row.brand_snapshot
+      ? (JSON.parse(row.brand_snapshot) as Brand)
+      : BrandService.get(row.brand_id);
 
     // Output directory and filename are the file_path's directory and base.
     const lastSlash = row.file_path.lastIndexOf('/');
