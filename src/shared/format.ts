@@ -12,6 +12,44 @@ export function ptToPx(pt: number, pxPerMm = CSS_PX_PER_MM): number {
   return pt * MM_PER_PT * pxPerMm;
 }
 
+// ── Barcode helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Compute the EAN-13 check digit for a 12-digit base. EAN-13 multiplies
+ * digits at odd positions (1-indexed) by 1 and even by 3, sums them, and
+ * the check digit is (10 - sum mod 10) mod 10.
+ */
+export function ean13CheckDigit(twelveDigits: string): number {
+  let sum = 0;
+  for (let i = 0; i < 12; i += 1) {
+    const d = twelveDigits.charCodeAt(i) - 48;
+    sum += i % 2 === 0 ? d : d * 3;
+  }
+  return (10 - (sum % 10)) % 10;
+}
+
+/**
+ * Generate a valid 13-digit EAN-13 from any string seed (typically a SKU).
+ * Deterministic — the same seed always produces the same barcode — so users
+ * can re-import a CSV and get stable codes. The first 3 digits default to
+ * "200" (the EAN-13 in-store / private-use range) so the codes don't collide
+ * with real GS1-issued ones.
+ */
+export function generateEan13FromSeed(seed: string, prefix = '200'): string {
+  // Cheap 32-bit FNV-1a hash. Plenty of entropy for 9 digits.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  const padPrefix = (prefix + '000').slice(0, 3).replace(/\D/g, '0').padStart(3, '0');
+  // Need 9 more digits to reach 12. Combine the hash + a secondary mix.
+  const a = String(hash % 1_000_000).padStart(6, '0');
+  const b = String((hash >>> 6) % 1000).padStart(3, '0');
+  const twelve = `${padPrefix}${a}${b}`;
+  return `${twelve}${ean13CheckDigit(twelve)}`;
+}
+
 // ── Date formatting ─────────────────────────────────────────────────────────
 
 const MONTHS_LONG = [

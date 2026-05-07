@@ -8,6 +8,7 @@ import {
   IconDatabaseImport,
   IconWand,
   IconFiles,
+  IconBarcode,
   IconSettings,
   IconHeart,
   IconCheck,
@@ -55,6 +56,7 @@ export function Sidebar() {
       items: [
         { to: '/data', label: t('nav.data'), icon: IconDatabaseImport },
         { to: '/generate', label: t('nav.generate'), icon: IconWand },
+        { to: '/barcodes', label: 'Barcode generator', icon: IconBarcode },
         { to: '/files', label: t('nav.files'), icon: IconFiles },
       ],
     },

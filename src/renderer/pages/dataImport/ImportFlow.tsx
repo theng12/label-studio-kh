@@ -239,7 +239,13 @@ function StepMapAndPreview() {
         />
       )}
 
-      <PreviewTable columns={columns} rows={rows.slice(0, 10)} />
+      {v && (v.warnings.length > 0 || v.errors.length > 0) && (
+        <IssuesList validation={v} rows={rows} mapping={im.mapping} />
+      )}
+
+      <BarcodeFiller mapping={im.mapping} />
+
+      <PaginatedPreviewTable columns={columns} rows={rows} />
 
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={() => im.goBack()}>
@@ -253,6 +259,182 @@ function StepMapAndPreview() {
           Check for duplicates →
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ── Issues list: warnings + errors with row context ─────────────────────────
+
+function IssuesList({
+  validation,
+  rows,
+  mapping,
+}: {
+  validation: import('../../../shared/types/import').ValidationResult;
+  rows: Record<string, string>[];
+  mapping: import('../../../shared/types/import').ColumnMapping;
+}) {
+  const skuCol = mapping['sku'];
+  const issues = [
+    ...validation.errors.map((i) => ({ ...i, kind: 'error' as const })),
+    ...validation.warnings.map((i) => ({ ...i, kind: 'warning' as const })),
+  ];
+  if (issues.length === 0) return null;
+
+  return (
+    <details className="rounded-lg border border-border-base bg-bg-surface">
+      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-fg-base">
+        <span className="flex items-center gap-2">
+          <IconAlertTriangle size={14} className="text-warning" />
+          {validation.errors.length > 0 && (
+            <span className="text-danger">
+              {validation.errors.length} error
+              {validation.errors.length === 1 ? '' : 's'}
+            </span>
+          )}
+          {validation.errors.length > 0 && validation.warnings.length > 0 && (
+            <span className="text-fg-subtle">·</span>
+          )}
+          {validation.warnings.length > 0 && (
+            <span className="text-warning">
+              {validation.warnings.length} warning
+              {validation.warnings.length === 1 ? '' : 's'}
+            </span>
+          )}
+          <span className="ml-auto text-xs text-fg-muted">
+            click to show details
+          </span>
+        </span>
+      </summary>
+      <div className="scrollbar-thin max-h-72 overflow-y-auto border-t border-border-subtle">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-bg-elevated text-fg-muted">
+            <tr>
+              <th className="px-3 py-1.5 text-left">Row</th>
+              <th className="px-3 py-1.5 text-left">SKU</th>
+              <th className="px-3 py-1.5 text-left">Field</th>
+              <th className="px-3 py-1.5 text-left">Issue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {issues.slice(0, 500).map((i, idx) => (
+              <tr key={idx} className={i.kind === 'error' ? 'bg-danger/5' : ''}>
+                <td className="border-b border-border-subtle px-3 py-1 font-mono text-fg-muted">
+                  {i.rowIndex >= 0 ? i.rowIndex + 1 : '—'}
+                </td>
+                <td className="border-b border-border-subtle px-3 py-1 font-mono">
+                  {i.rowIndex >= 0 && skuCol
+                    ? String(rows[i.rowIndex]?.[skuCol] ?? '—')
+                    : '—'}
+                </td>
+                <td className="border-b border-border-subtle px-3 py-1 text-fg-muted">
+                  {i.field ?? '—'}
+                </td>
+                <td
+                  className={[
+                    'border-b border-border-subtle px-3 py-1',
+                    i.kind === 'error' ? 'text-danger' : 'text-fg-base',
+                  ].join(' ')}
+                >
+                  {i.message}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {issues.length > 500 && (
+          <div className="bg-bg-elevated px-3 py-1 text-[10px] text-fg-subtle">
+            Showing first 500 issues out of {issues.length}.
+          </div>
+        )}
+      </div>
+      {validation.duplicateSkusInFile.length > 0 && (
+        <div className="border-t border-border-subtle px-4 py-3 text-xs">
+          <div className="font-medium text-fg-base">
+            Duplicate SKUs within this file ({validation.duplicateSkusInFile.length})
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {validation.duplicateSkusInFile.map((s) => (
+              <code
+                key={s}
+                className="rounded bg-bg-elevated px-1.5 py-0.5 text-[10px] text-fg-muted"
+              >
+                {s}
+              </code>
+            ))}
+          </div>
+        </div>
+      )}
+    </details>
+  );
+}
+
+// ── Generate missing barcodes ───────────────────────────────────────────────
+
+function BarcodeFiller({
+  mapping,
+}: {
+  mapping: import('../../../shared/types/import').ColumnMapping;
+}) {
+  const im = useImportStore();
+  const [filled, setFilled] = useState<number | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const skuCol = mapping['sku'];
+  const barcodeCol = mapping['barcode'];
+
+  // Count rows with empty barcode (only meaningful when sku is mapped)
+  const empty = im.parsed
+    ? im.parsed.rows.filter(
+        (r) =>
+          (skuCol ? String(r[skuCol] ?? '').trim() : '') &&
+          (!barcodeCol || !String(r[barcodeCol] ?? '').trim()),
+      ).length
+    : 0;
+
+  if (!skuCol) return null;
+  if (empty === 0 && filled === null) return null;
+
+  const onClick = async () => {
+    setWorking(true);
+    try {
+      const n = await im.fillMissingBarcodes();
+      setFilled(n);
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between rounded-md border border-border-subtle bg-bg-surface px-4 py-3">
+      <div>
+        <div className="text-sm font-medium text-fg-base">
+          {filled !== null
+            ? `Generated ${filled} barcode${filled === 1 ? '' : 's'}`
+            : `${empty} row${empty === 1 ? '' : 's'} have no barcode`}
+        </div>
+        <div className="text-xs text-fg-muted">
+          {filled !== null
+            ? "Codes are valid EAN-13s derived from each row's SKU. They'll be saved alongside the imported rows."
+            : "Optionally fill them with valid EAN-13 codes derived from each row's SKU. Same SKU always gets the same code."}
+        </div>
+        {!barcodeCol && empty > 0 && filled === null && (
+          <div className="mt-1 text-[10px] text-fg-subtle">
+            A new <code>barcode</code> column will be added to the import.
+          </div>
+        )}
+      </div>
+      <Button
+        variant={filled === null ? 'primary' : 'secondary'}
+        onClick={onClick}
+        disabled={working || empty === 0}
+      >
+        {working
+          ? 'Generating…'
+          : filled !== null
+            ? 'Generate again'
+            : 'Generate missing barcodes'}
+      </Button>
     </div>
   );
 }
@@ -325,43 +507,153 @@ function Stat({
   );
 }
 
-function PreviewTable({
+function PaginatedPreviewTable({
   columns,
   rows,
 }: {
   columns: string[];
   rows: Record<string, string>[];
 }) {
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(0);
+  const [query, setQuery] = useState('');
+
+  // Filter (substring across any column) before paginating.
+  const filtered = query
+    ? rows.filter((r) =>
+        columns.some((c) =>
+          String(r[c] ?? '').toLowerCase().includes(query.toLowerCase()),
+        ),
+      )
+    : rows;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+  const start = safePage * pageSize;
+  const visible = filtered.slice(start, start + pageSize);
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-border-base">
-      <table className="w-full text-xs">
-        <thead className="bg-bg-elevated text-fg-muted">
-          <tr>
-            {columns.map((c) => (
-              <th
-                key={c}
-                className="border-b border-border-base px-2 py-1.5 text-left font-medium"
-              >
-                {c}
+    <div className="rounded-lg border border-border-base bg-bg-surface">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-3 py-2 text-xs text-fg-muted">
+        <span className="font-medium text-fg-base">
+          Preview — {filtered.length.toLocaleString()}
+          {filtered.length !== rows.length && ` of ${rows.length.toLocaleString()}`}{' '}
+          row{filtered.length === 1 ? '' : 's'}
+        </span>
+        <input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(0);
+          }}
+          placeholder="Filter rows…"
+          className="ml-auto w-48 rounded-md border border-border-base bg-bg-base px-2 py-1 text-xs text-fg-base"
+        />
+        <span>Page size</span>
+        <select
+          value={pageSize}
+          onChange={(e) => {
+            setPageSize(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+          className="rounded-md border border-border-base bg-bg-base px-1.5 py-1 text-xs"
+        >
+          {[10, 20, 50, 100, 200].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="bg-bg-elevated text-fg-muted">
+            <tr>
+              <th className="w-10 border-b border-border-base px-2 py-1.5 text-right font-medium">
+                #
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i} className="text-fg-base">
               {columns.map((c) => (
-                <td
+                <th
                   key={c}
-                  className="border-b border-border-subtle px-2 py-1.5 max-w-[180px] truncate"
+                  className="border-b border-border-base px-2 py-1.5 text-left font-medium"
                 >
-                  {String(r[c] ?? '')}
-                </td>
+                  {c}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {visible.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length + 1}
+                  className="px-3 py-6 text-center text-fg-muted"
+                >
+                  No matching rows.
+                </td>
+              </tr>
+            ) : (
+              visible.map((r, i) => (
+                <tr key={start + i} className="text-fg-base hover:bg-bg-hover">
+                  <td className="border-b border-border-subtle px-2 py-1 text-right font-mono text-fg-subtle">
+                    {start + i + 1}
+                  </td>
+                  {columns.map((c) => (
+                    <td
+                      key={c}
+                      className="border-b border-border-subtle px-2 py-1 max-w-[200px] truncate"
+                      title={String(r[c] ?? '')}
+                    >
+                      {String(r[c] ?? '')}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex items-center justify-between border-t border-border-subtle px-3 py-2 text-xs text-fg-muted">
+        <span>
+          {filtered.length === 0
+            ? '0 rows'
+            : `Showing ${start + 1}–${Math.min(start + pageSize, filtered.length)} of ${filtered.length.toLocaleString()}`}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            disabled={safePage === 0}
+            onClick={() => setPage(0)}
+            className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+          >
+            ⟪
+          </button>
+          <button
+            disabled={safePage === 0}
+            onClick={() => setPage(safePage - 1)}
+            className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+          >
+            ‹ Prev
+          </button>
+          <span className="px-2 font-mono">
+            {safePage + 1} / {totalPages}
+          </span>
+          <button
+            disabled={safePage >= totalPages - 1}
+            onClick={() => setPage(safePage + 1)}
+            className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+          >
+            Next ›
+          </button>
+          <button
+            disabled={safePage >= totalPages - 1}
+            onClick={() => setPage(totalPages - 1)}
+            className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+          >
+            ⟫
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

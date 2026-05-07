@@ -94,6 +94,36 @@ const api = {
     pickImage: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickImage'),
     pickImages: (): Promise<string[]> => ipcRenderer.invoke('dialog:pickImages'),
   },
+  barcode: {
+    generateBatch: (payload: {
+      runId: string;
+      input: {
+        values: string[];
+        format: 'EAN-13' | 'Code128' | 'Code39' | 'UPC-A';
+        output: 'svg' | 'png';
+        outputDir: string;
+        width_mm: number;
+        height_mm: number;
+        showText: boolean;
+        filenamePrefix: string;
+        dpi: 150 | 300 | 600;
+        fillEmpty: boolean;
+      };
+    }): Promise<{ generated: number; files: string[]; errors: string[] }> =>
+      ipcRenderer.invoke('barcode:generateBatch', payload),
+    cancel: (runId: string): Promise<void> =>
+      ipcRenderer.invoke('barcode:cancel', runId),
+    onProgress: (
+      runId: string,
+      cb: (info: { index: number; total: number; value: string }) => void,
+    ): (() => void) => {
+      const channel = `barcode:progress:${runId}`;
+      const handler = (_e: unknown, info: { index: number; total: number; value: string }) =>
+        cb(info);
+      ipcRenderer.on(channel, handler);
+      return () => ipcRenderer.removeListener(channel, handler);
+    },
+  },
   template: {
     listForBrand: (brandId: string): Promise<Template[]> =>
       ipcRenderer.invoke('template:listForBrand', brandId),

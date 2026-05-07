@@ -7,6 +7,7 @@ import Templates from './pages/Templates';
 import Designer from './pages/Designer';
 import DataImport from './pages/DataImport';
 import Generate from './pages/Generate';
+import Barcodes from './pages/Barcodes';
 import Files from './pages/Files';
 import Settings from './pages/Settings';
 import Support from './pages/Support';
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/designer/:brandId/:templateId" element={<Designer />} />
           <Route path="/data" element={<DataImport />} />
           <Route path="/generate" element={<Generate />} />
+          <Route path="/barcodes" element={<Barcodes />} />
           <Route path="/files" element={<Files />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/support" element={<Support />} />

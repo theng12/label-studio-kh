@@ -12,6 +12,8 @@ import { registerSettingsIpc } from './ipc/settings';
 import { registerLicenseIpc } from './ipc/license';
 import { registerSkuIpc } from './ipc/sku';
 import { registerDialogIpc } from './ipc/dialog';
+import { registerBarcodeIpc } from './ipc/barcode';
+import { shutdownBarcodeBrowser } from './services/BarcodeService';
 import { shutdownBrowser } from './services/ExportService';
 import { closeDb } from './services/Database';
 import { DemoSeed } from './services/DemoSeed';
@@ -87,6 +89,7 @@ app.whenReady().then(() => {
   registerLicenseIpc();
   registerSkuIpc();
   registerDialogIpc();
+  registerBarcodeIpc();
   try {
     DemoSeed.ensure();
   } catch (err) {
@@ -106,5 +109,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', async () => {
   await shutdownBrowser();
+  await shutdownBarcodeBrowser();
   closeDb();
 });
