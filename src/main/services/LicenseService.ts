@@ -44,20 +44,10 @@ function sign(secret: string, payload: string): string {
   return alphaEncode(buf, 8);
 }
 
-/**
- * Generate a license key for a given name. Uses LICENSE_SECRET from env.
- * Throws if no secret is set. Returns the key string.
- */
-export function generateLicense(name: string, salt = randomGroup()): string {
-  const secret = getSecret();
-  if (!secret) throw new Error('LICENSE_SECRET is not set in environment.');
-  const g1 = nameHash(name);
-  const g2 = salt;
-  const sig = sign(secret, `${g1}${g2}`);
-  const sig1 = sig.slice(0, 4);
-  const sig2 = sig.slice(4, 8);
-  return `LC-${g1}-${g2}-${sig1}-${sig2}`.toUpperCase();
-}
+// NOTE: Key generation lives only in scripts/generate-license.mjs (a Node CLI).
+// We intentionally don't expose generation from the running app — keys should
+// only ever be issued by the owner with their private LICENSE_SECRET, not by
+// the user-facing app. Validation alone is what the app needs.
 
 /** Validate a license key against the secret + a name. */
 export function validateKey(key: string, name: string): boolean {
@@ -69,14 +59,6 @@ export function validateKey(key: string, name: string): boolean {
   if (g1 !== nameHash(name)) return false;
   const expected = sign(secret, `${g1}${g2}`);
   return expected === `${sig1}${sig2}`;
-}
-
-function randomGroup(): string {
-  const buf = Buffer.alloc(4);
-  for (let i = 0; i < 4; i += 1) {
-    buf[i] = Math.floor(Math.random() * 256);
-  }
-  return alphaEncode(buf, 4);
 }
 
 // ── Persistence ──────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
-import { extname, basename, join } from 'node:path';
+import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { paths } from './paths';
 
@@ -42,10 +42,5 @@ export const AssetService = {
     } catch (err) {
       console.error(`Failed to remove asset ${filePath}:`, err);
     }
-  },
-
-  /** Helper for renderer to build a file:// URL with cache-busting. */
-  fileUrlWithCacheBust(filePath: string): string {
-    return `file://${filePath}?v=${basename(filePath)}`;
   },
 };

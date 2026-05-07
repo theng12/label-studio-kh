@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   IconDeviceFloppy,
-  IconCopy,
   IconArrowBackUp,
   IconArrowForwardUp,
   IconTrash,
@@ -116,9 +115,6 @@ export function TopBar({ onSave, saving }: Props) {
           title="Remove all elements from this template"
         >
           <IconTrash size={14} /> Clear all
-        </Button>
-        <Button size="sm" variant="secondary" disabled title="Duplicate template (coming soon)">
-          <IconCopy size={14} /> Duplicate
         </Button>
         <Button size="sm" variant="primary" onClick={onSave} disabled={saving}>
           <IconDeviceFloppy size={14} /> {saving ? 'Saving…' : 'Save'}
