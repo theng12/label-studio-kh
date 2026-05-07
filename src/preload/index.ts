@@ -63,6 +63,15 @@ export interface BulkExportSummary {
 const api = {
   app: {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
+    getInfo: (): Promise<{
+      name: string;
+      version: string;
+      electronVersion: string;
+      nodeVersion: string;
+      chromeVersion: string;
+      platform: NodeJS.Platform;
+      isDev: boolean;
+    }> => ipcRenderer.invoke('app:getInfo'),
   },
   brand: {
     list: (): Promise<Brand[]> => ipcRenderer.invoke('brand:list'),

@@ -6,15 +6,18 @@ import { useThemeStore, type ThemeMode } from '../stores/themeStore';
 import { SUPPORTED_LANGUAGES, setLanguage } from '../i18n';
 
 type AppSettings = Awaited<ReturnType<typeof window.api.settings.get>>;
+type AppInfo = Awaited<ReturnType<typeof window.api.app.getInfo>>;
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
   const mode = useThemeStore((s) => s.mode);
   const setMode = useThemeStore((s) => s.setMode);
   const [s, setS] = useState<AppSettings | null>(null);
+  const [info, setInfo] = useState<AppInfo | null>(null);
 
   useEffect(() => {
     void window.api.settings.get().then(setS);
+    void window.api.app.getInfo().then(setInfo);
   }, []);
 
   const update = async (patch: Partial<AppSettings>) => {
@@ -115,7 +118,64 @@ export default function Settings() {
           onChange={(e) => void update({ hideDemoBrand: e.target.checked })}
         />
       </Row>
+
+      <About info={info} />
     </Page>
+  );
+}
+
+function About({ info }: { info: AppInfo | null }) {
+  return (
+    <div className="mt-8 rounded-lg border border-border-base bg-bg-surface p-5">
+      <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-fg-subtle">
+        About
+      </div>
+      <div className="flex items-baseline justify-between">
+        <div>
+          <div className="text-base font-semibold text-fg-base">
+            Label Studio KH
+          </div>
+          <div className="text-xs text-fg-muted">
+            Desktop label design and bulk generation
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-mono text-fg-base">
+            v{info?.version ?? '—'}
+          </div>
+          {info?.isDev && (
+            <div className="mt-0.5 inline-block rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
+              development build
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 border-t border-border-subtle pt-3 text-xs">
+        <DetailRow label="Platform" value={info?.platform ?? '—'} />
+        <DetailRow label="Electron" value={info?.electronVersion ?? '—'} />
+        <DetailRow label="Chromium" value={info?.chromeVersion ?? '—'} />
+        <DetailRow label="Node" value={info?.nodeVersion ?? '—'} />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between border-t border-border-subtle pt-3">
+        <div className="text-xs text-fg-muted">
+          Update checking will land in a future release.
+        </div>
+        <Button size="sm" variant="secondary" disabled title="Available in a future release">
+          Check for updates
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-2 py-0.5">
+      <span className="text-fg-subtle">{label}</span>
+      <span className="font-mono text-fg-base">{value}</span>
+    </div>
   );
 }
 

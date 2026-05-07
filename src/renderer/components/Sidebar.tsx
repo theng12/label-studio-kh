@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -31,9 +31,15 @@ export function Sidebar() {
   const { t } = useTranslation();
   const licensed = useLicenseStore((s) => s.licensed);
   const refreshLicense = useLicenseStore((s) => s.refresh);
+  const [version, setVersion] = useState<string>('');
+  const [isDev, setIsDev] = useState<boolean>(false);
 
   useEffect(() => {
     void refreshLicense();
+    void window.api.app.getInfo().then((info) => {
+      setVersion(info.version);
+      setIsDev(info.isDev);
+    });
   }, [refreshLicense]);
 
   const sections: NavSection[] = [
@@ -89,6 +95,19 @@ export function Sidebar() {
 
       <div className="border-t border-border-subtle p-2">
         <SidebarLink to="/support" label={t('nav.support')} icon={IconHeart} />
+        {version && (
+          <div
+            className="px-3 pb-1 pt-2 text-[10px] text-fg-subtle"
+            title={isDev ? 'Development build' : 'Production build'}
+          >
+            v{version}
+            {isDev && (
+              <span className="ml-1 rounded bg-warning/15 px-1 py-px text-[9px] font-medium text-warning">
+                dev
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </aside>
   );
