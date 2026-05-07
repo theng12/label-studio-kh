@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   IconWand,
   IconFolder,
@@ -7,10 +8,12 @@ import {
   IconExternalLink,
   IconCheck,
   IconX,
+  IconAlertCircle,
 } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 import { useBrandStore } from '../stores/brandStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { ElementView } from '../designer/ElementView';
 import type { Template } from '../../shared/types/template';
 import type {
@@ -25,7 +28,10 @@ type SkuRow = Awaited<ReturnType<typeof window.api.import.listSkus>>[number];
 const DEFAULT_FILENAME_PATTERN = '{SKU}_{Size}';
 
 export default function Generate() {
+  const navigate = useNavigate();
   const { brands, refresh } = useBrandStore();
+  const appSettings = useSettingsStore((s) => s.settings);
+  const refreshSettings = useSettingsStore((s) => s.refresh);
   const [brandId, setBrandId] = useState<string>('');
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState<string>('');
@@ -47,7 +53,32 @@ export default function Generate() {
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshSettings();
+  }, [refresh, refreshSettings]);
+
+  // Seed defaults from saved settings the first time they arrive. We only
+  // overwrite blank/default fields so a user mid-edit isn't clobbered.
+  useEffect(() => {
+    if (!appSettings) return;
+    setOutputDir((curr) => curr || appSettings.defaultSaveLocation);
+    setFilenamePattern((curr) =>
+      curr === DEFAULT_FILENAME_PATTERN ? appSettings.defaultNamingPattern : curr,
+    );
+    setDpi((curr) => (curr === 300 ? appSettings.defaultDpi : curr));
+    setFormats((curr) => {
+      if (curr.length !== 1 || curr[0] !== 'pdf') return curr;
+      switch (appSettings.defaultExportFormat) {
+        case 'all':
+          return ['pdf', 'png', 'jpeg'];
+        case 'pdf':
+        case 'png':
+        case 'jpeg':
+          return [appSettings.defaultExportFormat];
+        default:
+          return curr;
+      }
+    });
+  }, [appSettings]);
 
   useEffect(() => {
     if (!brandId && brands.length > 0) setBrandId(brands[0]!.id);
@@ -315,11 +346,27 @@ export default function Generate() {
             )}
           </Section>
 
+          {!canGenerate && (
+            <PrereqChecklist
+              brand={brand}
+              brandHasTemplates={templates.length > 0}
+              templateSelected={!!template}
+              skuCount={skus.length}
+              formatsCount={formats.length}
+              outputDirSet={!!outputDir}
+              onGoToBrands={() => navigate('/brands')}
+              onGoToTemplates={() => navigate('/templates')}
+              onGoToImport={() => navigate('/data')}
+              onPickFolder={onPickFolder}
+            />
+          )}
+
           <Button
             variant="primary"
             disabled={!canGenerate || running}
             onClick={onGenerate}
             className="w-full"
+            title={canGenerate ? '' : 'Some things still need to be set — see the checklist above.'}
           >
             <IconWand size={14} /> Generate {skus.length} label{skus.length === 1 ? '' : 's'}{' '}
             ({formats.map((f) => f.toUpperCase()).join('+') || '—'})
@@ -422,6 +469,119 @@ function Field({
       <div className="mt-1">{children}</div>
       {hint && <div className="mt-1 text-[10px] text-fg-subtle">{hint}</div>}
     </label>
+  );
+}
+
+// ── Prerequisites checklist (replaces silent disabled state) ────────────────
+
+function PrereqChecklist({
+  brand,
+  brandHasTemplates,
+  templateSelected,
+  skuCount,
+  formatsCount,
+  outputDirSet,
+  onGoToBrands,
+  onGoToTemplates,
+  onGoToImport,
+  onPickFolder,
+}: {
+  brand: import('../../shared/types/brand').Brand | null;
+  brandHasTemplates: boolean;
+  templateSelected: boolean;
+  skuCount: number;
+  formatsCount: number;
+  outputDirSet: boolean;
+  onGoToBrands: () => void;
+  onGoToTemplates: () => void;
+  onGoToImport: () => void;
+  onPickFolder: () => void;
+}) {
+  const items: Array<{
+    ok: boolean;
+    label: string;
+    fix?: { label: string; onClick: () => void };
+  }> = [
+    {
+      ok: !!brand,
+      label: brand ? `Brand: ${brand.name}` : 'No brand selected',
+      fix: !brand ? { label: 'Pick or create a brand', onClick: onGoToBrands } : undefined,
+    },
+    {
+      ok: brandHasTemplates && templateSelected,
+      label: brandHasTemplates
+        ? templateSelected
+          ? 'Template selected'
+          : 'Pick a template above'
+        : `${brand?.name ?? 'This brand'} has no templates yet`,
+      fix: !brandHasTemplates
+        ? { label: 'Create a template', onClick: onGoToTemplates }
+        : undefined,
+    },
+    {
+      ok: skuCount > 0,
+      label:
+        skuCount > 0
+          ? `${skuCount.toLocaleString()} SKU${skuCount === 1 ? '' : 's'} ready`
+          : `${brand?.name ?? 'This brand'} has no SKUs yet`,
+      fix: skuCount === 0
+        ? { label: 'Import or add SKUs', onClick: onGoToImport }
+        : undefined,
+    },
+    {
+      ok: formatsCount > 0,
+      label:
+        formatsCount > 0
+          ? `${formatsCount} output format${formatsCount === 1 ? '' : 's'} chosen`
+          : 'No output format selected',
+    },
+    {
+      ok: outputDirSet,
+      label: outputDirSet ? 'Save location set' : 'No save location chosen',
+      fix: !outputDirSet
+        ? { label: 'Pick a folder', onClick: onPickFolder }
+        : undefined,
+    },
+  ];
+
+  const blockers = items.filter((i) => !i.ok);
+  if (blockers.length === 0) return null;
+
+  return (
+    <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
+      <div className="mb-2 flex items-center gap-2 font-medium text-warning">
+        <IconAlertCircle size={14} />
+        {blockers.length === 1
+          ? "One thing still missing before we can generate"
+          : `${blockers.length} things still missing before we can generate`}
+      </div>
+      <ul className="space-y-1.5">
+        {items.map((i, idx) => (
+          <li
+            key={idx}
+            className={[
+              'flex items-center gap-2 text-xs',
+              i.ok ? 'text-fg-muted' : 'text-fg-base',
+            ].join(' ')}
+          >
+            {i.ok ? (
+              <IconCheck size={12} className="shrink-0 text-success" />
+            ) : (
+              <IconX size={12} className="shrink-0 text-danger" />
+            )}
+            <span className="flex-1">{i.label}</span>
+            {!i.ok && i.fix && (
+              <button
+                onClick={i.fix.onClick}
+                className="rounded border border-border-base bg-bg-elevated px-2 py-0.5 text-[10px] font-medium text-fg-base hover:bg-bg-hover"
+              >
+                {i.fix.label} →
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
