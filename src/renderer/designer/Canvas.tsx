@@ -35,6 +35,7 @@ export function Canvas() {
   const selectedIds = useDesignerStore((s) => s.selectedIds);
   const zoom = useDesignerStore((s) => s.zoom);
   const snapOn = useDesignerStore((s) => s.snap);
+  const setZoom = useDesignerStore((s) => s.setZoom);
   const select = useDesignerStore((s) => s.select);
   const toggleSelect = useDesignerStore((s) => s.toggleSelect);
   const addElement = useDesignerStore((s) => s.addElement);
@@ -66,6 +67,29 @@ export function Canvas() {
     observer.observe(wrapRef.current);
     return () => observer.disconnect();
   }, [template?.width_mm, template?.height_mm, template]);
+
+  // Trackpad pinch and Cmd/Ctrl+scroll → continuous zoom. React's onWheel is
+  // passive so we attach the listener manually with passive: false to allow
+  // preventDefault and stop the wrapper from also scrolling.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      // macOS trackpad pinch comes through as wheel with ctrlKey=true.
+      // Cmd/Ctrl + scroll is the desktop equivalent.
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const current =
+        zoom === 'fit' ? fitScale / PX_PER_MM_BASE : (zoom as number);
+      // deltaY < 0 = pinch out / scroll up = zoom in. Sensitivity capped so
+      // a hard pinch doesn't blow past the user's intent.
+      const factor = Math.exp(-e.deltaY * 0.005);
+      const next = Math.max(0.25, Math.min(8, current * factor));
+      setZoom(Math.round(next * 100) / 100);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [zoom, fitScale, setZoom]);
 
   const scale = template ? (zoom === 'fit' ? fitScale : zoom) : 1;
   const pxPerMm = PX_PER_MM_BASE * scale;

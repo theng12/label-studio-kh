@@ -31,6 +31,7 @@ export default function Designer() {
   const navigate = useNavigate();
 
   const setTemplate = useDesignerStore((s) => s.setTemplate);
+  const markSaved = useDesignerStore((s) => s.markSaved);
   const template = useDesignerStore((s) => s.template);
   const refreshBrands = useBrandStore((s) => s.refresh);
   const brands = useBrandStore((s) => s.brands);
@@ -91,7 +92,10 @@ export default function Designer() {
     setSaving(true);
     try {
       const saved = await window.api.template.save(template);
-      setTemplate(saved);
+      // markSaved keeps the in-flight edits/history intact and just notes that
+      // disk is now in sync — Save button greys out, "saved Xs ago" timer
+      // resets — without throwing away the user's history stack.
+      markSaved(saved);
       // If this was a new template, replace the URL with the real id.
       if (isNew) {
         navigate(`/designer/${saved.brandId}/${saved.id}`, { replace: true });

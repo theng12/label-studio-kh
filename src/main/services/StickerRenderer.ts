@@ -6,7 +6,12 @@ import { join } from 'node:path';
 import { app } from 'electron';
 import type { Template, TemplateElement } from '@shared/types/template';
 import type { Brand } from '@shared/types/brand';
-import { flagFromCode, formatPrice } from '@shared/format';
+import {
+  flagFromCode,
+  formatDate as fmtDate,
+  formatPrice,
+  parseDateLoose,
+} from '@shared/format';
 
 // Font loading: each entry maps a CSS family name → file under resources/fonts/.
 // Missing files are silently skipped (font-display: swap → system fallback).
@@ -94,22 +99,20 @@ function truncate(s: string, max: number | null | undefined): string {
   return slice + '…';
 }
 
-function formatDate(format: string, d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return format
-    .replace(/YYYY/g, String(d.getFullYear()))
-    .replace(/MM/g, pad(d.getMonth() + 1))
-    .replace(/DD/g, pad(d.getDate()));
-}
-
 function resolveDate(
   el: Extract<TemplateElement, { type: 'date' }>,
   row: Record<string, string>,
 ): string {
-  if (el.mode === 'today') return formatDate(el.format, new Date());
-  if (el.mode === 'static') return el.staticDate;
-  if (el.mode === 'csv_column') return String(row[el.csvColumn] ?? '');
-  return ''; // blank
+  let d: Date;
+  if (el.mode === 'today') {
+    d = new Date();
+  } else if (el.mode === 'static') {
+    d = parseDateLoose(el.staticDate);
+  } else {
+    d = parseDateLoose(String(row[el.csvColumn] ?? ''));
+  }
+  if (!Number.isFinite(d.getTime())) return '';
+  return fmtDate(d, el.formatStyle, el.format);
 }
 
 function resolveQrUrl(
@@ -370,11 +373,13 @@ async function renderElement(
 
     case 'date': {
       const value = resolveDate(el, ctx.row);
-      const label = el.labelText ? `<span>${escapeHtml(el.labelText)}</span>` : '';
-      const body = el.showDottedLine
-        ? `<span style="flex:1;border-bottom:1px dotted #888;height:50%;"></span>`
-        : `<span>${escapeHtml(value)}</span>`;
-      return `<div style="${styleAttr};display:flex;align-items:center;gap:1mm;color:${el.color};font-size:${el.fontSize}pt;font-family:'${el.fontFamily}', sans-serif;">${label}${body}</div>`;
+      const justify =
+        el.align === 'center'
+          ? 'center'
+          : el.align === 'right'
+            ? 'flex-end'
+            : 'flex-start';
+      return `<div style="${styleAttr};display:flex;align-items:center;justify-content:${justify};color:${el.color};font-size:${el.fontSize}pt;font-family:'${el.fontFamily}', sans-serif;font-weight:${el.fontWeight};white-space:nowrap;">${escapeHtml(value)}</div>`;
     }
 
     case 'rect': {

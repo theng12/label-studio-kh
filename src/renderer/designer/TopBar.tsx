@@ -31,6 +31,8 @@ export function TopBar({ onSave, saving }: Props) {
   const canUndo = useDesignerStore((s) => s.canUndo);
   const canRedo = useDesignerStore((s) => s.canRedo);
   const clearAllElements = useDesignerStore((s) => s.clearAllElements);
+  const isDirty = useDesignerStore((s) => s.isDirty);
+  const lastSavedAt = useDesignerStore((s) => s.lastSavedAt);
   const brands = useBrandStore((s) => s.brands);
 
   const [confirmClear, setConfirmClear] = useState(false);
@@ -116,8 +118,22 @@ export function TopBar({ onSave, saving }: Props) {
         >
           <IconTrash size={14} /> Clear all
         </Button>
-        <Button size="sm" variant="primary" onClick={onSave} disabled={saving}>
-          <IconDeviceFloppy size={14} /> {saving ? 'Saving…' : 'Save'}
+        <SaveStatus lastSavedAt={lastSavedAt} dirty={isDirty} saving={saving} />
+        <Button
+          size="sm"
+          variant={isDirty ? 'primary' : 'secondary'}
+          onClick={onSave}
+          disabled={saving || !isDirty}
+          title={
+            isDirty
+              ? 'Save unsaved changes (⌘S)'
+              : lastSavedAt
+                ? 'Nothing to save — already up to date'
+                : 'Save this template'
+          }
+        >
+          <IconDeviceFloppy size={14} />{' '}
+          {saving ? 'Saving…' : isDirty ? 'Save' : 'Saved'}
         </Button>
       </div>
 
@@ -306,4 +322,61 @@ function PresetsButton({
       )}
     </div>
   );
+}
+
+// ── Save status indicator ────────────────────────────────────────────────────
+
+function SaveStatus({
+  lastSavedAt,
+  dirty,
+  saving,
+}: {
+  lastSavedAt: string | null;
+  dirty: boolean;
+  saving: boolean;
+}) {
+  // Re-render once a minute so the relative-time string stays fresh.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!lastSavedAt) return;
+    const id = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, [lastSavedAt]);
+
+  let text: string;
+  let tone: 'muted' | 'warning' | 'success' = 'muted';
+  if (saving) {
+    text = 'Saving…';
+    tone = 'muted';
+  } else if (dirty) {
+    text = lastSavedAt ? 'Unsaved changes' : 'Not yet saved';
+    tone = 'warning';
+  } else if (lastSavedAt) {
+    text = `Saved ${formatAgo(lastSavedAt)}`;
+    tone = 'success';
+  } else {
+    text = '';
+  }
+
+  if (!text) return null;
+  const colour =
+    tone === 'warning'
+      ? 'text-warning'
+      : tone === 'success'
+        ? 'text-success'
+        : 'text-fg-muted';
+  return <span className={['text-[11px]', colour].join(' ')}>{text}</span>;
+}
+
+function formatAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  const sec = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (sec < 5) return 'just now';
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} hr ago`;
+  const d = Math.round(hr / 24);
+  return `${d} day${d === 1 ? '' : 's'} ago`;
 }

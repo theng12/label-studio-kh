@@ -22,7 +22,6 @@ function localFileUrl(path: string): string {
 }
 
 const CATEGORIES = ['FMCG', 'Electronics', 'Hardware', 'Beauty', 'Other'] as const;
-const FONTS = ['NotoSans', 'Inter', 'System default'] as const;
 
 const STEPS = [
   { key: 'basic', title: 'Basic info' },
@@ -46,7 +45,6 @@ const DEFAULT_DRAFT: NewBrandInput = {
   color: '#1063E8',
   logoPath: null,
   logos: [],
-  defaultFont: 'NotoSans',
   website: '',
   address: '',
   phone: '',
@@ -71,7 +69,6 @@ function brandToDraft(b: Brand): NewBrandInput {
         : b.logoPath
           ? [{ id: 'primary', name: 'Logo', path: b.logoPath }]
           : [],
-    defaultFont: b.defaultFont,
     website: b.website,
     address: b.address,
     phone: b.phone,
@@ -312,19 +309,6 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
                   placeholder="e.g. 1989"
                 />
               </Field>
-              <Field label="Default font">
-                <select
-                  value={draft.defaultFont}
-                  onChange={(e) => set({ defaultFont: e.target.value })}
-                  className="rounded-md border border-border-base bg-bg-surface px-3 py-2 text-sm text-fg-base focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-                >
-                  {FONTS.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-              </Field>
             </div>
           )}
 
@@ -442,7 +426,6 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
               />
               <ReviewRow label="Tagline" value={draft.tagline || '—'} />
               <ReviewRow label="Established" value={draft.establishedYear || '—'} />
-              <ReviewRow label="Default font" value={draft.defaultFont} />
               <ReviewRow label="Website" value={draft.website || '—'} />
               <ReviewRow label="Phone" value={draft.phone || '—'} />
               <ReviewRow label="Email" value={draft.email || '—'} />

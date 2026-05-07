@@ -12,6 +12,64 @@ export function ptToPx(pt: number, pxPerMm = CSS_PX_PER_MM): number {
   return pt * MM_PER_PT * pxPerMm;
 }
 
+// ── Date formatting ─────────────────────────────────────────────────────────
+
+const MONTHS_LONG = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+/**
+ * Parse a date value from CSV / static input. Accepts either an ISO date,
+ * a DD/MM/YYYY string, or anything Date can parse. Falls back to today on
+ * an invalid input.
+ */
+export function parseDateLoose(s: string | Date): Date {
+  if (s instanceof Date) return s;
+  const trimmed = (s ?? '').trim();
+  if (!trimmed) return new Date(NaN);
+  // ISO yyyy-mm-dd
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  // DD/MM/YYYY (most common in the spec)
+  const dmy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmy) return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+  // Fall back to native parsing
+  const d = new Date(trimmed);
+  return d;
+}
+
+export type DateFormatStyle = 'short' | 'long' | 'iso' | 'custom';
+
+export function formatDate(
+  d: Date,
+  style: DateFormatStyle,
+  customFormat = 'DD/MM/YYYY',
+): string {
+  if (!Number.isFinite(d.getTime())) return '';
+  const Y = d.getFullYear();
+  const M = d.getMonth() + 1;
+  const D = d.getDate();
+  switch (style) {
+    case 'iso':
+      return `${Y}-${pad2(M)}-${pad2(D)}`;
+    case 'long':
+      return `${D} ${MONTHS_LONG[d.getMonth()]} ${Y}`;
+    case 'short':
+      return `${pad2(D)}/${pad2(M)}/${Y}`;
+    case 'custom':
+      return customFormat
+        .replace(/YYYY/g, String(Y))
+        .replace(/MM/g, pad2(M))
+        .replace(/DD/g, pad2(D));
+  }
+}
+
+
 
 export function flagFromCode(code: string): string {
   const c = (code || '').trim().toUpperCase();

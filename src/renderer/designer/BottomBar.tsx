@@ -28,12 +28,33 @@ export function BottomBar() {
       ? template?.elements.find((e) => e.id === selectedIds[0])
       : undefined;
 
+  // Stepwise zoom presets used by the +/- buttons. Trackpad/wheel zoom on
+  // the canvas itself produces arbitrary continuous values.
   const cycleZoom = (dir: 1 | -1) => {
-    const order = ['fit', 1, 2, 3, 4] as const;
-    const i = order.indexOf(zoom);
-    const next = order[Math.max(0, Math.min(order.length - 1, i + dir))]!;
-    setZoom(next);
+    const presets = ['fit', 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8] as const;
+    if (zoom === 'fit') {
+      setZoom(dir === 1 ? 1 : 'fit');
+      return;
+    }
+    // Find the closest preset and step from there.
+    const i = presets.findIndex(
+      (p) => typeof p === 'number' && Math.abs(p - (zoom as number)) < 0.01,
+    );
+    const next =
+      i < 0
+        ? dir === 1
+          ? Math.min(8, (zoom as number) * 1.25)
+          : Math.max(0.25, (zoom as number) / 1.25)
+        : presets[Math.max(0, Math.min(presets.length - 1, i + dir))];
+    setZoom(next === 'fit' ? 'fit' : (next as number));
   };
+
+  const zoomLabel =
+    zoom === 'fit'
+      ? 'Fit'
+      : zoom >= 1
+        ? `${(zoom as number).toFixed((zoom as number) % 1 === 0 ? 0 : 1)}×`
+        : `${Math.round((zoom as number) * 100)}%`;
 
   // Soft size warning: tiny stickers + many elements = likely unreadable in print.
   const sizeWarning =
@@ -52,8 +73,8 @@ export function BottomBar() {
           >
             <IconMinus size={14} />
           </button>
-          <span className="min-w-[3ch] text-center">
-            {zoom === 'fit' ? 'Fit' : `${zoom}×`}
+          <span className="min-w-[3.5ch] text-center font-mono">
+            {zoomLabel}
           </span>
           <button
             onClick={() => cycleZoom(1)}

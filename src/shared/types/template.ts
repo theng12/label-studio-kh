@@ -160,14 +160,25 @@ export interface CountryElement extends BaseElement {
 
 export interface DateElement extends BaseElement {
   type: 'date';
-  mode: 'blank' | 'today' | 'csv_column' | 'static';
+  /** Where the date value comes from. */
+  mode: 'today' | 'csv_column' | 'static';
   csvColumn: string;
+  /** ISO yyyy-mm-dd string for the static mode. */
   staticDate: string;
+  /**
+   * How to format the date.
+   * - short: 06/05/2026 (locale short)
+   * - long: 6 May 2026
+   * - iso: 2026-05-06
+   * - custom: use the `format` token string below
+   */
+  formatStyle: 'short' | 'long' | 'iso' | 'custom';
+  /** Token string used when formatStyle is 'custom'. Tokens: YYYY, MM, DD. */
   format: string;
-  labelText: string;
-  showDottedLine: boolean;
+  align: 'left' | 'center' | 'right';
   fontSize: number;
   fontFamily: string;
+  fontWeight: 'normal' | 'bold';
   color: string;
 }
 

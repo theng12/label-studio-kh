@@ -24,7 +24,12 @@ export interface Brand {
    * Optional for backwards compat with brands written before 0.3.
    */
   logos?: BrandLogo[];
-  defaultFont: string;
+  /**
+   * Deprecated. Fonts are configured per element on the template, not per
+   * brand. Kept optional for backwards compat with brands written before
+   * the per-element font picker was added.
+   */
+  defaultFont?: string;
   website: string;
   address: string;
   phone: string;

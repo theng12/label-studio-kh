@@ -3,7 +3,9 @@ import type { Brand } from '../../shared/types/brand';
 import {
   CSS_PX_PER_MM,
   flagFromCode,
+  formatDate,
   formatPrice,
+  parseDateLoose,
   ptToPx,
 } from '../../shared/format';
 
@@ -398,6 +400,24 @@ export function ElementView({
       );
 
     case 'date': {
+      let text = '';
+      if (element.mode === 'today') {
+        text = formatDate(new Date(), element.formatStyle, element.format);
+      } else if (element.mode === 'static') {
+        const d = parseDateLoose(element.staticDate);
+        text = Number.isFinite(d.getTime())
+          ? formatDate(d, element.formatStyle, element.format)
+          : element.staticDate || '—';
+      } else {
+        // CSV column — no live row in the designer, show a hint placeholder.
+        text = `{${element.csvColumn || 'date'}}`;
+      }
+      const justify =
+        element.align === 'center'
+          ? 'center'
+          : element.align === 'right'
+            ? 'flex-end'
+            : 'flex-start';
       return (
         <div
           style={{
@@ -405,29 +425,14 @@ export function ElementView({
             color: element.color,
             fontSize: fontPx(element.fontSize),
             fontFamily: element.fontFamily,
+            fontWeight: element.fontWeight,
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
+            justifyContent: justify,
+            whiteSpace: 'nowrap',
           }}
         >
-          {element.labelText && <span>{element.labelText}</span>}
-          {element.showDottedLine ? (
-            <span
-              style={{
-                flex: 1,
-                borderBottom: '1px dotted #888',
-                height: '50%',
-              }}
-            />
-          ) : (
-            <span>
-              {element.mode === 'today'
-                ? new Date().toLocaleDateString()
-                : element.mode === 'static'
-                  ? element.staticDate
-                  : `{${element.csvColumn}}`}
-            </span>
-          )}
+          {text}
         </div>
       );
     }

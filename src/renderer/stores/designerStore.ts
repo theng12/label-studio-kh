@@ -2,17 +2,31 @@ import { create } from 'zustand';
 import type { Template, TemplateElement, ElementType } from '../../shared/types/template';
 import { defaultElement } from '../designer/elementDefaults';
 
+export type Zoom = 'fit' | number;
+
 interface DesignerState {
   template: Template | null;
   selectedIds: string[];
-  zoom: 'fit' | 1 | 2 | 3 | 4;
+  zoom: Zoom;
   snap: boolean;
   cursorMm: { x: number; y: number };
 
   history: Template[];
   historyIndex: number;
 
+  /**
+   * A monotonically increasing counter, bumped whenever the template is
+   * mutated through history-pushing actions. Compared to savedVersion to
+   * decide whether the Save button should be active. Cheap O(1) check.
+   */
+  version: number;
+  savedVersion: number;
+  lastSavedAt: string | null;
+  isDirty: boolean;
+
   setTemplate: (t: Template) => void;
+  markSaved: (saved: Template) => void;
+
   patchTemplate: (patch: Partial<Template>) => void;
   setOrientation: (orientation: 'portrait' | 'landscape') => void;
   setDimensions: (width_mm: number, height_mm: number) => void;
@@ -34,7 +48,7 @@ interface DesignerState {
   sendToBack: (id: string) => void;
   reorderElement: (id: string, direction: 'up' | 'down') => void;
 
-  setZoom: (z: 'fit' | 1 | 2 | 3 | 4) => void;
+  setZoom: (z: Zoom) => void;
   toggleSnap: () => void;
   setCursorMm: (x: number, y: number) => void;
 
@@ -61,12 +75,34 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   history: [],
   historyIndex: -1,
 
+  version: 0,
+  savedVersion: 0,
+  lastSavedAt: null,
+  isDirty: false,
+
   setTemplate: (template) => {
+    // Freshly loaded → version aligns with savedVersion. New templates (no id
+    // yet) start dirty so the Save button lights up on first edit.
+    const isNew = !template.id;
     set({
       template,
       selectedIds: [],
       history: [structuredClone(template)],
       historyIndex: 0,
+      version: 0,
+      savedVersion: isNew ? -1 : 0,
+      lastSavedAt: isNew ? null : (template.updatedAt ?? null),
+      isDirty: isNew,
+    });
+  },
+
+  markSaved: (saved) => {
+    const v = get().version;
+    set({
+      template: saved,
+      savedVersion: v,
+      lastSavedAt: saved.updatedAt ?? new Date().toISOString(),
+      isDirty: false,
     });
   },
 
@@ -257,32 +293,44 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   pushHistory: () => {
     const t = get().template;
     if (!t) return;
-    const { history, historyIndex } = get();
+    const { history, historyIndex, version, savedVersion } = get();
     const trimmed = history.slice(0, historyIndex + 1);
     const next = [...trimmed, structuredClone(t)];
     const overflow = Math.max(0, next.length - HISTORY_LIMIT);
-    set({ history: next.slice(overflow), historyIndex: next.length - 1 - overflow });
+    const nextVersion = version + 1;
+    set({
+      history: next.slice(overflow),
+      historyIndex: next.length - 1 - overflow,
+      version: nextVersion,
+      isDirty: nextVersion !== savedVersion,
+    });
   },
 
   undo: () => {
-    const { history, historyIndex } = get();
+    const { history, historyIndex, version, savedVersion } = get();
     if (historyIndex <= 0) return;
     const target = history[historyIndex - 1]!;
+    const nextVersion = version + 1;
     set({
       template: structuredClone(target),
       historyIndex: historyIndex - 1,
       selectedIds: [],
+      version: nextVersion,
+      isDirty: nextVersion !== savedVersion,
     });
   },
 
   redo: () => {
-    const { history, historyIndex } = get();
+    const { history, historyIndex, version, savedVersion } = get();
     if (historyIndex >= history.length - 1) return;
     const target = history[historyIndex + 1]!;
+    const nextVersion = version + 1;
     set({
       template: structuredClone(target),
       historyIndex: historyIndex + 1,
       selectedIds: [],
+      version: nextVersion,
+      isDirty: nextVersion !== savedVersion,
     });
   },
 
