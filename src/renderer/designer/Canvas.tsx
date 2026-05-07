@@ -767,14 +767,14 @@ function ElementBox({
     // grows by the same width/height delta and shifts position the same way
     // as the active handle dictates — simple uniform translation, NOT
     // proportional scaling around the group bbox.
-    const siblings =
+    const resizeMovers =
       wasSelected && selectedIds.length > 1
-        ? elements.filter(
+        ? siblings.filter(
             (el) => selectedIds.includes(el.id) && el.id !== element.id && !el.locked,
           )
         : [];
-    const siblingInitials = new Map(
-      siblings.map((s) => [
+    const siblingInitials = new Map<string, { x_mm: number; y_mm: number; width_mm: number; height_mm: number }>(
+      resizeMovers.map((s) => [
         s.id,
         {
           x_mm: s.x_mm,
@@ -850,7 +850,7 @@ function ElementBox({
       const updates: { id: string; patch: Partial<TemplateElement> }[] = [
         { id: element.id, patch },
       ];
-      for (const sib of siblings) {
+      for (const sib of resizeMovers) {
         const init = siblingInitials.get(sib.id)!;
         const sPatch: Partial<TemplateElement> = {
           width_mm: Math.max(1, init.width_mm + widthDelta),
