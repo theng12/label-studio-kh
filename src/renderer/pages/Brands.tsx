@@ -20,6 +20,8 @@ type WizardState =
   | { mode: 'create' }
   | { mode: 'edit'; brand: Brand };
 
+type BrandStats = { count: number; sizes: string[] };
+
 export default function Brands() {
   const { brands, loading, refresh, remove } = useBrandStore();
   const settings = useSettingsStore((s) => s.settings);
@@ -27,12 +29,44 @@ export default function Brands() {
   const [wizard, setWizard] = useState<WizardState>({ mode: 'closed' });
   const [confirmDelete, setConfirmDelete] = useState<Brand | null>(null);
   const [query, setQuery] = useState('');
+  const [stats, setStats] = useState<Map<string, BrandStats>>(new Map());
   const navigate = useNavigate();
 
   useEffect(() => {
     void refresh();
     void refreshSettings();
   }, [refresh, refreshSettings]);
+
+  const brandKey = brands.map((b) => b.id).join(',');
+  useEffect(() => {
+    if (brands.length === 0) {
+      setStats(new Map());
+      return;
+    }
+    let cancelled = false;
+    setStats(new Map());
+    void Promise.all(
+      brands.map(async (b) => {
+        const templates = await window.api.template.listForBrand(b.id);
+        const seen = new Map<string, { w: number; h: number }>();
+        for (const t of templates) {
+          const key = `${t.width_mm}×${t.height_mm}mm`;
+          if (!seen.has(key)) seen.set(key, { w: t.width_mm, h: t.height_mm });
+        }
+        const sizes = Array.from(seen.entries())
+          .sort(([, a], [, b2]) => a.w * a.h - b2.w * b2.h)
+          .map(([k]) => k);
+        return [b.id, { count: templates.length, sizes }] as const;
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      setStats(new Map(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandKey]);
 
   const visible = settings?.hideDemoBrand
     ? brands.filter((b) => !b.isDemo)
@@ -84,6 +118,7 @@ export default function Brands() {
               <BrandCard
                 key={b.id}
                 brand={b}
+                stats={stats.get(b.id)}
                 onOpenTemplates={() => navigate(`/templates?brand=${b.id}`)}
                 onEdit={() => setWizard({ mode: 'edit', brand: b })}
                 onDelete={() => setConfirmDelete(b)}
@@ -138,11 +173,13 @@ export default function Brands() {
 
 function BrandCard({
   brand,
+  stats,
   onOpenTemplates,
   onEdit,
   onDelete,
 }: {
   brand: Brand;
+  stats?: BrandStats;
   onOpenTemplates: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -168,6 +205,7 @@ function BrandCard({
             <div className="mt-2 text-xs text-fg-subtle">
               {brand.category ?? 'Uncategorised'}
             </div>
+            <BrandStatsLine stats={stats} onCreate={onOpenTemplates} />
           </div>
           <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
@@ -196,6 +234,44 @@ function BrandCard({
           <IconArrowRight size={12} />
         </button>
       </div>
+    </div>
+  );
+}
+
+function BrandStatsLine({
+  stats,
+  onCreate,
+}: {
+  stats?: BrandStats;
+  onCreate: () => void;
+}) {
+  if (!stats) {
+    return (
+      <div className="mt-1.5 h-3 w-32 animate-pulse rounded bg-bg-elevated" />
+    );
+  }
+  if (stats.count === 0) {
+    return (
+      <button
+        onClick={onCreate}
+        className="mt-1.5 text-xs text-fg-subtle hover:text-fg-base"
+      >
+        No templates yet — create one →
+      </button>
+    );
+  }
+  const MAX = 3;
+  const shown = stats.sizes.slice(0, MAX);
+  const rest = stats.sizes.slice(MAX);
+  const noun = stats.count === 1 ? 'template' : 'templates';
+  return (
+    <div className="mt-1.5 truncate text-xs text-fg-muted">
+      {stats.count} {noun}
+      {shown.length > 0 && ' · '}
+      {shown.join(' · ')}
+      {rest.length > 0 && (
+        <span title={rest.join(', ')}> · +{rest.length} more</span>
+      )}
     </div>
   );
 }
