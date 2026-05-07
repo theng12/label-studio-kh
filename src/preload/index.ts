@@ -192,9 +192,11 @@ const api = {
       dateFrom?: string;
       dateTo?: string;
       sizeLabel?: string;
+      batchId?: string;
     }): Promise<
       Array<{
         id: string;
+        batch_id: string | null;
         sku: string;
         brand_id: string;
         brand_name: string | null;

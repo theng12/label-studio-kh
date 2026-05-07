@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   IconSearch,
   IconExternalLink,
@@ -6,6 +6,7 @@ import {
   IconRefresh,
   IconTrash,
   IconAlertCircle,
+  IconX,
 } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
@@ -22,9 +23,18 @@ export default function Files() {
   const [brandId, setBrandId] = useState<string>('');
   const [format, setFormat] = useState<'' | 'pdf' | 'png' | 'jpeg'>('');
   const [size, setSize] = useState<string>('');
+  const [batchFilter, setBatchFilter] = useState<string>('');
   const [sizes, setSizes] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<FileEntry | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [reprinting, setReprinting] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkProgress, setBulkProgress] = useState<{
+    kind: 'reprint' | 'delete';
+    done: number;
+    total: number;
+  } | null>(null);
+  const lastClickedIdxRef = useRef<number | null>(null);
 
   useEffect(() => {
     void refresh();
@@ -38,16 +48,24 @@ export default function Files() {
       brandId: brandId || undefined,
       format: format || undefined,
       sizeLabel: size || undefined,
+      batchId: batchFilter || undefined,
     });
     setFiles(list);
     setLoading(false);
+    // Drop selections for rows that are no longer visible.
+    setSelected((prev) => {
+      const visibleIds = new Set(list.map((f) => f.id));
+      const next = new Set<string>();
+      for (const id of prev) if (visibleIds.has(id)) next.add(id);
+      return next;
+    });
   };
 
   // Reload when filters change.
   useEffect(() => {
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, brandId, format, size]);
+  }, [query, brandId, format, size, batchFilter]);
 
   const summary = useMemo(() => {
     const totalSize = files.reduce((s, f) => s + (f.file_size ?? 0), 0);
@@ -56,6 +74,48 @@ export default function Files() {
       mb: (totalSize / (1024 * 1024)).toFixed(1),
     };
   }, [files]);
+
+  const allVisibleSelected =
+    files.length > 0 && files.every((f) => selected.has(f.id));
+  const someVisibleSelected =
+    !allVisibleSelected && files.some((f) => selected.has(f.id));
+
+  const toggleAllVisible = () => {
+    setSelected((prev) => {
+      if (allVisibleSelected) {
+        const next = new Set(prev);
+        for (const f of files) next.delete(f.id);
+        return next;
+      }
+      const next = new Set(prev);
+      for (const f of files) next.add(f.id);
+      return next;
+    });
+  };
+
+  const toggleRow = (idx: number, shiftKey: boolean) => {
+    const file = files[idx];
+    if (!file) return;
+    const lastIdx = lastClickedIdxRef.current;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (shiftKey && lastIdx !== null && lastIdx !== idx) {
+        const [start, end] = lastIdx < idx ? [lastIdx, idx] : [idx, lastIdx];
+        const targetState = !prev.has(file.id);
+        for (let i = start; i <= end; i++) {
+          const f = files[i];
+          if (!f) continue;
+          if (targetState) next.add(f.id);
+          else next.delete(f.id);
+        }
+      } else {
+        if (next.has(file.id)) next.delete(file.id);
+        else next.add(file.id);
+      }
+      return next;
+    });
+    lastClickedIdxRef.current = idx;
+  };
 
   const onReprint = async (entry: FileEntry) => {
     setReprinting(entry.id);
@@ -66,6 +126,60 @@ export default function Files() {
       setReprinting(null);
     }
   };
+
+  const selectedFiles = useMemo(
+    () => files.filter((f) => selected.has(f.id)),
+    [files, selected],
+  );
+
+  const onBulkReprint = async () => {
+    if (selectedFiles.length === 0) return;
+    setBulkProgress({ kind: 'reprint', done: 0, total: selectedFiles.length });
+    const errors: string[] = [];
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const f = selectedFiles[i];
+      try {
+        await window.api.files.reprint(f.id);
+      } catch (err) {
+        console.error('Reprint failed for', f.id, err);
+        errors.push(`${f.sku}: ${(err as Error).message ?? 'unknown error'}`);
+      }
+      setBulkProgress({ kind: 'reprint', done: i + 1, total: selectedFiles.length });
+    }
+    setBulkProgress(null);
+    if (errors.length > 0) {
+      alert(`Reprint completed with ${errors.length} error(s):\n${errors.join('\n')}`);
+    }
+    await reload();
+  };
+
+  const onBulkDeleteConfirmed = async () => {
+    setConfirmBulkDelete(false);
+    if (selectedFiles.length === 0) return;
+    setBulkProgress({ kind: 'delete', done: 0, total: selectedFiles.length });
+    const failed = new Set<string>();
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const f = selectedFiles[i];
+      try {
+        const ok = await window.api.files.delete(f.id, true);
+        if (!ok) failed.add(f.id);
+      } catch (err) {
+        console.error('Delete failed for', f.id, err);
+        failed.add(f.id);
+      }
+      setBulkProgress({ kind: 'delete', done: i + 1, total: selectedFiles.length });
+    }
+    setBulkProgress(null);
+    // Keep failed selections, drop the successes.
+    setSelected(failed);
+    if (failed.size > 0) {
+      alert(`Failed to delete ${failed.size} file(s). They remain selected.`);
+    }
+    await reload();
+  };
+
+  const filterBrandName =
+    brandId && brands.find((b) => b.id === brandId)?.name;
 
   return (
     <>
@@ -130,6 +244,63 @@ export default function Files() {
           </span>
         </div>
 
+        {batchFilter && (
+          <div className="mb-3 flex items-center gap-2 text-xs">
+            <span className="text-fg-muted">Filtered to batch:</span>
+            <button
+              onClick={() => setBatchFilter('')}
+              className="inline-flex items-center gap-1 rounded-full border border-border-base bg-bg-elevated px-2 py-0.5 font-mono text-fg-base hover:bg-bg-hover"
+              title="Clear batch filter"
+            >
+              <span className="truncate max-w-[180px]">{batchFilter.slice(0, 8)}</span>
+              <IconX size={10} />
+            </button>
+            {filterBrandName && (
+              <span className="text-fg-subtle">· {filterBrandName}</span>
+            )}
+          </div>
+        )}
+
+        {selected.size > 0 && (
+          <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-md border border-border-base bg-bg-elevated px-3 py-2">
+            <span className="text-xs font-medium text-fg-base">
+              {selected.size} selected
+            </span>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-xs text-fg-muted hover:text-fg-base"
+            >
+              Clear
+            </button>
+            {bulkProgress && (
+              <span className="text-xs text-fg-muted">
+                {bulkProgress.kind === 'reprint' ? 'Reprinting' : 'Deleting'}{' '}
+                {bulkProgress.done}/{bulkProgress.total}…
+              </span>
+            )}
+            <div className="ml-auto flex gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!!bulkProgress}
+                onClick={() => void onBulkReprint()}
+              >
+                <IconRefresh size={12} /> Reprint {selected.size} file
+                {selected.size === 1 ? '' : 's'}
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={!!bulkProgress}
+                onClick={() => setConfirmBulkDelete(true)}
+              >
+                <IconTrash size={12} /> Delete {selected.size} file
+                {selected.size === 1 ? '' : 's'}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="rounded-lg border border-dashed border-border-base p-8 text-center text-sm text-fg-muted">
             Loading…
@@ -143,6 +314,18 @@ export default function Files() {
             <table className="w-full text-xs">
               <thead className="bg-bg-elevated text-fg-muted">
                 <tr>
+                  <th className="w-8 px-2 py-2 text-left">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all visible"
+                      checked={allVisibleSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someVisibleSelected;
+                      }}
+                      onChange={toggleAllVisible}
+                      className="cursor-pointer accent-accent"
+                    />
+                  </th>
                   <th className="px-2 py-2 text-left">SKU</th>
                   <th className="px-2 py-2 text-left">Brand</th>
                   <th className="px-2 py-2 text-left">Size</th>
@@ -154,72 +337,106 @@ export default function Files() {
                 </tr>
               </thead>
               <tbody>
-                {files.map((f) => (
-                  <tr key={f.id} className="hover:bg-bg-hover">
-                    <td className="border-b border-border-subtle px-2 py-1.5 font-mono">
-                      {f.sku}
-                    </td>
-                    <td className="border-b border-border-subtle px-2 py-1.5">
-                      {f.brand_name ?? '—'}
-                    </td>
-                    <td className="border-b border-border-subtle px-2 py-1.5">
-                      {f.size_label}
-                    </td>
-                    <td className="border-b border-border-subtle px-2 py-1.5 uppercase">
-                      {f.format}
-                    </td>
-                    <td className="border-b border-border-subtle px-2 py-1.5">
-                      {f.dpi}
-                    </td>
-                    <td className="border-b border-border-subtle px-2 py-1.5 text-fg-muted">
-                      {new Date(f.created_at).toLocaleString()}
-                    </td>
-                    <td className="border-b border-border-subtle px-2 py-1.5 max-w-[260px] truncate text-fg-muted">
-                      <span className="flex items-center gap-1">
-                        {!f.exists && (
-                          <span title="File missing on disk">
-                            <IconAlertCircle size={12} className="text-warning" />
-                          </span>
+                {files.map((f, idx) => {
+                  const isSelected = selected.has(f.id);
+                  return (
+                    <tr
+                      key={f.id}
+                      className={
+                        isSelected
+                          ? 'bg-accent/10 hover:bg-accent/15'
+                          : 'hover:bg-bg-hover'
+                      }
+                    >
+                      <td className="border-b border-border-subtle px-2 py-1.5">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${f.sku}`}
+                          checked={isSelected}
+                          onChange={(e) =>
+                            toggleRow(
+                              idx,
+                              (e.nativeEvent as MouseEvent).shiftKey ?? false,
+                            )
+                          }
+                          className="cursor-pointer accent-accent"
+                        />
+                      </td>
+                      <td className="border-b border-border-subtle px-2 py-1.5 font-mono">
+                        {f.sku}
+                      </td>
+                      <td className="border-b border-border-subtle px-2 py-1.5">
+                        {f.brand_name ?? '—'}
+                      </td>
+                      <td className="border-b border-border-subtle px-2 py-1.5">
+                        {f.size_label}
+                      </td>
+                      <td className="border-b border-border-subtle px-2 py-1.5 uppercase">
+                        {f.format}
+                      </td>
+                      <td className="border-b border-border-subtle px-2 py-1.5">
+                        {f.dpi}
+                      </td>
+                      <td className="border-b border-border-subtle px-2 py-1.5 text-fg-muted">
+                        {f.batch_id ? (
+                          <button
+                            onClick={() => setBatchFilter(f.batch_id ?? '')}
+                            title="Filter to this batch"
+                            className="rounded px-1 py-0.5 hover:bg-bg-elevated hover:text-fg-base"
+                          >
+                            {new Date(f.created_at).toLocaleString()}
+                          </button>
+                        ) : (
+                          <span>{new Date(f.created_at).toLocaleString()}</span>
                         )}
-                        <span>{filenameOf(f.file_path)}</span>
-                      </span>
-                    </td>
-                    <td className="border-b border-border-subtle px-2 py-1.5 text-right">
-                      <div className="inline-flex gap-1">
-                        <button
-                          title="Open file"
-                          disabled={!f.exists}
-                          onClick={() => window.api.export.openInOS(f.file_path)}
-                          className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base disabled:opacity-40"
-                        >
-                          <IconExternalLink size={12} />
-                        </button>
-                        <button
-                          title="Reveal in Finder"
-                          onClick={() => window.api.export.revealInFinder(f.file_path)}
-                          className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base"
-                        >
-                          <IconFolderOpen size={12} />
-                        </button>
-                        <button
-                          title="Reprint (uses original snapshot)"
-                          disabled={reprinting === f.id}
-                          onClick={() => void onReprint(f)}
-                          className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base disabled:opacity-40"
-                        >
-                          <IconRefresh size={12} />
-                        </button>
-                        <button
-                          title="Delete record"
-                          onClick={() => setConfirmDelete(f)}
-                          className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-danger"
-                        >
-                          <IconTrash size={12} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="border-b border-border-subtle px-2 py-1.5 max-w-[260px] truncate text-fg-muted">
+                        <span className="flex items-center gap-1">
+                          {!f.exists && (
+                            <span title="File missing on disk">
+                              <IconAlertCircle size={12} className="text-warning" />
+                            </span>
+                          )}
+                          <span>{filenameOf(f.file_path)}</span>
+                        </span>
+                      </td>
+                      <td className="border-b border-border-subtle px-2 py-1.5 text-right">
+                        <div className="inline-flex gap-1">
+                          <button
+                            title="Open file"
+                            disabled={!f.exists}
+                            onClick={() => window.api.export.openInOS(f.file_path)}
+                            className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base disabled:opacity-40"
+                          >
+                            <IconExternalLink size={12} />
+                          </button>
+                          <button
+                            title="Reveal in Finder"
+                            onClick={() => window.api.export.revealInFinder(f.file_path)}
+                            className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base"
+                          >
+                            <IconFolderOpen size={12} />
+                          </button>
+                          <button
+                            title="Reprint (uses original snapshot)"
+                            disabled={reprinting === f.id}
+                            onClick={() => void onReprint(f)}
+                            className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base disabled:opacity-40"
+                          >
+                            <IconRefresh size={12} />
+                          </button>
+                          <button
+                            title="Delete record"
+                            onClick={() => setConfirmDelete(f)}
+                            className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-danger"
+                          >
+                            <IconTrash size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             {files.length === 500 && (
@@ -256,6 +473,23 @@ export default function Files() {
           }
         }}
         onCancel={() => setConfirmDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmBulkDelete}
+        title={`Delete ${selected.size} file${selected.size === 1 ? '' : 's'}?`}
+        message={
+          <>
+            Removes <strong>{selected.size}</strong> entries from the file index.
+            The files on disk will <strong>also be deleted</strong>. This cannot
+            be undone.
+          </>
+        }
+        confirmLabel={`Delete ${selected.size} file${selected.size === 1 ? '' : 's'}`}
+        cancelLabel="Keep them"
+        tone="danger"
+        onConfirm={() => void onBulkDeleteConfirmed()}
+        onCancel={() => setConfirmBulkDelete(false)}
       />
     </>
   );

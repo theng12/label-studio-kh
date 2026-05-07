@@ -7,6 +7,7 @@ import type { Brand } from '@shared/types/brand';
 
 export interface FileEntry {
   id: string;
+  batch_id: string | null;
   sku: string;
   brand_id: string;
   brand_name: string | null;
@@ -27,6 +28,7 @@ export interface FileFilters {
   dateFrom?: string;
   dateTo?: string;
   sizeLabel?: string;
+  batchId?: string;
 }
 
 export const FileService = {
@@ -59,8 +61,12 @@ export const FileService = {
       where.push('created_at <= ?');
       params.push(filters.dateTo);
     }
+    if (filters.batchId) {
+      where.push('batch_id = ?');
+      params.push(filters.batchId);
+    }
 
-    const sql = `SELECT id, sku, brand_id, template_id, format, dpi, size_label, file_path, file_size, created_at
+    const sql = `SELECT id, batch_id, sku, brand_id, template_id, format, dpi, size_label, file_path, file_size, created_at
                  FROM generations
                  ${where.length > 0 ? 'WHERE ' + where.join(' AND ') : ''}
                  ORDER BY created_at DESC
@@ -68,6 +74,7 @@ export const FileService = {
 
     const rows = db.prepare(sql).all(...params) as Array<{
       id: string;
+      batch_id: string | null;
       sku: string;
       brand_id: string;
       template_id: string;
