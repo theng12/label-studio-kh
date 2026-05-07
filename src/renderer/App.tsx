@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { ToastContainer } from './components/Toast';
+import { KeyboardHelp } from './components/KeyboardHelp';
 import Dashboard from './pages/Dashboard';
 import Brands from './pages/Brands';
 import Templates from './pages/Templates';
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/support" element={<Support />} />
         </Routes>
       </main>
+      <KeyboardHelp />
     </div>
   );
 }
