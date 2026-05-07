@@ -126,6 +126,61 @@ export default function Designer() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // ⌘G / ⌘⇧G / ⌘C / ⌘V — page-level so they fire from anywhere in the
+  // designer (canvas, layers, palette) but not while typing in property
+  // inputs, where the OS-native copy/paste is what the user expects.
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t?.tagName === 'INPUT' ||
+        t?.tagName === 'TEXTAREA' ||
+        t?.isContentEditable
+      )
+        return;
+
+      const key = e.key.toLowerCase();
+      const store = useDesignerStore.getState();
+
+      if (key === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Ungroup every distinct group represented in the current selection.
+          const tpl = store.template;
+          if (!tpl) return;
+          const gids = new Set<string>();
+          for (const id of store.selectedIds) {
+            const el = tpl.elements.find((x) => x.id === id);
+            if (el?.groupId) gids.add(el.groupId);
+          }
+          gids.forEach((g) => store.ungroup(g));
+        } else {
+          store.groupSelected();
+        }
+        return;
+      }
+      if (key === 'c') {
+        // Skip when there's an active text selection — user is copying text.
+        const sel = window.getSelection?.();
+        if (sel && sel.toString().length > 0) return;
+        if (store.selectedIds.length === 0) return;
+        e.preventDefault();
+        store.copySelected();
+        return;
+      }
+      if (key === 'v') {
+        if (!store.template) return;
+        if (!store.clipboard || store.clipboard.length === 0) return;
+        e.preventDefault();
+        store.paste();
+        return;
+      }
+    }
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   if (loading) {
     return (
       <Page title="Template designer">

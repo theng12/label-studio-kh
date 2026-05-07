@@ -45,6 +45,13 @@ export interface BaseElement {
    * (logos / QR / cert / image default to true; everything else to false).
    */
   aspectLocked?: boolean;
+  /**
+   * When set, this element belongs to a logical group. Selecting any group
+   * member selects all of them; drag/resize applies the same delta to every
+   * sibling. Cleared by ungroup. Cross-template paste mints a fresh id so the
+   * source group isn't affected.
+   */
+  groupId?: string;
 }
 
 export interface LogoElement extends BaseElement {

@@ -59,6 +59,11 @@ export function Canvas() {
   const bringToFront = useDesignerStore((s) => s.bringToFront);
   const sendToBack = useDesignerStore((s) => s.sendToBack);
   const toggleLock = useDesignerStore((s) => s.toggleLock);
+  const groupSelected = useDesignerStore((s) => s.groupSelected);
+  const ungroup = useDesignerStore((s) => s.ungroup);
+  const copySelected = useDesignerStore((s) => s.copySelected);
+  const paste = useDesignerStore((s) => s.paste);
+  const clipboardSize = useDesignerStore((s) => s.clipboard?.length ?? 0);
   const undo = useDesignerStore((s) => s.undo);
   const redo = useDesignerStore((s) => s.redo);
   const pushHistory = useDesignerStore((s) => s.pushHistory);
@@ -362,12 +367,16 @@ export function Canvas() {
               snapOn={snapOn}
               selected={selectedIds.includes(el.id)}
               hideHandles={selectedIds.length >= 2}
+              selectedIds={selectedIds}
               siblings={template.elements}
               onSelect={(shift) => {
                 if (shift) toggleSelect(el.id);
                 else select([el.id]);
               }}
               onUpdate={(patch) => updateElement(el.id, patch)}
+              onUpdateMany={(patches) =>
+                patches.forEach((p) => updateElement(p.id, p.patch))
+              }
               onDragEnd={pushHistory}
               onGuides={setGuides}
               clientToMm={clientToMm}
@@ -428,7 +437,20 @@ export function Canvas() {
           const target = template.elements.find((el) => el.id === menu.elementId);
           if (!target) return null;
           const targets = selectedIds.length > 0 ? selectedIds : [menu.elementId];
+          const canGroup = targets.length >= 2;
+          const targetGroupId = target.groupId;
           const items: ContextMenuItem[] = [
+            {
+              label: 'Copy',
+              shortcut: '⌘C',
+              onClick: () => copySelected(),
+            },
+            {
+              label: clipboardSize > 0 ? `Paste (${clipboardSize})` : 'Paste',
+              shortcut: '⌘V',
+              disabled: clipboardSize === 0,
+              onClick: () => paste(),
+            },
             {
               label: 'Duplicate',
               shortcut: '⌘D',
@@ -437,6 +459,19 @@ export function Canvas() {
             {
               label: 'Delete',
               onClick: () => removeSelected(),
+            },
+            { divider: true },
+            {
+              label: 'Group',
+              shortcut: '⌘G',
+              disabled: !canGroup,
+              onClick: () => groupSelected(),
+            },
+            {
+              label: 'Ungroup',
+              shortcut: '⌘⇧G',
+              disabled: !targetGroupId,
+              onClick: () => targetGroupId && ungroup(targetGroupId),
             },
             { divider: true },
             {
@@ -480,6 +515,7 @@ interface ContextMenuItem {
   label?: string;
   shortcut?: string;
   divider?: boolean;
+  disabled?: boolean;
   onClick?: () => void;
 }
 
@@ -524,11 +560,18 @@ function ContextMenu({
         ) : (
           <button
             key={i}
+            disabled={item.disabled}
             onClick={() => {
+              if (item.disabled) return;
               item.onClick?.();
               onClose();
             }}
-            className="flex w-full items-center justify-between px-3 py-1 text-left text-fg-base hover:bg-bg-hover"
+            className={[
+              'flex w-full items-center justify-between px-3 py-1 text-left',
+              item.disabled
+                ? 'cursor-not-allowed text-fg-subtle'
+                : 'text-fg-base hover:bg-bg-hover',
+            ].join(' ')}
           >
             <span>{item.label}</span>
             {item.shortcut && (
@@ -549,10 +592,13 @@ interface BoxProps {
   selected: boolean;
   /** When true, suppress per-element resize handles (multi-select bbox owns them). */
   hideHandles: boolean;
+  /** Currently selected element ids — used to build the multi-element drag set. */
+  selectedIds: string[];
   /** Every element in the template, used to compute alignment guides during drag. */
   siblings: TemplateElement[];
   onSelect: (shift: boolean) => void;
   onUpdate: (patch: Partial<TemplateElement>) => void;
+  onUpdateMany: (patches: { id: string; patch: Partial<TemplateElement> }[]) => void;
   onDragEnd: () => void;
   onGuides: (guides: Guide[]) => void;
   onContextMenu: (e: React.MouseEvent) => void;
@@ -566,9 +612,11 @@ function ElementBox({
   snapOn,
   selected,
   hideHandles,
+  selectedIds,
   siblings,
   onSelect,
   onUpdate,
+  onUpdateMany,
   onDragEnd,
   onGuides,
   onContextMenu,
@@ -579,10 +627,23 @@ function ElementBox({
   function startMove(e: React.MouseEvent) {
     e.stopPropagation();
     if (e.button !== 0) return;
+    // If the click lands on an unselected element, treat that as a fresh
+    // single-element selection for the drag — otherwise the drag would still
+    // operate on the prior selection, which is confusing.
+    const wasSelected = selected;
     onSelect(e.shiftKey);
     if (element.locked) return;
 
-    const initial = { x_mm: element.x_mm, y_mm: element.y_mm };
+    // Capture every element that should travel with this drag. When the
+    // dragged element was already part of the selection (a group, or a
+    // multi-select), all selected elements move together by the same delta.
+    const movers =
+      wasSelected && selectedIds.length > 1
+        ? siblings.filter((el) => selectedIds.includes(el.id) && !el.locked)
+        : [element];
+    const initials = new Map(
+      movers.map((el) => [el.id, { x_mm: el.x_mm, y_mm: el.y_mm }]),
+    );
     const start = clientToMm(e.clientX, e.clientY);
     let moved = false;
     // Snapshot siblings (excluding the dragged element & invisible ones) once
@@ -594,61 +655,82 @@ function ElementBox({
       const dx = mm.x - start.x;
       const dy = mm.y - start.y;
       if (Math.abs(dx) + Math.abs(dy) > 0.05) moved = true;
-      let nextX = Math.max(0, snapMm(initial.x_mm + dx, snapOn));
-      let nextY = Math.max(0, snapMm(initial.y_mm + dy, snapOn));
+      if (movers.length === 1) {
+        // Single-element drag: enable smart-guide snap against siblings.
+        const init = initials.get(element.id)!;
+        let nextX = Math.max(0, snapMm(init.x_mm + dx, snapOn));
+        let nextY = Math.max(0, snapMm(init.y_mm + dy, snapOn));
 
-      const active: Guide[] = [];
-      if (otherEls.length > 0) {
-        const w = element.width_mm;
-        const h = element.height_mm;
-        // X-axis: try aligning left, center, right against every sibling's
-        // left, center, right. Pick the smallest delta within the threshold
-        // and snap; record the matched line(s) so we can render them.
-        const xCandidates = otherEls.flatMap((s) => [
-          s.x_mm,
-          s.x_mm + s.width_mm / 2,
-          s.x_mm + s.width_mm,
-        ]);
-        const yCandidates = otherEls.flatMap((s) => [
-          s.y_mm,
-          s.y_mm + s.height_mm / 2,
-          s.y_mm + s.height_mm,
-        ]);
-        const xEdges = [nextX, nextX + w / 2, nextX + w];
-        const yEdges = [nextY, nextY + h / 2, nextY + h];
-        let bestX: { delta: number; target: number } | null = null;
-        for (let i = 0; i < xEdges.length; i++) {
-          for (const tgt of xCandidates) {
-            const d = tgt - xEdges[i]!;
-            if (Math.abs(d) <= SMART_GUIDE_SNAP_MM && (!bestX || Math.abs(d) < Math.abs(bestX.delta))) {
-              bestX = { delta: d, target: tgt };
+        const active: Guide[] = [];
+        if (otherEls.length > 0) {
+          const w = element.width_mm;
+          const h = element.height_mm;
+          // X-axis: try aligning left, center, right against every sibling's
+          // left, center, right. Pick the smallest delta within the threshold
+          // and snap; record the matched line(s) so we can render them.
+          const xCandidates = otherEls.flatMap((s) => [
+            s.x_mm,
+            s.x_mm + s.width_mm / 2,
+            s.x_mm + s.width_mm,
+          ]);
+          const yCandidates = otherEls.flatMap((s) => [
+            s.y_mm,
+            s.y_mm + s.height_mm / 2,
+            s.y_mm + s.height_mm,
+          ]);
+          const xEdges = [nextX, nextX + w / 2, nextX + w];
+          const yEdges = [nextY, nextY + h / 2, nextY + h];
+          let bestX: { delta: number; target: number } | null = null;
+          for (let i = 0; i < xEdges.length; i++) {
+            for (const tgt of xCandidates) {
+              const d = tgt - xEdges[i]!;
+              if (Math.abs(d) <= SMART_GUIDE_SNAP_MM && (!bestX || Math.abs(d) < Math.abs(bestX.delta))) {
+                bestX = { delta: d, target: tgt };
+              }
             }
           }
-        }
-        if (bestX) {
-          nextX = Math.max(0, nextX + bestX.delta);
-          active.push({ axis: 'x', value: bestX.target });
-        }
-        let bestY: { delta: number; target: number } | null = null;
-        for (let i = 0; i < yEdges.length; i++) {
-          for (const tgt of yCandidates) {
-            const d = tgt - yEdges[i]!;
-            if (Math.abs(d) <= SMART_GUIDE_SNAP_MM && (!bestY || Math.abs(d) < Math.abs(bestY.delta))) {
-              bestY = { delta: d, target: tgt };
+          if (bestX) {
+            nextX = Math.max(0, nextX + bestX.delta);
+            active.push({ axis: 'x', value: bestX.target });
+          }
+          let bestY: { delta: number; target: number } | null = null;
+          for (let i = 0; i < yEdges.length; i++) {
+            for (const tgt of yCandidates) {
+              const d = tgt - yEdges[i]!;
+              if (Math.abs(d) <= SMART_GUIDE_SNAP_MM && (!bestY || Math.abs(d) < Math.abs(bestY.delta))) {
+                bestY = { delta: d, target: tgt };
+              }
             }
           }
+          if (bestY) {
+            nextY = Math.max(0, nextY + bestY.delta);
+            active.push({ axis: 'y', value: bestY.target });
+          }
         }
-        if (bestY) {
-          nextY = Math.max(0, nextY + bestY.delta);
-          active.push({ axis: 'y', value: bestY.target });
-        }
+        onGuides(active);
+
+        onUpdate({
+          x_mm: nextX,
+          y_mm: nextY,
+        } as Partial<TemplateElement>);
+      } else {
+        // Multi-element / group drag: move every mover by the same delta.
+        // Smart guides are skipped — snapping each member independently would
+        // distort the relative layout.
+        onGuides([]);
+        onUpdateMany(
+          movers.map((m) => {
+            const init = initials.get(m.id)!;
+            return {
+              id: m.id,
+              patch: {
+                x_mm: Math.max(0, snapMm(init.x_mm + dx, snapOn)),
+                y_mm: Math.max(0, snapMm(init.y_mm + dy, snapOn)),
+              } as Partial<TemplateElement>,
+            };
+          }),
+        );
       }
-      onGuides(active);
-
-      onUpdate({
-        x_mm: nextX,
-        y_mm: nextY,
-      } as Partial<TemplateElement>);
     };
 
     const onUp = () => {
@@ -665,6 +747,7 @@ function ElementBox({
   function startResize(e: React.MouseEvent, dir: ResizeDir) {
     e.stopPropagation();
     if (e.button !== 0) return;
+    const wasSelected = selected;
     onSelect(e.shiftKey);
     if (element.locked) return;
 
@@ -679,6 +762,28 @@ function ElementBox({
     // Hold Shift to invert the locked-aspect default during drag.
     const baseLocked = isAspectLocked(element);
     let moved = false;
+    // Resize sibling elements alongside this one when the dragged element is
+    // part of a multi-element selection (group or marquee). Each sibling
+    // grows by the same width/height delta and shifts position the same way
+    // as the active handle dictates — simple uniform translation, NOT
+    // proportional scaling around the group bbox.
+    const siblings =
+      wasSelected && selectedIds.length > 1
+        ? elements.filter(
+            (el) => selectedIds.includes(el.id) && el.id !== element.id && !el.locked,
+          )
+        : [];
+    const siblingInitials = new Map(
+      siblings.map((s) => [
+        s.id,
+        {
+          x_mm: s.x_mm,
+          y_mm: s.y_mm,
+          width_mm: s.width_mm,
+          height_mm: s.height_mm,
+        },
+      ]),
+    );
 
     const horizFromDir = dir.includes('w') ? -1 : dir.includes('e') ? 1 : 0;
     const vertFromDir = dir.includes('n') ? -1 : dir.includes('s') ? 1 : 0;
@@ -731,7 +836,31 @@ function ElementBox({
       if (vertFromDir === -1) {
         patch.y_mm = Math.max(0, initial.y_mm + (initial.height_mm - newH));
       }
-      onUpdate(patch as Partial<TemplateElement>);
+      if (siblings.length === 0) {
+        onUpdate(patch as Partial<TemplateElement>);
+        return;
+      }
+      // Same width/height delta applied to every sibling, with the same
+      // anchor-edge translation as the active handle. Exact widths/heights
+      // would distort siblings with different starting sizes.
+      const widthDelta = newW - initial.width_mm;
+      const heightDelta = newH - initial.height_mm;
+      const xDelta = (patch.x_mm ?? initial.x_mm) - initial.x_mm;
+      const yDelta = (patch.y_mm ?? initial.y_mm) - initial.y_mm;
+      const updates: { id: string; patch: Partial<TemplateElement> }[] = [
+        { id: element.id, patch },
+      ];
+      for (const sib of siblings) {
+        const init = siblingInitials.get(sib.id)!;
+        const sPatch: Partial<TemplateElement> = {
+          width_mm: Math.max(1, init.width_mm + widthDelta),
+          height_mm: Math.max(1, init.height_mm + heightDelta),
+          x_mm: Math.max(0, init.x_mm + xDelta),
+          y_mm: Math.max(0, init.y_mm + yDelta),
+        };
+        updates.push({ id: sib.id, patch: sPatch });
+      }
+      onUpdateMany(updates);
     };
 
     const onUp = () => {

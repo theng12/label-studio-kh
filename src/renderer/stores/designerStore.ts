@@ -45,6 +45,12 @@ interface DesignerState {
   snap: boolean;
   cursorMm: { x: number; y: number };
 
+  /**
+   * In-memory copy buffer for ⌘C/⌘V. Lives outside `template` so it survives
+   * navigating between templates within a single session. Reload clears it.
+   */
+  clipboard: TemplateElement[] | null;
+
   history: Template[];
   historyIndex: number;
 
@@ -109,6 +115,29 @@ interface DesignerState {
     anchor: BBoxAnchor,
   ) => void;
 
+  /**
+   * Assign a fresh groupId to every currently selected element. No-op when
+   * fewer than 2 are selected.
+   */
+  groupSelected: () => void;
+  /**
+   * Strip groupId from every member of the given group.
+   */
+  ungroup: (groupId: string) => void;
+
+  /**
+   * Copy currently selected elements into the in-memory clipboard, expanding
+   * to include any unselected siblings of the same group so a partial group
+   * selection still copies the whole group.
+   */
+  copySelected: () => void;
+  /**
+   * Paste clipboard contents into the active template at a small offset.
+   * Mints fresh element ids and a fresh groupId per source group so the
+   * source isn't disturbed even when pasting into the same template.
+   */
+  paste: () => void;
+
   setZoom: (z: Zoom) => void;
   toggleSnap: () => void;
   setCursorMm: (x: number, y: number) => void;
@@ -126,12 +155,35 @@ function uid(): string {
   return crypto.randomUUID();
 }
 
+/**
+ * Expand a raw selection so every member of a touched group is included.
+ * Click/marquee-hit on one member of a group selects the whole group; this
+ * lives in the store so every selection entrypoint stays consistent.
+ */
+function expandGroupSelection(ids: string[], t: Template): string[] {
+  if (ids.length === 0) return ids;
+  const byId = new Map(t.elements.map((e) => [e.id, e]));
+  const groupIds = new Set<string>();
+  for (const id of ids) {
+    const el = byId.get(id);
+    if (el?.groupId) groupIds.add(el.groupId);
+  }
+  if (groupIds.size === 0) return ids;
+  const expanded = new Set(ids);
+  for (const el of t.elements) {
+    if (el.groupId && groupIds.has(el.groupId)) expanded.add(el.id);
+  }
+  return Array.from(expanded);
+}
+
 export const useDesignerStore = create<DesignerState>((set, get) => ({
   template: null,
   selectedIds: [],
   zoom: 'fit',
   snap: true,
   cursorMm: { x: 0, y: 0 },
+
+  clipboard: null,
 
   history: [],
   historyIndex: -1,
@@ -216,14 +268,23 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     get().pushHistory();
   },
 
-  select: (ids) => set({ selectedIds: ids }),
+  select: (ids) => {
+    const t = get().template;
+    set({ selectedIds: t ? expandGroupSelection(ids, t) : ids });
+  },
   toggleSelect: (id) => {
-    const { selectedIds } = get();
-    set({
-      selectedIds: selectedIds.includes(id)
-        ? selectedIds.filter((x) => x !== id)
-        : [...selectedIds, id],
-    });
+    const { selectedIds, template: t } = get();
+    // Treat the whole group as one unit when toggling: if any group member is
+    // currently selected, remove every member; otherwise add every member.
+    const groupId = t?.elements.find((e) => e.id === id)?.groupId;
+    const ids = groupId
+      ? t!.elements.filter((e) => e.groupId === groupId).map((e) => e.id)
+      : [id];
+    const anyOn = ids.some((i) => selectedIds.includes(i));
+    const next = anyOn
+      ? selectedIds.filter((x) => !ids.includes(x))
+      : Array.from(new Set([...selectedIds, ...ids]));
+    set({ selectedIds: next });
   },
 
   addElement: (type, x_mm, y_mm, overrides) => {
@@ -259,10 +320,14 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     if (!t) return;
     const { selectedIds } = get();
     if (selectedIds.length === 0) return;
+    // Selecting a group selects every member, so deletion already removes the
+    // whole group. Keep this in sync in case selection ever drifts out of
+    // group expansion (e.g. external callers).
+    const ids = new Set(expandGroupSelection(selectedIds, t));
     set({
       template: {
         ...t,
-        elements: t.elements.filter((e) => !selectedIds.includes(e.id)),
+        elements: t.elements.filter((e) => !ids.has(e.id)),
         updatedAt: new Date().toISOString(),
       },
       selectedIds: [],
@@ -497,6 +562,102 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     set({
       template: { ...t, elements, updatedAt: new Date().toISOString() },
     });
+  },
+
+  groupSelected: () => {
+    const t = get().template;
+    if (!t) return;
+    const { selectedIds } = get();
+    if (selectedIds.length < 2) return;
+    const groupId = uid();
+    const elements = t.elements.map((e) =>
+      selectedIds.includes(e.id) ? ({ ...e, groupId } as TemplateElement) : e,
+    );
+    set({
+      template: { ...t, elements, updatedAt: new Date().toISOString() },
+    });
+    get().pushHistory();
+  },
+
+  ungroup: (groupId) => {
+    const t = get().template;
+    if (!t) return;
+    let touched = false;
+    const elements = t.elements.map((e) => {
+      if (e.groupId !== groupId) return e;
+      touched = true;
+      const { groupId: _drop, ...rest } = e;
+      void _drop;
+      return rest as TemplateElement;
+    });
+    if (!touched) return;
+    set({
+      template: { ...t, elements, updatedAt: new Date().toISOString() },
+    });
+    get().pushHistory();
+  },
+
+  copySelected: () => {
+    const t = get().template;
+    if (!t) return;
+    const { selectedIds } = get();
+    if (selectedIds.length === 0) return;
+    // Pull in unselected siblings of any selected group so a partial group
+    // selection still produces a clean group on paste.
+    const groupIds = new Set(
+      t.elements
+        .filter((e) => selectedIds.includes(e.id) && e.groupId)
+        .map((e) => e.groupId as string),
+    );
+    const buf = t.elements.filter(
+      (e) => selectedIds.includes(e.id) || (e.groupId && groupIds.has(e.groupId)),
+    );
+    if (buf.length === 0) return;
+    set({ clipboard: buf.map((e) => structuredClone(e)) });
+  },
+
+  paste: () => {
+    const t = get().template;
+    if (!t) return;
+    const { clipboard } = get();
+    if (!clipboard || clipboard.length === 0) return;
+    // Each source groupId maps to a fresh one so pasted clones form their own
+    // group without entangling with the source.
+    const groupIdMap = new Map<string, string>();
+    const maxZ = t.elements.reduce((m, e) => Math.max(m, e.zIndex), 0);
+    let z = maxZ;
+    const pasted: TemplateElement[] = clipboard.map((src) => {
+      z += 1;
+      let newGroupId: string | undefined;
+      if (src.groupId) {
+        const existing = groupIdMap.get(src.groupId);
+        if (existing) {
+          newGroupId = existing;
+        } else {
+          newGroupId = uid();
+          groupIdMap.set(src.groupId, newGroupId);
+        }
+      }
+      const clone = {
+        ...structuredClone(src),
+        id: uid(),
+        x_mm: src.x_mm + 5,
+        y_mm: src.y_mm + 5,
+        zIndex: z,
+      } as TemplateElement;
+      if (newGroupId) clone.groupId = newGroupId;
+      else delete clone.groupId;
+      return clone;
+    });
+    set({
+      template: {
+        ...t,
+        elements: [...t.elements, ...pasted],
+        updatedAt: new Date().toISOString(),
+      },
+      selectedIds: pasted.map((p) => p.id),
+    });
+    get().pushHistory();
   },
 
   setZoom: (zoom) => set({ zoom }),

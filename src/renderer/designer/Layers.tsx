@@ -6,6 +6,8 @@ import {
   IconLockOpen,
   IconChevronUp,
   IconChevronDown,
+  IconChevronRight,
+  IconFolder,
 } from '@tabler/icons-react';
 import { useDesignerStore } from '../stores/designerStore';
 import type { TemplateElement } from '../../shared/types/template';
@@ -29,11 +31,27 @@ export function Layers() {
 
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
 
   if (!template) return null;
 
   // Top-most first in the list (highest zIndex first).
   const sorted = [...template.elements].sort((a, b) => b.zIndex - a.zIndex);
+
+  // Pre-walk the list to know where each group starts and how many members
+  // it has. We render a header row right before the group's first appearance
+  // and indent every member underneath it. This relies on group members
+  // being contiguous in z-order — they may not be, but for the common
+  // workflow (group elements that were just multi-selected) they typically
+  // are. Non-contiguous members just get separate "subgroups" in the list,
+  // which is reasonable visual feedback that the group spans z-layers.
+  const groupCounts = new Map<string, number>();
+  for (const el of sorted) {
+    if (el.groupId) {
+      groupCounts.set(el.groupId, (groupCounts.get(el.groupId) ?? 0) + 1);
+    }
+  }
+  const seenGroups = new Set<string>();
 
   // A drop at the dragged row's own slot (or the slot directly below it) is a
   // no-op — suppress the indicator in those cases so the user gets honest
@@ -66,62 +84,143 @@ export function Layers() {
             if (e.currentTarget === e.target) setDropIndex(null);
           }}
         >
-          {sorted.map((el, i) => (
-            <LayerRow
-              key={el.id}
-              element={el}
-              index={i}
-              selected={selectedIds.includes(el.id)}
-              dragging={dragIndex === i}
-              showIndicatorAbove={!isNoOp && dropIndex === i}
-              showIndicatorBelow={
-                !isNoOp && i === sorted.length - 1 && dropIndex === sorted.length
-              }
-              onSelect={() => select([el.id])}
-              onToggleVisible={() => {
-                updateElement(el.id, { visible: !el.visible });
-                pushHistory();
-              }}
-              onToggleLocked={() => {
-                updateElement(el.id, { locked: !el.locked });
-                pushHistory();
-              }}
-              onMoveUp={() => reorderElement(el.id, 'up')}
-              onMoveDown={() => reorderElement(el.id, 'down')}
-              onDragStart={(e) => {
-                setDragIndex(i);
-                e.dataTransfer.effectAllowed = 'move';
-                // Required for the drop event to fire in Firefox.
-                e.dataTransfer.setData('text/plain', el.id);
-                if (dragGhost) e.dataTransfer.setDragImage(dragGhost, 0, 0);
-              }}
-              onDragOver={(e) => {
-                if (dragIndex === null) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                const rect = e.currentTarget.getBoundingClientRect();
-                const inTopHalf = e.clientY - rect.top < rect.height / 2;
-                setDropIndex(inTopHalf ? i : i + 1);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragIndex !== null && dropIndex !== null) {
-                  reorderLayer(dragIndex, dropIndex);
-                }
-                finishDrag();
-              }}
-              onDragEnd={finishDrag}
-            />
-          ))}
+          {sorted.map((el, i) => {
+            const rows: React.ReactNode[] = [];
+            if (el.groupId && !seenGroups.has(el.groupId)) {
+              seenGroups.add(el.groupId);
+              const gid = el.groupId;
+              const count = groupCounts.get(gid) ?? 1;
+              const isCollapsed = collapsed.has(gid);
+              const groupSelected = sorted.some(
+                (g) => g.groupId === gid && selectedIds.includes(g.id),
+              );
+              rows.push(
+                <GroupHeaderRow
+                  key={`group-${gid}`}
+                  count={count}
+                  collapsed={isCollapsed}
+                  selected={groupSelected}
+                  onSelect={() => {
+                    // Click on the group header selects every member (the
+                    // store expands group selection automatically anyway,
+                    // but pass the first id explicitly for clarity).
+                    const first = sorted.find((g) => g.groupId === gid);
+                    if (first) select([first.id]);
+                  }}
+                  onToggleCollapsed={() => {
+                    setCollapsed((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(gid)) next.delete(gid);
+                      else next.add(gid);
+                      return next;
+                    });
+                  }}
+                />,
+              );
+            }
+            const hidden = el.groupId && collapsed.has(el.groupId);
+            if (!hidden) {
+              rows.push(
+                <LayerRow
+                  key={el.id}
+                  element={el}
+                  index={i}
+                  selected={selectedIds.includes(el.id)}
+                  indented={!!el.groupId}
+                  dragging={dragIndex === i}
+                  showIndicatorAbove={!isNoOp && dropIndex === i}
+                  showIndicatorBelow={
+                    !isNoOp && i === sorted.length - 1 && dropIndex === sorted.length
+                  }
+                  onSelect={() => select([el.id])}
+                  onToggleVisible={() => {
+                    updateElement(el.id, { visible: !el.visible });
+                    pushHistory();
+                  }}
+                  onToggleLocked={() => {
+                    updateElement(el.id, { locked: !el.locked });
+                    pushHistory();
+                  }}
+                  onMoveUp={() => reorderElement(el.id, 'up')}
+                  onMoveDown={() => reorderElement(el.id, 'down')}
+                  onDragStart={(e) => {
+                    setDragIndex(i);
+                    e.dataTransfer.effectAllowed = 'move';
+                    // Required for the drop event to fire in Firefox.
+                    e.dataTransfer.setData('text/plain', el.id);
+                    if (dragGhost) e.dataTransfer.setDragImage(dragGhost, 0, 0);
+                  }}
+                  onDragOver={(e) => {
+                    if (dragIndex === null) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const inTopHalf = e.clientY - rect.top < rect.height / 2;
+                    setDropIndex(inTopHalf ? i : i + 1);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIndex !== null && dropIndex !== null) {
+                      reorderLayer(dragIndex, dropIndex);
+                    }
+                    finishDrag();
+                  }}
+                  onDragEnd={finishDrag}
+                />,
+              );
+            }
+            return rows;
+          })}
         </ul>
       )}
     </div>
   );
 }
 
+function GroupHeaderRow({
+  count,
+  collapsed,
+  selected,
+  onSelect,
+  onToggleCollapsed,
+}: {
+  count: number;
+  collapsed: boolean;
+  selected: boolean;
+  onSelect: () => void;
+  onToggleCollapsed: () => void;
+}) {
+  return (
+    <li
+      onClick={onSelect}
+      className={[
+        'flex items-center gap-1 px-2 py-1 text-[11px] font-medium uppercase tracking-wide',
+        selected
+          ? 'bg-accent/10 text-fg-base'
+          : 'text-fg-muted hover:bg-bg-hover hover:text-fg-base',
+        'cursor-pointer',
+      ].join(' ')}
+    >
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleCollapsed();
+        }}
+        className="rounded p-0.5 hover:bg-bg-hover"
+        title={collapsed ? 'Expand group' : 'Collapse group'}
+      >
+        {collapsed ? <IconChevronRight size={12} /> : <IconChevronDown size={12} />}
+      </button>
+      <IconFolder size={12} />
+      <span className="flex-1 truncate">Group ({count} items)</span>
+    </li>
+  );
+}
+
 function LayerRow({
   element,
   selected,
+  indented,
   dragging,
   showIndicatorAbove,
   showIndicatorBelow,
@@ -138,6 +237,7 @@ function LayerRow({
   element: TemplateElement;
   index: number;
   selected: boolean;
+  indented: boolean;
   dragging: boolean;
   showIndicatorAbove: boolean;
   showIndicatorBelow: boolean;
@@ -160,7 +260,8 @@ function LayerRow({
       onDrop={onDrop}
       onDragEnd={onDragEnd}
       className={[
-        'relative flex items-center gap-1 px-3 py-1.5 text-xs',
+        'relative flex items-center gap-1 py-1.5 text-xs',
+        indented ? 'pl-6 pr-3' : 'px-3',
         selected
           ? 'bg-accent/10 text-fg-base'
           : 'text-fg-muted hover:bg-bg-hover hover:text-fg-base',
