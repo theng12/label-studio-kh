@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { app } from 'electron';
 import type { Template, TemplateElement } from '@shared/types/template';
 import type { Brand } from '@shared/types/brand';
+import { flagFromCode, formatPrice } from '@shared/format';
 
 // Font loading: each entry maps a CSS family name → file under resources/fonts/.
 // Missing files are silently skipped (font-display: swap → system fallback).
@@ -228,7 +229,74 @@ async function renderElement(
       const text = truncate(raw, el.maxChars);
       const justify =
         el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start';
-      return `<div style="${styleAttr};display:flex;align-items:center;justify-content:${justify};color:${el.color};font-size:${el.fontSize}pt;font-family:'${el.fontFamily}', sans-serif;font-weight:${el.fontWeight};text-align:${el.align};line-height:1.1;white-space:nowrap;">${escapeHtml(text)}</div>`;
+      const multiline = el.type === 'text' && el.multiline === true;
+      const verticalAlign = el.verticalAlign ?? 'top';
+      const alignItems = multiline
+        ? verticalAlign === 'center'
+          ? 'center'
+          : verticalAlign === 'bottom'
+            ? 'flex-end'
+            : 'flex-start'
+        : 'center';
+      const whiteSpace = multiline ? 'normal' : 'nowrap';
+      const lineHeight = multiline ? (el.lineHeight ?? 1.2) : 1.1;
+      const wordBreak = multiline ? 'break-word' : 'normal';
+      return `<div style="${styleAttr};display:flex;align-items:${alignItems};justify-content:${justify};color:${el.color};font-size:${el.fontSize}pt;font-family:'${el.fontFamily}', sans-serif;font-weight:${el.fontWeight};text-align:${el.align};line-height:${lineHeight};white-space:${whiteSpace};word-break:${wordBreak};">${escapeHtml(text)}</div>`;
+    }
+
+    case 'price': {
+      const fmt = {
+        currency: el.currency,
+        currencyPosition: el.currencyPosition,
+        thousandsSeparator: el.thousandsSeparator,
+        decimalSeparator: el.decimalSeparator,
+        decimals: el.decimals,
+      };
+      const regularRaw =
+        el.amountSource === 'csv_column'
+          ? String(ctx.row[el.amountCsvColumn] ?? '')
+          : el.amountStatic;
+      const saleRaw =
+        el.salePriceSource === 'none'
+          ? ''
+          : el.salePriceSource === 'csv_column'
+            ? String(ctx.row[el.salePriceCsvColumn] ?? '')
+            : el.salePriceStatic;
+      const hasSale = el.salePriceSource !== 'none' && saleRaw.trim().length > 0;
+      const main = formatPrice(hasSale ? saleRaw : regularRaw, fmt);
+      const strike = hasSale ? formatPrice(regularRaw, fmt) : '';
+      const justify =
+        el.align === 'center'
+          ? 'center'
+          : el.align === 'right'
+            ? 'flex-end'
+            : 'flex-start';
+      const strikeHtml = strike
+        ? `<span style="color:${el.saleColor};font-size:${el.fontSize * 0.65}pt;text-decoration:line-through;font-weight:normal;">${escapeHtml(strike)}</span>`
+        : '';
+      const mainHtml = `<span style="font-size:${el.fontSize}pt;">${escapeHtml(main)}</span>`;
+      return `<div style="${styleAttr};display:flex;align-items:baseline;justify-content:${justify};gap:0.4em;color:${el.color};font-family:'${el.fontFamily}', sans-serif;font-weight:${el.fontWeight};">${strikeHtml}${mainHtml}</div>`;
+    }
+
+    case 'country': {
+      const name =
+        el.source === 'csv_column'
+          ? String(ctx.row[el.csvColumn] ?? '')
+          : el.staticCountry;
+      const flag = el.showFlag ? flagFromCode(el.countryCode) : '';
+      const code = el.showCode ? el.countryCode.toUpperCase() : '';
+      const parts: string[] = [];
+      if (el.prefix) parts.push(escapeHtml(el.prefix));
+      if (flag) parts.push(flag);
+      if (el.showName && name) parts.push(escapeHtml(name));
+      if (code) parts.push(escapeHtml(code));
+      const justify =
+        el.align === 'center'
+          ? 'center'
+          : el.align === 'right'
+            ? 'flex-end'
+            : 'flex-start';
+      return `<div style="${styleAttr};display:flex;align-items:center;justify-content:${justify};gap:0.3em;color:${el.color};font-size:${el.fontSize}pt;font-family:'${el.fontFamily}', sans-serif;white-space:nowrap;">${parts.join(' ')}</div>`;
     }
 
     case 'image': {

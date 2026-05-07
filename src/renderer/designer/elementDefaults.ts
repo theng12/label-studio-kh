@@ -12,6 +12,8 @@ import type {
   DividerElement,
   RectElement,
   LogoElement,
+  PriceElement,
+  CountryElement,
 } from '../../shared/types/template';
 
 const base = {
@@ -99,6 +101,9 @@ export function defaultElement(type: ElementType): TemplateElement {
         fontWeight: 'normal',
         color: '#000000',
         align: 'left',
+        multiline: false,
+        lineHeight: 1.2,
+        verticalAlign: 'top',
         maxChars: null,
         language: null,
         name: 'Text',
@@ -202,5 +207,52 @@ export function defaultElement(type: ElementType): TemplateElement {
         cornerRadius_mm: 0,
         name: 'Rectangle',
       } satisfies RectElement;
+
+    case 'price':
+      return {
+        ...base,
+        type: 'price',
+        width_mm: 30,
+        height_mm: 10,
+        amountSource: 'csv_column',
+        amountStatic: '0.00',
+        amountCsvColumn: 'price',
+        salePriceSource: 'none',
+        salePriceStatic: '',
+        salePriceCsvColumn: 'sale_price',
+        currency: '$',
+        currencyPosition: 'before',
+        thousandsSeparator: ',',
+        decimalSeparator: '.',
+        decimals: 2,
+        fontSize: 14,
+        fontFamily: 'NotoSans',
+        fontWeight: 'bold',
+        color: '#000000',
+        saleColor: '#888888',
+        align: 'right',
+        name: 'Price',
+      } satisfies PriceElement;
+
+    case 'country':
+      return {
+        ...base,
+        type: 'country',
+        width_mm: 25,
+        height_mm: 5,
+        source: 'static',
+        staticCountry: 'Cambodia',
+        csvColumn: 'country',
+        countryCode: 'KH',
+        prefix: 'Made in',
+        showFlag: true,
+        showName: true,
+        showCode: false,
+        fontSize: 8,
+        fontFamily: 'NotoSans',
+        color: '#5A606C',
+        align: 'left',
+        name: 'Origin',
+      } satisfies CountryElement;
   }
 }

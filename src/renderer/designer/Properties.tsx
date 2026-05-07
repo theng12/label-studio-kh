@@ -326,6 +326,56 @@ function TypeSpecificFields({
               }}
             />
           </Field>
+          {element.type === 'text' && (
+            <>
+              <label className="flex items-center gap-2 text-xs text-fg-base">
+                <input
+                  type="checkbox"
+                  checked={element.multiline ?? false}
+                  onChange={(e) => {
+                    onPatch({
+                      multiline: e.target.checked,
+                    } as Partial<TemplateElement>);
+                    onCommit();
+                  }}
+                />
+                Multi-line (wrap text inside the box)
+              </label>
+              {element.multiline && (
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Line height" hint="1.0 = tight, 1.4 = airy">
+                    <NumberInput
+                      value={element.lineHeight ?? 1.2}
+                      step={0.1}
+                      onChange={(v) =>
+                        onPatch({ lineHeight: v } as Partial<TemplateElement>)
+                      }
+                      onCommit={onCommit}
+                    />
+                  </Field>
+                  <Field label="Vertical align">
+                    <select
+                      value={element.verticalAlign ?? 'top'}
+                      onChange={(e) => {
+                        onPatch({
+                          verticalAlign: e.target.value as
+                            | 'top'
+                            | 'center'
+                            | 'bottom',
+                        } as Partial<TemplateElement>);
+                        onCommit();
+                      }}
+                      className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                    >
+                      <option value="top">Top</option>
+                      <option value="center">Center</option>
+                      <option value="bottom">Bottom</option>
+                    </select>
+                  </Field>
+                </div>
+              )}
+            </>
+          )}
           <Field
             label="Max characters"
             hint={
@@ -352,6 +402,334 @@ function TypeSpecificFields({
         </>
       );
     }
+
+    case 'price':
+      return (
+        <>
+          <Field label="Regular price source">
+            <select
+              value={element.amountSource}
+              onChange={(e) => {
+                onPatch({
+                  amountSource: e.target.value as 'static' | 'csv_column',
+                } as Partial<TemplateElement>);
+                onCommit();
+              }}
+              className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+            >
+              <option value="static">Static</option>
+              <option value="csv_column">From CSV column</option>
+            </select>
+          </Field>
+          {element.amountSource === 'static' ? (
+            <Field label="Regular price">
+              <input
+                value={element.amountStatic}
+                onChange={(e) =>
+                  onPatch({ amountStatic: e.target.value } as Partial<TemplateElement>)
+                }
+                onBlur={onCommit}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm font-mono"
+                placeholder="9.99"
+              />
+            </Field>
+          ) : (
+            <Field label="Price column">
+              <input
+                value={element.amountCsvColumn}
+                onChange={(e) =>
+                  onPatch({ amountCsvColumn: e.target.value } as Partial<TemplateElement>)
+                }
+                onBlur={onCommit}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                placeholder="price"
+              />
+            </Field>
+          )}
+          <Field
+            label="Sale price"
+            hint="When set, the regular price gets a strikethrough and the sale price is the prominent number."
+          >
+            <select
+              value={element.salePriceSource}
+              onChange={(e) => {
+                onPatch({
+                  salePriceSource: e.target.value as 'none' | 'static' | 'csv_column',
+                } as Partial<TemplateElement>);
+                onCommit();
+              }}
+              className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+            >
+              <option value="none">None</option>
+              <option value="static">Static</option>
+              <option value="csv_column">From CSV column</option>
+            </select>
+          </Field>
+          {element.salePriceSource === 'static' && (
+            <Field label="Sale price (static)">
+              <input
+                value={element.salePriceStatic}
+                onChange={(e) =>
+                  onPatch({ salePriceStatic: e.target.value } as Partial<TemplateElement>)
+                }
+                onBlur={onCommit}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm font-mono"
+                placeholder="7.99"
+              />
+            </Field>
+          )}
+          {element.salePriceSource === 'csv_column' && (
+            <Field label="Sale price column">
+              <input
+                value={element.salePriceCsvColumn}
+                onChange={(e) =>
+                  onPatch({ salePriceCsvColumn: e.target.value } as Partial<TemplateElement>)
+                }
+                onBlur={onCommit}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                placeholder="sale_price"
+              />
+            </Field>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Currency symbol">
+              <input
+                value={element.currency}
+                onChange={(e) =>
+                  onPatch({ currency: e.target.value } as Partial<TemplateElement>)
+                }
+                onBlur={onCommit}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                placeholder="$ € £ ฿ ៛"
+              />
+            </Field>
+            <Field label="Position">
+              <select
+                value={element.currencyPosition}
+                onChange={(e) => {
+                  onPatch({
+                    currencyPosition: e.target.value as 'before' | 'after',
+                  } as Partial<TemplateElement>);
+                  onCommit();
+                }}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+              >
+                <option value="before">Before ($9.99)</option>
+                <option value="after">After (9.99 €)</option>
+              </select>
+            </Field>
+            <Field label="Thousands sep.">
+              <select
+                value={element.thousandsSeparator}
+                onChange={(e) => {
+                  onPatch({
+                    thousandsSeparator: e.target.value as ',' | '.' | ' ' | '',
+                  } as Partial<TemplateElement>);
+                  onCommit();
+                }}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+              >
+                <option value=",">Comma (1,234)</option>
+                <option value=".">Period (1.234)</option>
+                <option value=" ">Space (1 234)</option>
+                <option value="">None (1234)</option>
+              </select>
+            </Field>
+            <Field label="Decimals">
+              <NumberInput
+                value={element.decimals}
+                step={1}
+                onChange={(v) =>
+                  onPatch({ decimals: Math.max(0, Math.round(v)) } as Partial<TemplateElement>)
+                }
+                onCommit={onCommit}
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Font size">
+              <NumberInput
+                value={element.fontSize}
+                step={0.5}
+                onChange={(v) =>
+                  onPatch({ fontSize: v } as Partial<TemplateElement>)
+                }
+                onCommit={onCommit}
+              />
+            </Field>
+            <Field label="Weight">
+              <select
+                value={element.fontWeight}
+                onChange={(e) => {
+                  onPatch({
+                    fontWeight: e.target.value as 'normal' | 'bold',
+                  } as Partial<TemplateElement>);
+                  onCommit();
+                }}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+              >
+                <option value="normal">Normal</option>
+                <option value="bold">Bold</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="Color">
+            <ColorInput
+              value={element.color}
+              onChange={(v) => {
+                onPatch({ color: v } as Partial<TemplateElement>);
+                onCommit();
+              }}
+            />
+          </Field>
+          {element.salePriceSource !== 'none' && (
+            <Field label="Strikethrough color">
+              <ColorInput
+                value={element.saleColor}
+                onChange={(v) => {
+                  onPatch({ saleColor: v } as Partial<TemplateElement>);
+                  onCommit();
+                }}
+              />
+            </Field>
+          )}
+          <Field label="Align">
+            <select
+              value={element.align}
+              onChange={(e) => {
+                onPatch({
+                  align: e.target.value as 'left' | 'center' | 'right',
+                } as Partial<TemplateElement>);
+                onCommit();
+              }}
+              className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+            >
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </Field>
+        </>
+      );
+
+    case 'country':
+      return (
+        <>
+          <Field label="Source">
+            <select
+              value={element.source}
+              onChange={(e) => {
+                onPatch({
+                  source: e.target.value as 'static' | 'csv_column',
+                } as Partial<TemplateElement>);
+                onCommit();
+              }}
+              className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+            >
+              <option value="static">Static</option>
+              <option value="csv_column">From CSV column</option>
+            </select>
+          </Field>
+          {element.source === 'static' ? (
+            <Field label="Country name">
+              <input
+                value={element.staticCountry}
+                onChange={(e) =>
+                  onPatch({ staticCountry: e.target.value } as Partial<TemplateElement>)
+                }
+                onBlur={onCommit}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                placeholder="Cambodia"
+              />
+            </Field>
+          ) : (
+            <Field label="CSV column">
+              <input
+                value={element.csvColumn}
+                onChange={(e) =>
+                  onPatch({ csvColumn: e.target.value } as Partial<TemplateElement>)
+                }
+                onBlur={onCommit}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                placeholder="country"
+              />
+            </Field>
+          )}
+          <Field
+            label="ISO 2-letter code"
+            hint="Used for the flag emoji. KH = 🇰🇭, US = 🇺🇸, GB = 🇬🇧."
+          >
+            <input
+              value={element.countryCode}
+              onChange={(e) =>
+                onPatch({
+                  countryCode: e.target.value.toUpperCase().slice(0, 2),
+                } as Partial<TemplateElement>)
+              }
+              onBlur={onCommit}
+              className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm font-mono uppercase"
+              placeholder="KH"
+              maxLength={2}
+            />
+          </Field>
+          <Field label="Prefix">
+            <input
+              value={element.prefix}
+              onChange={(e) =>
+                onPatch({ prefix: e.target.value } as Partial<TemplateElement>)
+              }
+              onBlur={onCommit}
+              className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+              placeholder="Made in"
+            />
+          </Field>
+          <div className="grid grid-cols-3 gap-2">
+            <label className="flex items-center gap-1 text-xs">
+              <input
+                type="checkbox"
+                checked={element.showFlag}
+                onChange={(e) => {
+                  onPatch({ showFlag: e.target.checked } as Partial<TemplateElement>);
+                  onCommit();
+                }}
+              />
+              Flag
+            </label>
+            <label className="flex items-center gap-1 text-xs">
+              <input
+                type="checkbox"
+                checked={element.showName}
+                onChange={(e) => {
+                  onPatch({ showName: e.target.checked } as Partial<TemplateElement>);
+                  onCommit();
+                }}
+              />
+              Name
+            </label>
+            <label className="flex items-center gap-1 text-xs">
+              <input
+                type="checkbox"
+                checked={element.showCode}
+                onChange={(e) => {
+                  onPatch({ showCode: e.target.checked } as Partial<TemplateElement>);
+                  onCommit();
+                }}
+              />
+              Code
+            </label>
+          </div>
+          <Field label="Color">
+            <ColorInput
+              value={element.color}
+              onChange={(v) => {
+                onPatch({ color: v } as Partial<TemplateElement>);
+                onCommit();
+              }}
+            />
+          </Field>
+        </>
+      );
 
     case 'colorbar':
       return (
@@ -438,6 +816,96 @@ function TypeSpecificFields({
             <option>UPC-A</option>
           </select>
         </Field>
+      );
+
+    case 'image':
+      return (
+        <>
+          <Field label="Source">
+            <select
+              value={element.dataSource}
+              onChange={(e) => {
+                onPatch({
+                  dataSource: e.target.value as
+                    | 'static_asset'
+                    | 'csv_column_path',
+                } as Partial<TemplateElement>);
+                onCommit();
+              }}
+              className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+            >
+              <option value="csv_column_path">From CSV column</option>
+              <option value="static_asset">Static file</option>
+            </select>
+          </Field>
+          {element.dataSource === 'csv_column_path' ? (
+            <Field
+              label="CSV column"
+              hint="The column should contain a file path on disk OR a URL (https://…). Both work."
+            >
+              <input
+                value={element.csvColumn}
+                onChange={(e) =>
+                  onPatch({
+                    csvColumn: e.target.value,
+                  } as Partial<TemplateElement>)
+                }
+                onBlur={onCommit}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                placeholder="product_image_path"
+              />
+            </Field>
+          ) : (
+            <Field
+              label="File path"
+              hint="Absolute path on disk, or a URL. Use the Pick button to browse."
+            >
+              <div className="flex gap-2">
+                <input
+                  value={element.assetPath}
+                  onChange={(e) =>
+                    onPatch({
+                      assetPath: e.target.value,
+                    } as Partial<TemplateElement>)
+                  }
+                  onBlur={onCommit}
+                  className="flex-1 rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                  placeholder="/path/to/image.png"
+                />
+                <button
+                  onClick={async () => {
+                    const path = await window.api.dialog.pickImage();
+                    if (path) {
+                      onPatch({
+                        assetPath: path,
+                      } as Partial<TemplateElement>);
+                      onCommit();
+                    }
+                  }}
+                  className="rounded-md border border-border-base bg-bg-elevated px-2 text-xs text-fg-base hover:bg-bg-hover"
+                >
+                  Pick…
+                </button>
+              </div>
+            </Field>
+          )}
+          <Field label="Object fit" hint="How the image scales inside the box">
+            <select
+              value={element.objectFit}
+              onChange={(e) => {
+                onPatch({
+                  objectFit: e.target.value as 'contain' | 'cover' | 'fill',
+                } as Partial<TemplateElement>);
+                onCommit();
+              }}
+              className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+            >
+              <option value="contain">Contain (no crop)</option>
+              <option value="cover">Cover (crop to fill)</option>
+              <option value="fill">Fill (stretch)</option>
+            </select>
+          </Field>
+        </>
       );
 
     default:

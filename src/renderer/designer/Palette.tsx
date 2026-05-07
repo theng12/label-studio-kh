@@ -11,6 +11,8 @@ import {
   IconSeparator,
   IconCalendar,
   IconSquare,
+  IconCurrencyDollar,
+  IconWorld,
   type Icon,
 } from '@tabler/icons-react';
 import type { ElementType } from '../../shared/types/template';
@@ -22,12 +24,14 @@ const ITEMS: { type: ElementType; label: string; icon: Icon }[] = [
   { type: 'qr', label: 'QR code', icon: IconQrcode },
   { type: 'sku', label: 'SKU', icon: IconHash },
   { type: 'text', label: 'Text', icon: IconLetterT },
+  { type: 'price', label: 'Price', icon: IconCurrencyDollar },
   { type: 'image', label: 'Image', icon: IconPhoto },
   { type: 'colorbar', label: 'Color bar', icon: IconLayoutBottombar },
   { type: 'strip', label: 'Strip box', icon: IconBorderHorizontal },
   { type: 'cert', label: 'Cert badge', icon: IconRosette },
   { type: 'divider', label: 'Divider', icon: IconSeparator },
   { type: 'date', label: 'Date', icon: IconCalendar },
+  { type: 'country', label: 'Origin', icon: IconWorld },
   { type: 'rect', label: 'Rectangle', icon: IconSquare },
 ];
 

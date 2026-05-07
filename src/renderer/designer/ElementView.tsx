@@ -1,4 +1,5 @@
 import type { TemplateElement } from '../../shared/types/template';
+import { flagFromCode, formatPrice } from '../../shared/format';
 
 // Placeholder visuals for the designer canvas. Real barcode/QR/font rendering
 // happens in Phase 2's Puppeteer export; the designer just needs something
@@ -103,6 +104,8 @@ export function ElementView({ element }: { element: TemplateElement }) {
         element.dataSource === 'static'
           ? element.staticText
           : `{${element.csvColumn || 'column'}}`;
+      const multiline = element.type === 'text' && element.multiline === true;
+      const verticalAlign = element.verticalAlign ?? 'top';
       return (
         <div
           style={{
@@ -113,19 +116,119 @@ export function ElementView({ element }: { element: TemplateElement }) {
             fontFamily: element.fontFamily,
             textAlign: element.align,
             display: 'flex',
-            alignItems: 'center',
+            alignItems: multiline
+              ? verticalAlign === 'center'
+                ? 'center'
+                : verticalAlign === 'bottom'
+                  ? 'flex-end'
+                  : 'flex-start'
+              : 'center',
             justifyContent:
               element.align === 'center'
                 ? 'center'
                 : element.align === 'right'
                   ? 'flex-end'
                   : 'flex-start',
-            whiteSpace: 'nowrap',
+            whiteSpace: multiline ? 'normal' : 'nowrap',
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            textOverflow: multiline ? 'clip' : 'ellipsis',
+            lineHeight: multiline ? (element.lineHeight ?? 1.2) : 1,
+            wordBreak: multiline ? 'break-word' : 'normal',
           }}
         >
           {text}
+        </div>
+      );
+    }
+
+    case 'price': {
+      const fmt = {
+        currency: element.currency,
+        currencyPosition: element.currencyPosition,
+        thousandsSeparator: element.thousandsSeparator,
+        decimalSeparator: element.decimalSeparator,
+        decimals: element.decimals,
+      };
+      const sample =
+        element.amountSource === 'static' ? element.amountStatic : '9.99';
+      const sampleSale =
+        element.salePriceSource === 'none'
+          ? null
+          : element.salePriceSource === 'static'
+            ? element.salePriceStatic
+            : '7.99';
+      const main = formatPrice(sampleSale ?? sample, fmt);
+      const strike = sampleSale ? formatPrice(sample, fmt) : null;
+      const justify =
+        element.align === 'center'
+          ? 'center'
+          : element.align === 'right'
+            ? 'flex-end'
+            : 'flex-start';
+      return (
+        <div
+          style={{
+            ...style,
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: justify,
+            gap: '0.4em',
+            color: element.color,
+            fontFamily: element.fontFamily,
+            fontWeight: element.fontWeight,
+          }}
+        >
+          {strike && (
+            <span
+              style={{
+                color: element.saleColor,
+                fontSize: element.fontSize * 0.65,
+                textDecoration: 'line-through',
+                fontWeight: 'normal',
+              }}
+            >
+              {strike}
+            </span>
+          )}
+          <span style={{ fontSize: element.fontSize }}>{main}</span>
+        </div>
+      );
+    }
+
+    case 'country': {
+      const name =
+        element.source === 'static'
+          ? element.staticCountry
+          : `{${element.csvColumn || 'country'}}`;
+      const flag = element.showFlag ? flagFromCode(element.countryCode) : '';
+      const code = element.showCode ? element.countryCode.toUpperCase() : '';
+      const parts = [
+        element.prefix,
+        flag,
+        element.showName ? name : '',
+        code,
+      ].filter(Boolean);
+      const justify =
+        element.align === 'center'
+          ? 'center'
+          : element.align === 'right'
+            ? 'flex-end'
+            : 'flex-start';
+      return (
+        <div
+          style={{
+            ...style,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: justify,
+            gap: '0.3em',
+            color: element.color,
+            fontSize: element.fontSize,
+            fontFamily: element.fontFamily,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {parts.join(' ')}
         </div>
       );
     }

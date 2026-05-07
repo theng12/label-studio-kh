@@ -10,7 +10,9 @@ export type ElementType =
   | 'cert'
   | 'divider'
   | 'date'
-  | 'rect';
+  | 'rect'
+  | 'price'
+  | 'country';
 
 export interface BaseElement {
   id: string;
@@ -61,8 +63,58 @@ export interface TextElement extends BaseElement {
   fontWeight: 'normal' | 'bold';
   color: string;
   align: 'left' | 'center' | 'right';
+  // When true, the text wraps inside the box. When false (default for older
+  // templates), the text stays on one line and overflow is clipped/ellipsised.
+  multiline?: boolean;
+  // Line height multiplier (e.g. 1.2 = 1.2× the font size). Only used when
+  // multiline is true. Defaults to 1.2 if undefined.
+  lineHeight?: number;
+  // Vertical alignment within the box (multiline only).
+  verticalAlign?: 'top' | 'center' | 'bottom';
   maxChars: number | null;
   language: string | null;
+}
+
+export interface PriceElement extends BaseElement {
+  type: 'price';
+  // Regular price source.
+  amountSource: 'static' | 'csv_column';
+  amountStatic: string;
+  amountCsvColumn: string;
+  // Optional sale price. When present, it's shown in the prominent position
+  // and the regular price is rendered smaller with a strikethrough.
+  salePriceSource: 'none' | 'static' | 'csv_column';
+  salePriceStatic: string;
+  salePriceCsvColumn: string;
+  // Currency formatting.
+  currency: string; // '$', '€', '£', '¥', '฿', '៛', 'USD', etc.
+  currencyPosition: 'before' | 'after';
+  thousandsSeparator: ',' | '.' | ' ' | '';
+  decimalSeparator: '.' | ',';
+  decimals: number;
+  // Display.
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: 'normal' | 'bold';
+  color: string;
+  saleColor: string; // colour of the strike-through regular price
+  align: 'left' | 'center' | 'right';
+}
+
+export interface CountryElement extends BaseElement {
+  type: 'country';
+  source: 'static' | 'csv_column';
+  staticCountry: string; // free-text country name, e.g. "Cambodia"
+  csvColumn: string;
+  countryCode: string; // ISO 3166-1 alpha-2, e.g. "KH" — used for the flag emoji
+  prefix: string; // "Made in", "Origin:", etc.
+  showFlag: boolean;
+  showName: boolean;
+  showCode: boolean;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  align: 'left' | 'center' | 'right';
 }
 
 export interface DateElement extends BaseElement {
@@ -140,7 +192,9 @@ export type TemplateElement =
   | CertElement
   | ImageElement
   | DividerElement
-  | RectElement;
+  | RectElement
+  | PriceElement
+  | CountryElement;
 
 export interface Template {
   id: string;
