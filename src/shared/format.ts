@@ -2,6 +2,17 @@
 // engine (StickerRenderer). Keeping them here means the designer preview and
 // the printed output always match.
 
+// Typographic conversions. The spec stores fontSize in points (a physical
+// unit). The canvas renders in CSS pixels at a zoom-dependent pxPerMm, so we
+// have to convert pt → mm → px to keep text proportionate as the user zooms.
+export const MM_PER_PT = 25.4 / 72;
+export const CSS_PX_PER_MM = 96 / 25.4; // 1:1 physical at 96 DPI
+
+export function ptToPx(pt: number, pxPerMm = CSS_PX_PER_MM): number {
+  return pt * MM_PER_PT * pxPerMm;
+}
+
+
 export function flagFromCode(code: string): string {
   const c = (code || '').trim().toUpperCase();
   if (c.length !== 2) return '';

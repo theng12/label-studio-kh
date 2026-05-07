@@ -416,7 +416,7 @@ function ElementBox({
       }}
     >
       <div style={{ pointerEvents: 'none', width: '100%', height: '100%' }}>
-        <ElementView element={element} brand={brand} />
+        <ElementView element={element} brand={brand} pxPerMm={pxPerMm} />
       </div>
       {selected && !element.locked && (
         <>

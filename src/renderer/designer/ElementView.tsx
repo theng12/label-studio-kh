@@ -1,6 +1,11 @@
 import type { TemplateElement, BrandField } from '../../shared/types/template';
 import type { Brand } from '../../shared/types/brand';
-import { flagFromCode, formatPrice } from '../../shared/format';
+import {
+  CSS_PX_PER_MM,
+  flagFromCode,
+  formatPrice,
+  ptToPx,
+} from '../../shared/format';
 
 function localFileUrl(path: string): string {
   const segments = path.split('/').map(encodeURIComponent).join('/');
@@ -43,13 +48,21 @@ function resolveLogoPath(
 // roughly right so layout decisions are meaningful. The Logo element is the
 // exception: when a brand provides a real logo file, we show it directly so
 // the user sees the actual asset while designing.
+//
+// Font sizes are stored in points (a physical unit). To stay proportionate
+// across zoom, we convert pt → px using the caller's current pxPerMm. When
+// the caller doesn't pass one (e.g. a static review thumbnail) we fall back
+// to the 1:1 physical 96-DPI ratio so output still matches print.
 export function ElementView({
   element,
   brand,
+  pxPerMm = CSS_PX_PER_MM,
 }: {
   element: TemplateElement;
   brand?: Brand | null;
+  pxPerMm?: number;
 }) {
+  const fontPx = (pt: number) => ptToPx(pt, pxPerMm);
   const style: React.CSSProperties = {
     width: '100%',
     height: '100%',
@@ -187,7 +200,7 @@ export function ElementView({
           style={{
             ...style,
             color: element.color,
-            fontSize: element.fontSize,
+            fontSize: fontPx(element.fontSize),
             fontWeight: element.fontWeight,
             fontFamily: element.fontFamily,
             textAlign: element.align,
@@ -258,7 +271,7 @@ export function ElementView({
             <span
               style={{
                 color: element.saleColor,
-                fontSize: element.fontSize * 0.65,
+                fontSize: fontPx(element.fontSize * 0.65),
                 textDecoration: 'line-through',
                 fontWeight: 'normal',
               }}
@@ -266,7 +279,7 @@ export function ElementView({
               {strike}
             </span>
           )}
-          <span style={{ fontSize: element.fontSize }}>{main}</span>
+          <span style={{ fontSize: fontPx(element.fontSize) }}>{main}</span>
         </div>
       );
     }
@@ -299,7 +312,7 @@ export function ElementView({
             justifyContent: justify,
             gap: '0.3em',
             color: element.color,
-            fontSize: element.fontSize,
+            fontSize: fontPx(element.fontSize),
             fontFamily: element.fontFamily,
             whiteSpace: 'nowrap',
           }}
@@ -339,7 +352,7 @@ export function ElementView({
             border: `0.5px solid ${element.borderColor}`,
             background: element.fillColor,
             color: element.textColor,
-            fontSize: element.fontSize,
+            fontSize: fontPx(element.fontSize),
             display: 'flex',
             alignItems: 'center',
             justifyContent:
@@ -390,7 +403,7 @@ export function ElementView({
           style={{
             ...style,
             color: element.color,
-            fontSize: element.fontSize,
+            fontSize: fontPx(element.fontSize),
             fontFamily: element.fontFamily,
             display: 'flex',
             alignItems: 'center',

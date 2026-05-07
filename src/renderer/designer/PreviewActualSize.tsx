@@ -97,7 +97,7 @@ export function PreviewActualSize({ onClose }: Props) {
                   overflow: 'hidden',
                 }}
               >
-                <ElementView element={el} brand={brand} />
+                <ElementView element={el} brand={brand} pxPerMm={CSS_PX_PER_MM} />
               </div>
             ))}
         </div>

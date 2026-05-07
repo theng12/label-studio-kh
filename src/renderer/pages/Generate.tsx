@@ -473,7 +473,11 @@ function PreviewCanvas({
                   overflow: 'hidden',
                 }}
               >
-                <ElementView element={resolveElement(el, row)} brand={brand} />
+                <ElementView
+                  element={resolveElement(el, row)}
+                  brand={brand}
+                  pxPerMm={PX_PER_MM}
+                />
               </div>
             ))}
         </div>
