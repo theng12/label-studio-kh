@@ -96,8 +96,17 @@ export default function Generate() {
     ]);
   }, [brandId]);
 
+  // Keep templateId in sync with the loaded templates list. If the user
+  // switches brands, the previous brand's templateId is no longer in the
+  // list — fall back to the first template of the new brand. If there are
+  // no templates at all, clear it.
   useEffect(() => {
-    if (templates.length > 0 && !templateId) setTemplateId(templates[0]!.id);
+    if (templates.length === 0) {
+      if (templateId !== '') setTemplateId('');
+      return;
+    }
+    const stillValid = templates.some((t) => t.id === templateId);
+    if (!stillValid) setTemplateId(templates[0]!.id);
   }, [templates, templateId]);
 
   const template = templates.find((t) => t.id === templateId) ?? null;
