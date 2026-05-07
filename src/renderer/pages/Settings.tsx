@@ -4,6 +4,7 @@ import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 import { useThemeStore, type ThemeMode } from '../stores/themeStore';
 import { SUPPORTED_LANGUAGES, setLanguage } from '../i18n';
+import { FilenamePatternInput } from '../components/FilenamePatternInput';
 
 type AppSettings = Awaited<ReturnType<typeof window.api.settings.get>>;
 type AppInfo = Awaited<ReturnType<typeof window.api.app.getInfo>>;
@@ -69,13 +70,14 @@ export default function Settings() {
 
       <Row
         label="Default file naming"
-        description="Tokens: {SKU} {Brand} {Size} {Date} {Name} {Index}"
+        description="Picked when the Generate page loads. Pick a preset or type your own."
       >
-        <input
-          value={s?.defaultNamingPattern ?? ''}
-          onChange={(e) => void update({ defaultNamingPattern: e.target.value })}
-          className="w-72 rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm font-mono"
-        />
+        <div className="w-80">
+          <FilenamePatternInput
+            value={s?.defaultNamingPattern ?? ''}
+            onChange={(v) => void update({ defaultNamingPattern: v })}
+          />
+        </div>
       </Row>
 
       <Row label="Default DPI" description="150 / 300 / 600">

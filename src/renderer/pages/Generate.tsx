@@ -15,6 +15,7 @@ import { Button } from '../components/Button';
 import { useBrandStore } from '../stores/brandStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { ElementView } from '../designer/ElementView';
+import { FilenamePatternInput } from '../components/FilenamePatternInput';
 import type { Template } from '../../shared/types/template';
 import type {
   ExportFormat,
@@ -255,17 +256,16 @@ export default function Generate() {
               </div>
             </Field>
 
-            <Field
-              label="Filename pattern"
-              hint="Tokens: {SKU} {Brand} {Size} {Date} {Name} {Index}"
-            >
-              <input
+            <Field label="Filename pattern" hint="Pick a preset or type your own">
+              <FilenamePatternInput
                 value={filenamePattern}
-                onChange={(e) => setFilenamePattern(e.target.value)}
-                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm font-mono"
+                onChange={setFilenamePattern}
               />
               <div className="mt-1 text-[10px] text-fg-subtle">
-                Example for first row: {samplePreview(filenamePattern, previewRow, brand?.name ?? '', template)}
+                Example for first row:{' '}
+                <code className="rounded bg-bg-elevated px-1 py-px">
+                  {samplePreview(filenamePattern, previewRow, brand?.name ?? '', template)}
+                </code>
               </div>
             </Field>
 
