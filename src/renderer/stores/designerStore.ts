@@ -46,6 +46,7 @@ interface DesignerState {
   duplicateSelected: () => void;
   bringToFront: (id: string) => void;
   sendToBack: (id: string) => void;
+  toggleLock: (id: string) => void;
   reorderElement: (id: string, direction: 'up' | 'down') => void;
 
   setZoom: (z: Zoom) => void;
@@ -264,6 +265,15 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     if (!t) return;
     const minZ = t.elements.reduce((m, e) => Math.min(m, e.zIndex), Infinity);
     get().updateElement(id, { zIndex: minZ - 1 } as Partial<TemplateElement>);
+    get().pushHistory();
+  },
+
+  toggleLock: (id) => {
+    const t = get().template;
+    if (!t) return;
+    const el = t.elements.find((e) => e.id === id);
+    if (!el) return;
+    get().updateElement(id, { locked: !el.locked } as Partial<TemplateElement>);
     get().pushHistory();
   },
 

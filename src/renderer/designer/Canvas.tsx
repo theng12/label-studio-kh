@@ -42,6 +42,9 @@ export function Canvas() {
   const updateElement = useDesignerStore((s) => s.updateElement);
   const removeSelected = useDesignerStore((s) => s.removeSelected);
   const duplicateSelected = useDesignerStore((s) => s.duplicateSelected);
+  const bringToFront = useDesignerStore((s) => s.bringToFront);
+  const sendToBack = useDesignerStore((s) => s.sendToBack);
+  const toggleLock = useDesignerStore((s) => s.toggleLock);
   const undo = useDesignerStore((s) => s.undo);
   const redo = useDesignerStore((s) => s.redo);
   const pushHistory = useDesignerStore((s) => s.pushHistory);
@@ -52,6 +55,17 @@ export function Canvas() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
+  const [marquee, setMarquee] = useState<null | {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  }>(null);
+  const [menu, setMenu] = useState<null | {
+    x: number;
+    y: number;
+    elementId: string;
+  }>(null);
 
   useEffect(() => {
     if (!wrapRef.current || !template) return;
@@ -198,7 +212,68 @@ export function Canvas() {
   };
 
   const onCanvasMouseDown = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) select([]);
+    // Marquee starts on left-click in empty canvas area only — clicks on
+    // elements bubble out via stopPropagation in ElementBox.
+    if (e.target !== e.currentTarget) return;
+    if (e.button !== 0) return;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x0 = e.clientX - rect.left;
+    const y0 = e.clientY - rect.top;
+    const additive = e.shiftKey;
+    const baseSelection = additive ? selectedIds : [];
+    const elementsSnapshot = template ? template.elements : [];
+    const pxSnapshot = pxPerMm;
+    let dragged = false;
+    setMarquee({ x0, y0, x1: x0, y1: y0 });
+
+    const onMove = (ev: MouseEvent) => {
+      const x1 = ev.clientX - rect.left;
+      const y1 = ev.clientY - rect.top;
+      if (!dragged && Math.abs(x1 - x0) + Math.abs(y1 - y0) > 2) dragged = true;
+      setMarquee({ x0, y0, x1, y1 });
+    };
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      setMarquee(null);
+      if (!dragged) {
+        // Plain click in empty area clears selection (preserve old behavior);
+        // shift-click leaves the existing selection alone.
+        if (!additive) select([]);
+        return;
+      }
+      const x1 = ev.clientX - rect.left;
+      const y1 = ev.clientY - rect.top;
+      const mLeft = Math.min(x0, x1);
+      const mRight = Math.max(x0, x1);
+      const mTop = Math.min(y0, y1);
+      const mBottom = Math.max(y0, y1);
+      const hits = elementsSnapshot
+        .filter((el) => {
+          if (!el.visible) return false;
+          const eLeft = el.x_mm * pxSnapshot;
+          const eRight = eLeft + el.width_mm * pxSnapshot;
+          const eTop = el.y_mm * pxSnapshot;
+          const eBottom = eTop + el.height_mm * pxSnapshot;
+          return eLeft < mRight && eRight > mLeft && eTop < mBottom && eBottom > mTop;
+        })
+        .map((el) => el.id);
+      if (additive) {
+        select(Array.from(new Set([...baseSelection, ...hits])));
+      } else {
+        select(hits);
+      }
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const openContextMenuFor = (e: React.MouseEvent, elementId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!selectedIds.includes(elementId)) select([elementId]);
+    setMenu({ x: e.clientX, y: e.clientY, elementId });
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -241,6 +316,7 @@ export function Canvas() {
         ref={canvasRef}
         onMouseDown={onCanvasMouseDown}
         onMouseMove={onCanvasMouseMove}
+        onContextMenu={(e) => e.preventDefault()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={onDrop}
         className="relative shadow-xl"
@@ -276,9 +352,139 @@ export function Canvas() {
               onUpdate={(patch) => updateElement(el.id, patch)}
               onDragEnd={pushHistory}
               clientToMm={clientToMm}
+              onContextMenu={(e) => openContextMenuFor(e, el.id)}
             />
           ))}
+        {marquee && (
+          <div
+            style={{
+              position: 'absolute',
+              left: Math.min(marquee.x0, marquee.x1),
+              top: Math.min(marquee.y0, marquee.y1),
+              width: Math.abs(marquee.x1 - marquee.x0),
+              height: Math.abs(marquee.y1 - marquee.y0),
+              background: 'rgb(var(--accent) / 0.10)',
+              border: '1px dashed rgb(var(--accent))',
+              pointerEvents: 'none',
+              zIndex: 9999,
+            }}
+          />
+        )}
       </div>
+      {menu &&
+        (() => {
+          const target = template.elements.find((el) => el.id === menu.elementId);
+          if (!target) return null;
+          const targets = selectedIds.length > 0 ? selectedIds : [menu.elementId];
+          const items: ContextMenuItem[] = [
+            {
+              label: 'Duplicate',
+              shortcut: '⌘D',
+              onClick: () => duplicateSelected(),
+            },
+            {
+              label: 'Delete',
+              onClick: () => removeSelected(),
+            },
+            { divider: true },
+            {
+              label: target.locked ? 'Unlock' : 'Lock',
+              onClick: () => {
+                if (targets.length === 1) {
+                  toggleLock(targets[0]!);
+                } else {
+                  // Force all in selection to the opposite of the right-clicked
+                  // element's state so the result is consistent.
+                  const next = !target.locked;
+                  targets.forEach((id) => updateElement(id, { locked: next }));
+                  pushHistory();
+                }
+              },
+            },
+            { divider: true },
+            {
+              label: 'Bring to Front',
+              onClick: () => targets.forEach((id) => bringToFront(id)),
+            },
+            {
+              label: 'Send to Back',
+              onClick: () => targets.forEach((id) => sendToBack(id)),
+            },
+          ];
+          return (
+            <ContextMenu
+              x={menu.x}
+              y={menu.y}
+              items={items}
+              onClose={() => setMenu(null)}
+            />
+          );
+        })()}
+    </div>
+  );
+}
+
+interface ContextMenuItem {
+  label?: string;
+  shortcut?: string;
+  divider?: boolean;
+  onClick?: () => void;
+}
+
+function ContextMenu({
+  x,
+  y,
+  items,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  items: ContextMenuItem[];
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('mousedown', onDoc);
+    window.addEventListener('keydown', onEsc);
+    return () => {
+      window.removeEventListener('mousedown', onDoc);
+      window.removeEventListener('keydown', onEsc);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      onMouseDown={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ position: 'fixed', left: x, top: y, zIndex: 10000 }}
+      className="min-w-[160px] rounded-md border border-border-base bg-bg-surface py-1 text-xs shadow-xl"
+    >
+      {items.map((item, i) =>
+        item.divider ? (
+          <div key={i} className="my-1 h-px bg-border-base" />
+        ) : (
+          <button
+            key={i}
+            onClick={() => {
+              item.onClick?.();
+              onClose();
+            }}
+            className="flex w-full items-center justify-between px-3 py-1 text-left text-fg-base hover:bg-bg-hover"
+          >
+            <span>{item.label}</span>
+            {item.shortcut && (
+              <span className="ml-4 text-fg-subtle">{item.shortcut}</span>
+            )}
+          </button>
+        ),
+      )}
     </div>
   );
 }
@@ -292,6 +498,7 @@ interface BoxProps {
   onSelect: (shift: boolean) => void;
   onUpdate: (patch: Partial<TemplateElement>) => void;
   onDragEnd: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
   clientToMm: (cx: number, cy: number) => { x: number; y: number };
 }
 
@@ -304,6 +511,7 @@ function ElementBox({
   onSelect,
   onUpdate,
   onDragEnd,
+  onContextMenu,
   clientToMm,
 }: BoxProps) {
   if (!element.visible) return null;
@@ -424,6 +632,7 @@ function ElementBox({
   return (
     <div
       onMouseDown={startMove}
+      onContextMenu={onContextMenu}
       style={{
         position: 'absolute',
         left: element.x_mm * pxPerMm,

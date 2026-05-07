@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
@@ -104,6 +104,23 @@ export default function Designer() {
       setSaving(false);
     }
   };
+
+  // Cmd/Ctrl+S triggers the same save action as the TopBar button. Held in a
+  // ref so the listener stays stable across renders without restarting on
+  // every state change. Mounted only while the Designer page is, so the
+  // shortcut doesn't fire on other pages.
+  const saveRef = useRef(onSave);
+  saveRef.current = onSave;
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key.toLowerCase() !== 's') return;
+      e.preventDefault();
+      void saveRef.current();
+    }
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   if (loading) {
     return (
