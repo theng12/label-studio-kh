@@ -10,6 +10,7 @@ import { TopBar } from '../designer/TopBar';
 import { BottomBar } from '../designer/BottomBar';
 import { useDesignerStore } from '../stores/designerStore';
 import { useBrandStore } from '../stores/brandStore';
+import { toast } from '../components/Toast';
 import type { Template, NewTemplateInput } from '../../shared/types/template';
 
 function blankTemplate(brandId: string): NewTemplateInput {
@@ -100,6 +101,8 @@ export default function Designer() {
       if (isNew) {
         navigate(`/designer/${saved.brandId}/${saved.id}`, { replace: true });
       }
+    } catch (err) {
+      toast.error(`Couldn't save template: ${String(err)}`);
     } finally {
       setSaving(false);
     }

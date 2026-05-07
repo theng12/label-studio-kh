@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Brand, NewBrandInput } from '../../shared/types/brand';
+import { toast } from '../components/Toast';
 
 interface BrandState {
   brands: Brand[];
@@ -23,26 +24,43 @@ export const useBrandStore = create<BrandState>((set, get) => ({
       set({ brands, loading: false });
     } catch (err) {
       set({ error: String(err), loading: false });
+      toast.error(`Couldn't load brands: ${String(err)}`);
     }
   },
 
   create: async (input) => {
-    const brand = await window.api.brand.create(input);
-    set({ brands: [...get().brands, brand] });
-    return brand;
+    try {
+      const brand = await window.api.brand.create(input);
+      set({ brands: [...get().brands, brand] });
+      toast.success(`Brand "${brand.name}" created.`);
+      return brand;
+    } catch (err) {
+      toast.error(`Couldn't create brand: ${String(err)}`);
+      throw err;
+    }
   },
 
   update: async (id, patch) => {
-    const updated = await window.api.brand.update(id, patch);
-    if (updated) {
-      set({ brands: get().brands.map((b) => (b.id === id ? updated : b)) });
+    try {
+      const updated = await window.api.brand.update(id, patch);
+      if (updated) {
+        set({ brands: get().brands.map((b) => (b.id === id ? updated : b)) });
+      }
+      return updated;
+    } catch (err) {
+      toast.error(`Couldn't save brand: ${String(err)}`);
+      throw err;
     }
-    return updated;
   },
 
   remove: async (id) => {
-    const ok = await window.api.brand.delete(id);
-    if (ok) set({ brands: get().brands.filter((b) => b.id !== id) });
-    return ok;
+    try {
+      const ok = await window.api.brand.delete(id);
+      if (ok) set({ brands: get().brands.filter((b) => b.id !== id) });
+      return ok;
+    } catch (err) {
+      toast.error(`Couldn't delete brand: ${String(err)}`);
+      throw err;
+    }
   },
 }));

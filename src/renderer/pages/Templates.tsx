@@ -10,6 +10,7 @@ import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useBrandStore } from '../stores/brandStore';
+import { toast } from '../components/Toast';
 import type { Template } from '../../shared/types/template';
 
 export default function Templates() {
@@ -59,26 +60,38 @@ export default function Templates() {
     const trimmed = renaming.value.trim();
     setRenaming(null);
     if (!target || !trimmed || trimmed === target.name) return;
-    const saved = await window.api.template.save({ ...target, name: trimmed });
-    setTemplates((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
+    try {
+      const saved = await window.api.template.save({ ...target, name: trimmed });
+      setTemplates((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
+    } catch (err) {
+      toast.error(`Couldn't rename template: ${String(err)}`);
+    }
   };
 
   const handleDuplicate = async (template: Template) => {
     if (!selectedBrandId) return;
-    const copy = await window.api.template.duplicate(
-      selectedBrandId,
-      template.id,
-    );
-    if (copy) setTemplates((prev) => [...prev, copy]);
+    try {
+      const copy = await window.api.template.duplicate(
+        selectedBrandId,
+        template.id,
+      );
+      if (copy) setTemplates((prev) => [...prev, copy]);
+    } catch (err) {
+      toast.error(`Couldn't duplicate template: ${String(err)}`);
+    }
   };
 
   const handleDelete = async () => {
     if (!confirmDelete || !selectedBrandId) return;
-    const ok = await window.api.template.delete(
-      selectedBrandId,
-      confirmDelete.id,
-    );
-    if (ok) setTemplates((prev) => prev.filter((t) => t.id !== confirmDelete.id));
+    try {
+      const ok = await window.api.template.delete(
+        selectedBrandId,
+        confirmDelete.id,
+      );
+      if (ok) setTemplates((prev) => prev.filter((t) => t.id !== confirmDelete.id));
+    } catch (err) {
+      toast.error(`Couldn't delete template: ${String(err)}`);
+    }
     setConfirmDelete(null);
   };
 

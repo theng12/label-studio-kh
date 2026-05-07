@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
+import { ToastContainer } from './components/Toast';
 import Dashboard from './pages/Dashboard';
 import Brands from './pages/Brands';
 import Templates from './pages/Templates';
@@ -23,6 +24,7 @@ export default function App() {
   return (
     <div className="flex h-full w-full bg-bg-base text-fg-base">
       <Sidebar />
+      <ToastContainer />
       <main className="min-w-0 flex-1">
         <Routes>
           <Route path="/" element={<Dashboard />} />
