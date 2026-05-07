@@ -9,6 +9,7 @@ import {
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { TemplateCardSkeletonGrid } from '../components/Skeleton';
 import { useBrandStore } from '../stores/brandStore';
 import { toast } from '../components/Toast';
 import type { Template } from '../../shared/types/template';
@@ -16,7 +17,7 @@ import type { Template } from '../../shared/types/template';
 export default function Templates() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { brands, refresh } = useBrandStore();
+  const { brands, loading: brandsLoading, refresh } = useBrandStore();
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(
     params.get('brand'),
   );
@@ -98,12 +99,16 @@ export default function Templates() {
   if (brands.length === 0) {
     return (
       <Page title="Templates">
-        <div className="rounded-lg border border-dashed border-border-base p-12 text-center">
-          <h3 className="text-sm font-semibold text-fg-base">Create a brand first</h3>
-          <p className="mt-1 text-xs text-fg-muted">
-            Templates belong to brands. Create a brand on the Brands page to get started.
-          </p>
-        </div>
+        {brandsLoading ? (
+          <TemplateCardSkeletonGrid />
+        ) : (
+          <div className="rounded-lg border border-dashed border-border-base p-12 text-center">
+            <h3 className="text-sm font-semibold text-fg-base">Create a brand first</h3>
+            <p className="mt-1 text-xs text-fg-muted">
+              Templates belong to brands. Create a brand on the Brands page to get started.
+            </p>
+          </div>
+        )}
       </Page>
     );
   }
@@ -139,7 +144,7 @@ export default function Templates() {
         </div>
 
         {loading ? (
-          <div className="text-sm text-fg-muted">Loading…</div>
+          <TemplateCardSkeletonGrid />
         ) : templates.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border-base p-12 text-center">
             <h3 className="text-sm font-semibold text-fg-base">No templates yet</h3>

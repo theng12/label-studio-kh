@@ -6,14 +6,18 @@ import {
   IconPencil,
   IconTrash,
   IconArrowRight,
+  IconX,
 } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
+import { BrandCardSkeletonGrid } from '../components/Skeleton';
 import { useBrandStore } from '../stores/brandStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { NewBrandWizard } from '../components/NewBrandWizard';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { Brand } from '../../shared/types/brand';
+
+const FIRST_LAUNCH_HINT_KEY = 'brandsFirstLaunchHintDismissed';
 
 type WizardState =
   | { mode: 'closed' }
@@ -30,6 +34,13 @@ export default function Brands() {
   const [confirmDelete, setConfirmDelete] = useState<Brand | null>(null);
   const [query, setQuery] = useState('');
   const [stats, setStats] = useState<Map<string, BrandStats>>(new Map());
+  const [hintDismissed, setHintDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(FIRST_LAUNCH_HINT_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -75,6 +86,20 @@ export default function Brands() {
     b.name.toLowerCase().includes(query.toLowerCase()),
   );
 
+  const showFirstLaunchHint =
+    !hintDismissed &&
+    !loading &&
+    brands.length === 1 &&
+    brands[0]?.isDemo === true;
+  const dismissHint = () => {
+    try {
+      localStorage.setItem(FIRST_LAUNCH_HINT_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    setHintDismissed(true);
+  };
+
   return (
     <>
       <Page
@@ -103,10 +128,8 @@ export default function Brands() {
           </span>
         </div>
 
-        {loading ? (
-          <div className="rounded-lg border border-dashed border-border-base p-12 text-center text-sm text-fg-muted">
-            Loading…
-          </div>
+        {loading && brands.length === 0 ? (
+          <BrandCardSkeletonGrid />
         ) : filtered.length === 0 ? (
           <EmptyState
             onAdd={() => setWizard({ mode: 'create' })}
@@ -119,6 +142,8 @@ export default function Brands() {
                 key={b.id}
                 brand={b}
                 stats={stats.get(b.id)}
+                showFirstLaunchHint={showFirstLaunchHint && b.id === brands[0]?.id}
+                onDismissHint={dismissHint}
                 onOpenTemplates={() => navigate(`/templates?brand=${b.id}`)}
                 onEdit={() => setWizard({ mode: 'edit', brand: b })}
                 onDelete={() => setConfirmDelete(b)}
@@ -174,18 +199,28 @@ export default function Brands() {
 function BrandCard({
   brand,
   stats,
+  showFirstLaunchHint,
+  onDismissHint,
   onOpenTemplates,
   onEdit,
   onDelete,
 }: {
   brand: Brand;
   stats?: BrandStats;
+  showFirstLaunchHint: boolean;
+  onDismissHint: () => void;
   onOpenTemplates: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
-    <div className="group flex items-start gap-3 rounded-lg border border-border-base bg-bg-surface p-4 transition-colors hover:bg-bg-hover">
+    <div
+      className={`group relative flex items-start gap-3 rounded-lg border bg-bg-surface p-4 transition-colors hover:bg-bg-hover ${
+        showFirstLaunchHint
+          ? 'border-accent ring-1 ring-accent/40'
+          : 'border-border-base'
+      }`}
+    >
       <div
         className="mt-1 h-6 w-6 shrink-0 rounded border border-border-base"
         style={{ background: brand.color }}
@@ -232,6 +267,48 @@ function BrandCard({
         >
           <span>Open templates</span>
           <IconArrowRight size={12} />
+        </button>
+      </div>
+      {showFirstLaunchHint && (
+        <FirstLaunchHint onOpen={onOpenTemplates} onDismiss={onDismissHint} />
+      )}
+    </div>
+  );
+}
+
+function FirstLaunchHint({
+  onOpen,
+  onDismiss,
+}: {
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="pointer-events-none absolute -top-2 -right-2 z-10 animate-pulse">
+      <div className="pointer-events-auto flex items-center gap-1.5 rounded-md border border-accent bg-accent px-2 py-1 text-xs font-medium text-accent-fg shadow-sm">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+          className="flex items-center gap-1 hover:underline"
+          title="Open the demo brand to explore"
+        >
+          Try the demo brand
+          <IconArrowRight size={12} />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDismiss();
+          }}
+          className="ml-1 rounded p-0.5 hover:bg-accent-hover"
+          title="Dismiss hint"
+          aria-label="Dismiss hint"
+        >
+          <IconX size={12} />
         </button>
       </div>
     </div>
