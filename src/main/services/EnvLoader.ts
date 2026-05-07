@@ -34,11 +34,17 @@ export function loadEnv(): void {
         process.env[key] = value;
         loaded.push(key);
       }
-      console.log(`[env] loaded ${loaded.length} key(s) from ${path}: ${loaded.join(', ')}`);
+      if (!app.isPackaged) {
+        console.log(`[env] loaded ${loaded.length} key(s) from ${path}: ${loaded.join(', ')}`);
+      }
       return; // first match wins
     } catch (err) {
-      console.error('Failed to read .env:', err);
+      if (!app.isPackaged) {
+        console.error('Failed to read .env:', err);
+      }
     }
   }
-  console.log(`[env] no .env file found at any of: ${candidates.join(' | ')}`);
+  if (!app.isPackaged) {
+    console.log(`[env] no .env file found at any of: ${candidates.join(' | ')}`);
+  }
 }

@@ -186,7 +186,6 @@ export const DemoSeed = {
       name: DEMO_BRAND_NAME,
       color: '#1063E8',
       logoPath: null,
-      defaultFont: 'NotoSans',
       website: 'https://example.com',
       address: '1 Example Street, Phnom Penh',
       phone: '+855 12 345 678',

@@ -163,6 +163,32 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
         ]);
         const assets = await finaliseAssets(existing.id, { existingPaths });
         await update(existing.id, { ...draft, ...assets });
+
+        // Clean up files that were on the brand before but aren't now —
+        // e.g. a replaced logo or a removed cert. We only touch paths under
+        // this brand's own assets folder so we never delete arbitrary files
+        // a user might have referenced from elsewhere on disk.
+        const before = new Set<string>([
+          ...(existing.logos ?? []).map((l) => l.path),
+          ...(existing.logoPath ? [existing.logoPath] : []),
+          ...existing.certBadges,
+        ]);
+        const after = new Set<string>([
+          ...assets.logos.map((l) => l.path),
+          ...assets.certBadges,
+        ]);
+        const assetsDirMarker = `/assets/${existing.id}/`;
+        const orphans = [...before].filter(
+          (p) => !after.has(p) && p.includes(assetsDirMarker),
+        );
+        for (const path of orphans) {
+          try {
+            await window.api.brand.removeAsset(path);
+          } catch (err) {
+            console.error(`Failed to remove orphaned asset ${path}:`, err);
+          }
+        }
+
         onCreated(existing.id);
       } else {
         // Create mode: persist the brand first (we need its id to scope the
