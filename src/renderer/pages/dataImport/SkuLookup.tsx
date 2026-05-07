@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconX, IconPencil } from '@tabler/icons-react';
 import { useBrandStore } from '../../stores/brandStore';
 import { ManualEntry } from './ManualEntry';
@@ -6,6 +7,7 @@ import { ManualEntry } from './ManualEntry';
 type SkuRow = Awaited<ReturnType<typeof window.api.import.listSkus>>[number];
 
 export function SkuLookup() {
+  const { t } = useTranslation();
   const { brands } = useBrandStore();
   const [brandId, setBrandId] = useState<string>(brands[0]?.id ?? '');
   const [skus, setSkus] = useState<SkuRow[]>([]);
@@ -32,9 +34,7 @@ export function SkuLookup() {
   const onDelete = async (sku: string) => {
     if (!brandId) return;
     if (
-      !window.confirm(
-        `Delete SKU "${sku}"? Generated label files on disk are not affected.`,
-      )
+      !window.confirm(t('dataImport.lookup.confirmDelete', { sku }))
     ) {
       return;
     }
@@ -59,28 +59,31 @@ export function SkuLookup() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search SKU or name…"
+          placeholder={t('dataImport.lookup.searchPlaceholder')}
           className="flex-1 max-w-md rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
         />
         <span className="text-xs text-fg-muted">
-          {filtered.length} of {skus.length}
+          {t('dataImport.lookup.countOf', {
+            shown: filtered.length,
+            total: skus.length,
+          })}
         </span>
       </div>
 
       {skus.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border-base p-8 text-center text-sm text-fg-muted">
-          No SKUs for this brand yet. Import a CSV or add one on the Manual entry tab.
+          {t('dataImport.lookup.empty')}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border-base">
           <table className="w-full text-xs">
             <thead className="bg-bg-elevated text-fg-muted">
               <tr>
-                <th className="px-2 py-1.5 text-left">SKU</th>
-                <th className="px-2 py-1.5 text-left">Product</th>
-                <th className="px-2 py-1.5 text-left">Barcode</th>
-                <th className="px-2 py-1.5 text-left">Variant</th>
-                <th className="px-2 py-1.5 text-right">Actions</th>
+                <th className="px-2 py-1.5 text-left">{t('dataImport.lookup.table.sku')}</th>
+                <th className="px-2 py-1.5 text-left">{t('dataImport.lookup.table.product')}</th>
+                <th className="px-2 py-1.5 text-left">{t('dataImport.lookup.table.barcode')}</th>
+                <th className="px-2 py-1.5 text-left">{t('dataImport.lookup.table.variant')}</th>
+                <th className="px-2 py-1.5 text-right">{t('dataImport.lookup.table.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -88,7 +91,7 @@ export function SkuLookup() {
                 <tr
                   key={s.sku}
                   onClick={() => setEditing(s)}
-                  title="Click to edit"
+                  title={t('dataImport.lookup.row.editTitle')}
                   className="cursor-pointer hover:bg-bg-hover"
                 >
                   <td className="border-b border-border-subtle px-2 py-1.5 font-mono">
@@ -110,7 +113,7 @@ export function SkuLookup() {
                           e.stopPropagation();
                           setEditing(s);
                         }}
-                        title="Edit this SKU"
+                        title={t('dataImport.lookup.row.editButton')}
                         className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base"
                       >
                         <IconPencil size={12} />
@@ -120,7 +123,7 @@ export function SkuLookup() {
                           e.stopPropagation();
                           void onDelete(s.sku);
                         }}
-                        title="Delete this SKU"
+                        title={t('dataImport.lookup.row.deleteButton')}
                         className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-danger"
                       >
                         <IconX size={12} />
@@ -133,7 +136,7 @@ export function SkuLookup() {
           </table>
           {filtered.length > 200 && (
             <div className="bg-bg-elevated px-2 py-1 text-[10px] text-fg-subtle">
-              Showing first 200 results.
+              {t('dataImport.lookup.showingFirst')}
             </div>
           )}
         </div>
@@ -162,6 +165,7 @@ function EditSkuDialog({
   onClose: () => void;
   onSaved: (saved: SkuRow) => void;
 }) {
+  const { t } = useTranslation();
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -186,11 +190,12 @@ function EditSkuDialog({
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-border-base bg-bg-surface shadow-2xl">
         <div className="flex items-center justify-between border-b border-border-subtle px-5 py-3">
           <h3 id="edit-sku-title" className="text-sm font-semibold text-fg-base">
-            Edit SKU <span className="font-mono">{row.sku}</span>
+            {t('dataImport.lookup.editDialog.title')}{' '}
+            <span className="font-mono">{row.sku}</span>
           </h3>
           <button
             onClick={onClose}
-            title="Close"
+            title={t('dataImport.lookup.editDialog.close')}
             className="rounded p-1 text-fg-muted hover:bg-bg-elevated hover:text-fg-base"
           >
             <IconX size={16} />

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   IconPlus,
   IconSearch,
@@ -27,6 +28,7 @@ type WizardState =
 type BrandStats = { count: number; sizes: string[] };
 
 export default function Brands() {
+  const { t } = useTranslation();
   const { brands, loading, refresh, remove } = useBrandStore();
   const settings = useSettingsStore((s) => s.settings);
   const refreshSettings = useSettingsStore((s) => s.refresh);
@@ -103,10 +105,10 @@ export default function Brands() {
   return (
     <>
       <Page
-        title="Brands"
+        title={t('brands.title')}
         actions={
           <Button variant="primary" onClick={() => setWizard({ mode: 'create' })}>
-            <IconPlus size={14} /> Add brand
+            <IconPlus size={14} /> {t('brands.addBrand')}
           </Button>
         }
       >
@@ -119,12 +121,12 @@ export default function Brands() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search brands…"
+              placeholder={t('brands.searchPlaceholder')}
               className="h-9 w-full rounded-md border border-border-base bg-bg-surface pl-8 pr-3 text-sm text-fg-base placeholder:text-fg-subtle focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
             />
           </div>
           <span className="text-xs text-fg-muted">
-            {visible.length} {visible.length === 1 ? 'brand' : 'brands'}
+            {t('brands.brandCount', { count: visible.length })}
           </span>
         </div>
 
@@ -169,20 +171,21 @@ export default function Brands() {
 
       <ConfirmDialog
         open={!!confirmDelete}
-        title={`Delete ${confirmDelete?.name ?? 'brand'}?`}
+        title={t('brands.delete.title', {
+          name: confirmDelete?.name ?? t('brands.delete.fallbackName'),
+        })}
         message={
           <>
-            This removes the brand from your library. <strong>Templates and
-            generated label files for this brand are not deleted</strong> from disk
-            — they stay where they are, but they'll no longer be linked to a brand
-            in this app.
+            {t('brands.delete.messageLine1Pre')}
+            <strong>{t('brands.delete.messageLine1Strong')}</strong>
+            {t('brands.delete.messageLine1Post')}
             <br />
             <br />
-            This cannot be undone.
+            {t('brands.delete.messageLine2')}
           </>
         }
-        confirmLabel="Delete brand"
-        cancelLabel="Keep it"
+        confirmLabel={t('brands.delete.confirmLabel')}
+        cancelLabel={t('brands.delete.cancelLabel')}
         tone="danger"
         onConfirm={async () => {
           if (confirmDelete) {
@@ -213,6 +216,7 @@ function BrandCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className={`group relative flex items-start gap-3 rounded-lg border bg-bg-surface p-4 transition-colors hover:bg-bg-hover ${
@@ -238,14 +242,14 @@ function BrandCard({
               </div>
             )}
             <div className="mt-2 text-xs text-fg-subtle">
-              {brand.category ?? 'Uncategorised'}
+              {brand.category ?? t('brands.card.uncategorised')}
             </div>
             <BrandStatsLine stats={stats} onCreate={onOpenTemplates} />
           </div>
           <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
               onClick={onEdit}
-              title="Edit brand"
+              title={t('brands.card.editTitle')}
               className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base"
             >
               <IconPencil size={14} />
@@ -253,7 +257,7 @@ function BrandCard({
             {!brand.isDemo && (
               <button
                 onClick={onDelete}
-                title="Delete brand"
+                title={t('brands.card.deleteTitle')}
                 className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-danger"
               >
                 <IconTrash size={14} />
@@ -265,7 +269,7 @@ function BrandCard({
           onClick={onOpenTemplates}
           className="mt-3 flex w-full items-center justify-between rounded border border-border-subtle px-2 py-1 text-xs text-fg-muted transition-colors hover:bg-bg-elevated hover:text-fg-base"
         >
-          <span>Open templates</span>
+          <span>{t('brands.card.openTemplates')}</span>
           <IconArrowRight size={12} />
         </button>
       </div>
@@ -283,6 +287,7 @@ function FirstLaunchHint({
   onOpen: () => void;
   onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="pointer-events-none absolute -top-2 -right-2 z-10 animate-pulse">
       <div className="pointer-events-auto flex items-center gap-1.5 rounded-md border border-accent bg-accent px-2 py-1 text-xs font-medium text-accent-fg shadow-sm">
@@ -293,9 +298,9 @@ function FirstLaunchHint({
             onOpen();
           }}
           className="flex items-center gap-1 hover:underline"
-          title="Open the demo brand to explore"
+          title={t('brands.firstLaunchHint.openTooltip')}
         >
-          Try the demo brand
+          {t('brands.firstLaunchHint.tryDemo')}
           <IconArrowRight size={12} />
         </button>
         <button
@@ -305,8 +310,8 @@ function FirstLaunchHint({
             onDismiss();
           }}
           className="ml-1 rounded p-0.5 hover:bg-accent-hover"
-          title="Dismiss hint"
-          aria-label="Dismiss hint"
+          title={t('brands.firstLaunchHint.dismiss')}
+          aria-label={t('brands.firstLaunchHint.dismiss')}
         >
           <IconX size={12} />
         </button>
@@ -322,6 +327,7 @@ function BrandStatsLine({
   stats?: BrandStats;
   onCreate: () => void;
 }) {
+  const { t } = useTranslation();
   if (!stats) {
     return (
       <div className="mt-1.5 h-3 w-32 animate-pulse rounded bg-bg-elevated" />
@@ -333,41 +339,44 @@ function BrandStatsLine({
         onClick={onCreate}
         className="mt-1.5 text-xs text-fg-subtle hover:text-fg-base"
       >
-        No templates yet — create one →
+        {t('brands.card.noTemplatesYet')}
       </button>
     );
   }
   const MAX = 3;
   const shown = stats.sizes.slice(0, MAX);
   const rest = stats.sizes.slice(MAX);
-  const noun = stats.count === 1 ? 'template' : 'templates';
   return (
     <div className="mt-1.5 truncate text-xs text-fg-muted">
-      {stats.count} {noun}
+      {t('brands.card.templateCount', { count: stats.count })}
       {shown.length > 0 && ' · '}
       {shown.join(' · ')}
       {rest.length > 0 && (
-        <span title={rest.join(', ')}> · +{rest.length} more</span>
+        <span title={rest.join(', ')}>
+          {' · '}
+          {t('brands.card.moreSizes', { count: rest.length })}
+        </span>
       )}
     </div>
   );
 }
 
 function EmptyState({ onAdd, hasBrands }: { onAdd: () => void; hasBrands: boolean }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-lg border border-dashed border-border-base p-16 text-center">
       <h3 className="text-sm font-semibold text-fg-base">
-        {hasBrands ? 'No brands match your search' : 'No brands yet'}
+        {hasBrands ? t('brands.emptySearch.title') : t('brands.empty.title')}
       </h3>
       <p className="mx-auto mt-1 max-w-md text-xs text-fg-muted">
         {hasBrands
-          ? 'Try a different search term, or clear the search box.'
-          : 'Brands hold your logo, color, address, and certifications. Each brand can have many templates.'}
+          ? t('brands.emptySearch.description')
+          : t('brands.empty.description')}
       </p>
       {!hasBrands && (
         <div className="mt-4 inline-block">
           <Button variant="primary" onClick={onAdd}>
-            <IconPlus size={14} /> Create your first brand
+            <IconPlus size={14} /> {t('brands.empty.cta')}
           </Button>
         </div>
       )}

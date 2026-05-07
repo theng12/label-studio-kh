@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   IconDeviceFloppy,
   IconArrowBackUp,
@@ -23,6 +24,7 @@ type Unit = 'mm' | 'px';
 const UNIT_KEY = 'lskh.designer.unit';
 
 export function TopBar({ onSave, saving }: Props) {
+  const { t } = useTranslation();
   const template = useDesignerStore((s) => s.template);
   const patchTemplate = useDesignerStore((s) => s.patchTemplate);
   const setDimensions = useDesignerStore((s) => s.setDimensions);
@@ -95,7 +97,7 @@ export function TopBar({ onSave, saving }: Props) {
           variant="ghost"
           onClick={undo}
           disabled={!canUndo()}
-          title="Undo (⌘Z)"
+          title={t('designer.topbar.undoTitle')}
         >
           <IconArrowBackUp size={14} />
         </Button>
@@ -104,7 +106,7 @@ export function TopBar({ onSave, saving }: Props) {
           variant="ghost"
           onClick={redo}
           disabled={!canRedo()}
-          title="Redo (⌘Y)"
+          title={t('designer.topbar.redoTitle')}
         >
           <IconArrowForwardUp size={14} />
         </Button>
@@ -114,9 +116,9 @@ export function TopBar({ onSave, saving }: Props) {
           variant="ghost"
           onClick={() => setConfirmClear(true)}
           disabled={!hasElements}
-          title="Remove all elements from this template"
+          title={t('designer.topbar.clearAllTitle')}
         >
-          <IconTrash size={14} /> Clear all
+          <IconTrash size={14} /> {t('designer.topbar.clearAll')}
         </Button>
         <SaveStatus lastSavedAt={lastSavedAt} dirty={isDirty} saving={saving} />
         <Button
@@ -126,34 +128,43 @@ export function TopBar({ onSave, saving }: Props) {
           disabled={saving || !isDirty}
           title={
             isDirty
-              ? 'Save unsaved changes (⌘S)'
+              ? t('designer.topbar.saveDirtyTitle')
               : lastSavedAt
-                ? 'Nothing to save — already up to date'
-                : 'Save this template'
+                ? t('designer.topbar.saveCleanTitle')
+                : t('designer.topbar.saveNewTitle')
           }
         >
           <IconDeviceFloppy size={14} />{' '}
-          {saving ? 'Saving…' : isDirty ? 'Save' : 'Saved'}
+          {saving
+            ? t('designer.topbar.saving')
+            : isDirty
+              ? t('designer.topbar.save')
+              : t('designer.topbar.saved')}
         </Button>
       </div>
 
       <ConfirmDialog
         open={confirmClear}
-        title="Clear all elements?"
+        title={t('designer.topbar.clearTitle')}
         message={
           <>
-            This will remove <strong>{template.elements.length}</strong> element
-            {template.elements.length === 1 ? '' : 's'} from{' '}
-            <strong>{template.name}</strong>. The template itself stays — only its
-            contents are cleared.
+            {t('designer.topbar.clearMessagePre')}
+            <strong>{template.elements.length}</strong>{' '}
+            {t('designer.topbar.clearMessageElements', {
+              count: template.elements.length,
+            })}
+            {t('designer.topbar.clearMessageMid')}
+            <strong>{template.name}</strong>
+            {t('designer.topbar.clearMessagePost')}
             <br />
             <br />
-            You can undo this with <kbd>⌘Z</kbd>, but the change won't be saved to
-            disk until you click <strong>Save</strong>.
+            {t('designer.topbar.clearMessageHint')}
+            <strong>{t('designer.topbar.clearMessageHintSave')}</strong>
+            {t('designer.topbar.clearMessageHintEnd')}
           </>
         }
-        confirmLabel="Clear all"
-        cancelLabel="Keep elements"
+        confirmLabel={t('designer.topbar.clearConfirm')}
+        cancelLabel={t('designer.topbar.clearCancel')}
         tone="danger"
         onConfirm={() => {
           clearAllElements();
@@ -245,6 +256,7 @@ function PresetsButton({
   currentW: number;
   currentH: number;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -269,10 +281,10 @@ function PresetsButton({
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1 rounded-md border border-border-base bg-bg-base px-2 py-1 text-xs text-fg-muted hover:bg-bg-hover hover:text-fg-base"
-        title="Pick a size preset"
+        title={t('designer.topbar.presetsTitle')}
       >
         <IconAspectRatio size={12} />
-        Presets
+        {t('designer.topbar.presets')}
         <IconChevronDown size={12} />
       </button>
       {open && (
@@ -335,6 +347,7 @@ function SaveStatus({
   dirty: boolean;
   saving: boolean;
 }) {
+  const { t } = useTranslation();
   // Re-render once a minute so the relative-time string stays fresh.
   const [, tick] = useState(0);
   useEffect(() => {
@@ -346,13 +359,15 @@ function SaveStatus({
   let text: string;
   let tone: 'muted' | 'warning' | 'success' = 'muted';
   if (saving) {
-    text = 'Saving…';
+    text = t('designer.topbar.saving');
     tone = 'muted';
   } else if (dirty) {
-    text = lastSavedAt ? 'Unsaved changes' : 'Not yet saved';
+    text = lastSavedAt
+      ? t('designer.topbar.unsavedChanges')
+      : t('designer.topbar.notYetSaved');
     tone = 'warning';
   } else if (lastSavedAt) {
-    text = `Saved ${formatAgo(lastSavedAt)}`;
+    text = t('designer.topbar.savedAgo', { ago: formatAgo(lastSavedAt, t) });
     tone = 'success';
   } else {
     text = '';
@@ -368,15 +383,15 @@ function SaveStatus({
   return <span className={['text-[11px]', colour].join(' ')}>{text}</span>;
 }
 
-function formatAgo(iso: string): string {
+function formatAgo(iso: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const then = new Date(iso).getTime();
   const sec = Math.max(0, Math.round((Date.now() - then) / 1000));
-  if (sec < 5) return 'just now';
-  if (sec < 60) return `${sec}s ago`;
+  if (sec < 5) return t('designer.topbar.justNow');
+  if (sec < 60) return t('designer.topbar.secondsAgo', { count: sec });
   const min = Math.round(sec / 60);
-  if (min < 60) return `${min} min ago`;
+  if (min < 60) return t('designer.topbar.minutesAgo', { count: min });
   const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr} hr ago`;
+  if (hr < 24) return t('designer.topbar.hoursAgo', { count: hr });
   const d = Math.round(hr / 24);
-  return `${d} day${d === 1 ? '' : 's'} ago`;
+  return t('designer.topbar.daysAgo', { count: d });
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconCheck, IconPlus, IconDeviceFloppy, IconX } from '@tabler/icons-react';
 import { Button } from '../../components/Button';
 import { useBrandStore } from '../../stores/brandStore';
@@ -55,6 +56,7 @@ export function ManualEntry({
   onSaved,
   onCancel,
 }: Props = {}) {
+  const { t } = useTranslation();
   const { brands } = useBrandStore();
   const isEdit = !!initialValues;
 
@@ -113,7 +115,7 @@ export function ManualEntry({
         notes: draft.notes || null,
       });
       if (!result) {
-        setStatus({ kind: 'error', message: 'Save failed (no result returned).' });
+        setStatus({ kind: 'error', message: t('dataImport.manual.saveFailed') });
         return;
       }
       setStatus({
@@ -135,7 +137,7 @@ export function ManualEntry({
     <div className="space-y-4">
       {!isEdit && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-fg-muted">Add to brand</span>
+          <span className="text-xs text-fg-muted">{t('dataImport.manual.addToBrand')}</span>
           <select
             value={brandId}
             onChange={(e) => setBrandId(e.target.value)}
@@ -161,13 +163,12 @@ export function ManualEntry({
         >
           {status.kind === 'created' && (
             <span className="flex items-center gap-2">
-              <IconCheck size={14} /> Created SKU <strong>{status.sku}</strong>.
+              <IconCheck size={14} /> {t('dataImport.manual.created', { sku: status.sku })}
             </span>
           )}
           {status.kind === 'updated' && (
             <span className="flex items-center gap-2">
-              <IconCheck size={14} /> Updated existing SKU{' '}
-              <strong>{status.sku}</strong>.
+              <IconCheck size={14} /> {t('dataImport.manual.updated', { sku: status.sku })}
             </span>
           )}
           {status.kind === 'error' && status.message}
@@ -177,93 +178,93 @@ export function ManualEntry({
       <div className="rounded-lg border border-border-base bg-bg-surface p-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <ManualField
-            label="SKU"
+            label={t('dataImport.manual.fields.sku')}
             required
             value={draft.sku}
             onChange={(v) => set({ sku: v })}
-            placeholder="e.g. GH-001"
+            placeholder={t('dataImport.manual.fields.skuPlaceholder')}
             mono
             // Locking the SKU in edit mode keeps the upsert key stable —
             // changing it would create a new row instead of editing this one.
             disabled={isEdit}
           />
           <ManualField
-            label="Product name"
+            label={t('dataImport.manual.fields.productName')}
             required
             value={draft.product_name}
             onChange={(v) => set({ product_name: v })}
-            placeholder="Stainless Grab Bar 60cm"
+            placeholder={t('dataImport.manual.fields.productNamePlaceholder')}
           />
           <ManualField
-            label="Barcode"
+            label={t('dataImport.manual.fields.barcode')}
             value={draft.barcode}
             onChange={(v) => set({ barcode: v })}
-            placeholder="8851234567890"
+            placeholder={t('dataImport.manual.fields.barcodePlaceholder')}
             mono
-            hint="EAN-13, Code128, etc. Leave blank if no barcode."
+            hint={t('dataImport.manual.fields.barcodeHint')}
           />
           <ManualField
-            label="Variant"
+            label={t('dataImport.manual.fields.variant')}
             value={draft.variant}
             onChange={(v) => set({ variant: v })}
-            placeholder="SATIN, WHITE, 60cm"
+            placeholder={t('dataImport.manual.fields.variantPlaceholder')}
           />
           <ManualField
-            label="Description"
+            label={t('dataImport.manual.fields.description')}
             value={draft.description}
             onChange={(v) => set({ description: v })}
-            placeholder="Short product benefit"
+            placeholder={t('dataImport.manual.fields.descriptionPlaceholder')}
           />
           <div className="grid grid-cols-2 gap-3">
             <ManualField
-              label="Unit qty"
+              label={t('dataImport.manual.fields.unitQty')}
               value={draft.unit_qty}
               onChange={(v) => set({ unit_qty: v })}
               placeholder="1"
             />
             <ManualField
-              label="Unit word"
+              label={t('dataImport.manual.fields.unitWord')}
               value={draft.unit_word}
               onChange={(v) => set({ unit_word: v })}
-              placeholder="UNIT, SET, PCS"
+              placeholder={t('dataImport.manual.fields.unitWordPlaceholder')}
             />
           </div>
           <ManualField
-            label="Product URL"
+            label={t('dataImport.manual.fields.productUrl')}
             value={draft.product_url}
             onChange={(v) => set({ product_url: v })}
-            placeholder="https://example.com/p/sku"
-            hint="Used by dynamic QR code elements."
+            placeholder={t('dataImport.manual.fields.productUrlPlaceholder')}
+            hint={t('dataImport.manual.fields.productUrlHint')}
           />
           <ManualField
-            label="Image path"
+            label={t('dataImport.manual.fields.imagePath')}
             value={draft.product_image_path}
             onChange={(v) => set({ product_image_path: v })}
-            placeholder="images/grab-bar-60.jpg"
-            hint="Used by image elements bound to a CSV column."
+            placeholder={t('dataImport.manual.fields.imagePathPlaceholder')}
+            hint={t('dataImport.manual.fields.imagePathHint')}
           />
           <ManualField
-            label="Date"
+            label={t('dataImport.manual.fields.date')}
             value={draft.date}
             onChange={(v) => set({ date: v })}
-            placeholder="DD/MM/YYYY"
+            placeholder={t('dataImport.manual.fields.datePlaceholder')}
           />
           <ManualField
-            label="Notes"
+            label={t('dataImport.manual.fields.notes')}
             value={draft.notes}
             onChange={(v) => set({ notes: v })}
-            placeholder="Internal — not printed"
+            placeholder={t('dataImport.manual.fields.notesPlaceholder')}
           />
         </div>
 
         <div className="mt-4 flex items-center justify-end gap-2 border-t border-border-subtle pt-4">
           {onCancel ? (
             <Button variant="ghost" onClick={onCancel} disabled={submitting}>
-              <IconX size={14} /> Cancel
+              <IconX size={14} /> {t('dataImport.manual.cancel')}
             </Button>
           ) : (
             <Button variant="ghost" onClick={reset} disabled={submitting}>
-              Reset form
+              {t('dataImport.manual.reset')}
             </Button>
           )}
           {!isEdit && (
@@ -272,7 +273,7 @@ export function ManualEntry({
               onClick={() => void onSave(true)}
               disabled={submitting || !draft.sku.trim() || !draft.product_name.trim()}
             >
-              <IconPlus size={14} /> Save and add another
+              <IconPlus size={14} /> {t('dataImport.manual.saveAndAdd')}
             </Button>
           )}
           <Button
@@ -281,16 +282,18 @@ export function ManualEntry({
             disabled={submitting || !draft.sku.trim() || !draft.product_name.trim()}
           >
             <IconDeviceFloppy size={14} />{' '}
-            {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Save SKU'}
+            {submitting
+              ? t('dataImport.manual.saving')
+              : isEdit
+                ? t('dataImport.manual.saveChanges')
+                : t('dataImport.manual.saveSku')}
           </Button>
         </div>
       </div>
 
       {!isEdit && (
         <div className="rounded-md border border-border-subtle bg-bg-base px-4 py-3 text-xs text-fg-muted">
-          Saving an existing SKU (same brand + same SKU code) updates the row rather
-          than creating a duplicate. To edit or remove a SKU, click the row on the
-          SKU lookup tab.
+          {t('dataImport.manual.helperHint')}
         </div>
       )}
     </div>

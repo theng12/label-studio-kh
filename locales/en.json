@@ -42,5 +42,397 @@
     "languageDescription": "Changes all UI text. Restart not required.",
     "saveLocation": "Default save location",
     "saveLocationDescription": "Where generated label files are saved by default."
+  },
+  "brands": {
+    "title": "Brands",
+    "addBrand": "Add brand",
+    "searchPlaceholder": "Search brands…",
+    "brandCount_one": "{{count}} brand",
+    "brandCount_other": "{{count}} brands",
+    "emptySearch": {
+      "title": "No brands match your search",
+      "description": "Try a different search term, or clear the search box."
+    },
+    "empty": {
+      "title": "No brands yet",
+      "description": "Brands hold your logo, color, address, and certifications. Each brand can have many templates.",
+      "cta": "Create your first brand"
+    },
+    "card": {
+      "uncategorised": "Uncategorised",
+      "editTitle": "Edit brand",
+      "deleteTitle": "Delete brand",
+      "openTemplates": "Open templates",
+      "noTemplatesYet": "No templates yet — create one →",
+      "templateCount_one": "{{count}} template",
+      "templateCount_other": "{{count}} templates",
+      "moreSizes": "+{{count}} more"
+    },
+    "firstLaunchHint": {
+      "tryDemo": "Try the demo brand",
+      "openTooltip": "Open the demo brand to explore",
+      "dismiss": "Dismiss hint"
+    },
+    "delete": {
+      "title": "Delete {{name}}?",
+      "fallbackName": "brand",
+      "messageLine1Pre": "This removes the brand from your library. ",
+      "messageLine1Strong": "Templates and generated label files for this brand are not deleted",
+      "messageLine1Post": " from disk — they stay where they are, but they'll no longer be linked to a brand in this app.",
+      "messageLine2": "This cannot be undone.",
+      "confirmLabel": "Delete brand",
+      "cancelLabel": "Keep it"
+    }
+  },
+  "templates": {
+    "title": "Templates",
+    "newTemplate": "New template",
+    "noBrands": {
+      "title": "Create a brand first",
+      "description": "Templates belong to brands. Create a brand on the Brands page to get started."
+    },
+    "brandLabel": "Brand",
+    "empty": {
+      "title": "No templates yet",
+      "description": "Click \"New template\" to start designing."
+    },
+    "card": {
+      "elementCount_one": "{{count}} element",
+      "elementCount_other": "{{count}} elements",
+      "renameTitle": "Rename template",
+      "duplicateTitle": "Duplicate template",
+      "deleteTitle": "Delete template"
+    },
+    "delete": {
+      "title": "Delete {{name}}?",
+      "fallbackName": "template",
+      "messageLine1Pre": "This removes the template from this brand. ",
+      "messageLine1Strong": "Label files generated from it on disk are not affected",
+      "messageLine1Post": " — they stay where they are.",
+      "messageLine2": "This cannot be undone.",
+      "confirmLabel": "Delete template",
+      "cancelLabel": "Keep it"
+    },
+    "errors": {
+      "rename": "Couldn't rename template: {{error}}",
+      "duplicate": "Couldn't duplicate template: {{error}}",
+      "delete": "Couldn't delete template: {{error}}"
+    }
+  },
+  "designer": {
+    "topbar": {
+      "undoTitle": "Undo (⌘Z)",
+      "redoTitle": "Redo (⌘Y)",
+      "clearAll": "Clear all",
+      "clearAllTitle": "Remove all elements from this template",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "saveDirtyTitle": "Save unsaved changes (⌘S)",
+      "saveCleanTitle": "Nothing to save — already up to date",
+      "saveNewTitle": "Save this template",
+      "presets": "Presets",
+      "presetsTitle": "Pick a size preset",
+      "unsavedChanges": "Unsaved changes",
+      "notYetSaved": "Not yet saved",
+      "savedAgo": "Saved {{ago}}",
+      "justNow": "just now",
+      "secondsAgo": "{{count}}s ago",
+      "minutesAgo": "{{count}} min ago",
+      "hoursAgo": "{{count}} hr ago",
+      "daysAgo_one": "{{count}} day ago",
+      "daysAgo_other": "{{count}} days ago",
+      "clearTitle": "Clear all elements?",
+      "clearMessagePre": "This will remove ",
+      "clearMessageElements_one": "element",
+      "clearMessageElements_other": "elements",
+      "clearMessageMid": " from ",
+      "clearMessagePost": ". The template itself stays — only its contents are cleared.",
+      "clearMessageHint": "You can undo this with ⌘Z, but the change won't be saved to disk until you click ",
+      "clearMessageHintSave": "Save",
+      "clearMessageHintEnd": ".",
+      "clearConfirm": "Clear all",
+      "clearCancel": "Keep elements"
+    },
+    "bottombar": {
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
+      "fit": "Fit",
+      "fitTitle": "Fit to workspace",
+      "actualSize": "Actual size",
+      "actualSizeTitle": "Show the sticker at 1:1 physical size",
+      "snap": "Snap (1mm)",
+      "tightLayout": "Tight layout",
+      "tightLayoutTitle": "This sticker is small and has many elements — some may be hard to read when printed.",
+      "cursor": "x: {{x}} mm, y: {{y}} mm",
+      "selectedSize": "W: {{w}} × H: {{h}} mm"
+    }
+  },
+  "generate": {
+    "title": "Generate",
+    "noBrands": "Create a brand first on the Brands page.",
+    "source": {
+      "title": "Source",
+      "brand": "Brand",
+      "template": "Template",
+      "noTemplates": "No templates for this brand",
+      "skuCount_one": "SKU for this brand. Imported via Data & Import.",
+      "skuCount_other": "SKUs for this brand. Imported via Data & Import."
+    },
+    "output": {
+      "title": "Output",
+      "format": "Format",
+      "dpi": "DPI",
+      "filenamePattern": "Filename pattern",
+      "filenamePatternHint": "Pick a preset or type your own",
+      "exampleFirstRow": "Example for first row:",
+      "saveLocation": "Save location",
+      "saveLocationPlaceholder": "(no folder selected)",
+      "browse": "Browse",
+      "folderOrg": "Folder organization",
+      "folderOrgNone": "All in one folder",
+      "folderOrgBrand": "By brand",
+      "folderOrgBrandSize": "By brand + size",
+      "folderOrgBrandTemplate": "By brand + template",
+      "overwrite": "Overwrite existing files with the same name"
+    },
+    "preview": {
+      "title": "Preview",
+      "selectTemplate": "Select a template to preview.",
+      "prev": "Prev",
+      "next": "Next",
+      "noData": "No data — showing demo row",
+      "indexOf": "{{idx}} of {{total}}",
+      "previewAsPdf": "Preview as PDF",
+      "previewAsPdfTitle": "Render this one row as a temporary PDF and open it in your default app",
+      "generateOne": "Generate this one",
+      "generatingOne": "Generating…",
+      "generateOneTitle": "Save just this one label using your current Output settings (formats, DPI, folder)",
+      "saved": "Saved {{filename}}",
+      "open": "Open",
+      "reveal": "Reveal",
+      "canvasFooter": "{{w}}×{{h}}mm preview (HTML — final output is rendered by Puppeteer)"
+    },
+    "prereq": {
+      "missingOne": "One thing still missing before we can generate",
+      "missingMany": "{{count}} things still missing before we can generate",
+      "brandSelected": "Brand: {{name}}",
+      "brandNotSelected": "No brand selected",
+      "brandFix": "Pick or create a brand",
+      "templateSelected": "Template selected",
+      "templatePickAbove": "Pick a template above",
+      "brandHasNoTemplates": "{{name}} has no templates yet",
+      "templateFix": "Create a template",
+      "thisBrand": "This brand",
+      "skuReady_one": "{{count}} SKU ready",
+      "skuReady_other": "{{count}} SKUs ready",
+      "brandHasNoSkus": "{{name}} has no SKUs yet",
+      "skuFix": "Import or add SKUs",
+      "formatsChosen_one": "{{count}} output format chosen",
+      "formatsChosen_other": "{{count}} output formats chosen",
+      "formatsNone": "No output format selected",
+      "outputDirSet": "Save location set",
+      "outputDirNone": "No save location chosen",
+      "outputDirFix": "Pick a folder"
+    },
+    "scope": {
+      "label": "Scope",
+      "all_one": "All — {{count}} label",
+      "all_other": "All — {{count}} labels",
+      "first": "First {{n}} (sample)",
+      "sampleHint": "Sample mode — only the first {{n}} rows will be exported"
+    },
+    "generateButton_one": "Generate {{count}} label ({{formats}})",
+    "generateButton_other": "Generate {{count}} labels ({{formats}})",
+    "generateButtonBlockedTitle": "Some things still need to be set — see the checklist above.",
+    "progress": {
+      "title": "Generating labels…",
+      "starting": "Starting…",
+      "indexOfTotal": "{{index}} of {{total}} — {{sku}}",
+      "elapsed": "Elapsed: {{duration}}",
+      "rate": "{{rate}} /s",
+      "remaining": "~{{duration}} left",
+      "cancel": "Cancel after current item",
+      "complete": "Generation complete",
+      "generated_one": "{{generated}} file generated of {{total}} item.",
+      "generated_other": "{{generated}} files generated of {{total}} items.",
+      "warnings_one": "{{count}} warning",
+      "warnings_other": "{{count}} warnings",
+      "openFolder": "Open output folder",
+      "done": "Done"
+    }
+  },
+  "dataImport": {
+    "title": "Data & Import",
+    "tabs": {
+      "import": "Import",
+      "manual": "Manual entry",
+      "lookup": "SKU lookup",
+      "history": "Import history"
+    },
+    "noBrand": "Create a brand first on the Brands page.",
+    "lookup": {
+      "searchPlaceholder": "Search SKU or name…",
+      "countOf": "{{shown}} of {{total}}",
+      "empty": "No SKUs for this brand yet. Import a CSV or add one on the Manual entry tab.",
+      "table": {
+        "sku": "SKU",
+        "product": "Product",
+        "barcode": "Barcode",
+        "variant": "Variant",
+        "actions": "Actions"
+      },
+      "row": {
+        "editTitle": "Click to edit",
+        "editButton": "Edit this SKU",
+        "deleteButton": "Delete this SKU"
+      },
+      "confirmDelete": "Delete SKU \"{{sku}}\"? Generated label files on disk are not affected.",
+      "showingFirst": "Showing first 200 results.",
+      "editDialog": {
+        "title": "Edit SKU",
+        "close": "Close"
+      }
+    },
+    "manual": {
+      "addToBrand": "Add to brand",
+      "fields": {
+        "sku": "SKU",
+        "skuPlaceholder": "e.g. GH-001",
+        "productName": "Product name",
+        "productNamePlaceholder": "Stainless Grab Bar 60cm",
+        "barcode": "Barcode",
+        "barcodePlaceholder": "8851234567890",
+        "barcodeHint": "EAN-13, Code128, etc. Leave blank if no barcode.",
+        "variant": "Variant",
+        "variantPlaceholder": "SATIN, WHITE, 60cm",
+        "description": "Description",
+        "descriptionPlaceholder": "Short product benefit",
+        "unitQty": "Unit qty",
+        "unitWord": "Unit word",
+        "unitWordPlaceholder": "UNIT, SET, PCS",
+        "productUrl": "Product URL",
+        "productUrlPlaceholder": "https://example.com/p/sku",
+        "productUrlHint": "Used by dynamic QR code elements.",
+        "imagePath": "Image path",
+        "imagePathPlaceholder": "images/grab-bar-60.jpg",
+        "imagePathHint": "Used by image elements bound to a CSV column.",
+        "date": "Date",
+        "datePlaceholder": "DD/MM/YYYY",
+        "notes": "Notes",
+        "notesPlaceholder": "Internal — not printed"
+      },
+      "cancel": "Cancel",
+      "reset": "Reset form",
+      "saveAndAdd": "Save and add another",
+      "saveSku": "Save SKU",
+      "saveChanges": "Save changes",
+      "saving": "Saving…",
+      "created": "Created SKU {{sku}}.",
+      "updated": "Updated existing SKU {{sku}}.",
+      "saveFailed": "Save failed (no result returned).",
+      "helperHint": "Saving an existing SKU (same brand + same SKU code) updates the row rather than creating a duplicate. To edit or remove a SKU, click the row on the SKU lookup tab."
+    },
+    "import": {
+      "intoBrand": "Importing into brand",
+      "stepCount": "Step {{step}} of {{total}}",
+      "committing": "Importing…",
+      "pickFile": {
+        "title": "Drop a CSV or Excel file here",
+        "hint": "Supported: .csv, .tsv, .xlsx, .xls — up to 50,000 rows. Standard column names are auto-detected; you'll be able to confirm the mapping next.",
+        "browse": "Browse for file…",
+        "dontHave": "Don't have a file yet?",
+        "templateExplain": "Download a CSV template with all standard columns and one example row. Required columns are sku, product_name, and brand; the rest are optional.",
+        "downloadTemplate": "Download template"
+      },
+      "mapping": {
+        "title": "Column mapping",
+        "notMapped": "— not mapped —",
+        "unmappedHint": "Unmapped columns ({{count}}) are kept as extra data and never deleted. They can be referenced in templates."
+      },
+      "validation": {
+        "okRows": "Rows OK",
+        "warnings": "Warnings",
+        "errors": "Errors",
+        "duplicates": "Dup SKUs in file"
+      },
+      "issues": {
+        "errors_one": "{{count}} error",
+        "errors_other": "{{count}} errors",
+        "warnings_one": "{{count}} warning",
+        "warnings_other": "{{count}} warnings",
+        "clickToShow": "click to show details",
+        "row": "Row",
+        "sku": "SKU",
+        "field": "Field",
+        "issue": "Issue",
+        "showingFirst": "Showing first 500 issues out of {{total}}.",
+        "duplicates": "Duplicate SKUs within this file ({{count}})"
+      },
+      "barcodes": {
+        "generated_one": "Generated {{count}} barcode",
+        "generated_other": "Generated {{count}} barcodes",
+        "empty_one": "{{count}} row has no barcode",
+        "empty_other": "{{count}} rows have no barcode",
+        "hintGenerated": "Codes are valid EAN-13s derived from each row's SKU. They'll be saved alongside the imported rows.",
+        "hintAvailable": "Optionally fill them with valid EAN-13 codes derived from each row's SKU. Same SKU always gets the same code.",
+        "newColumn": "A new barcode column will be added to the import.",
+        "generating": "Generating…",
+        "generateAgain": "Generate again",
+        "generate": "Generate missing barcodes"
+      },
+      "preview": {
+        "rowCount_one": "Preview — {{shown}} row",
+        "rowCount_other": "Preview — {{shown}} rows",
+        "rowCountFiltered_one": "Preview — {{shown}} of {{total}} row",
+        "rowCountFiltered_other": "Preview — {{shown}} of {{total}} rows",
+        "filterPlaceholder": "Filter rows…",
+        "pageSize": "Page size",
+        "noMatching": "No matching rows.",
+        "showing": "Showing {{from}}–{{to}} of {{total}}",
+        "zeroRows": "0 rows",
+        "prev": "Prev",
+        "next": "Next",
+        "pickDifferent": "← Pick a different file",
+        "checkDuplicates": "Check for duplicates →"
+      },
+      "dedup": {
+        "noConflicts": "No duplicates with existing SKUs",
+        "allNew": "All rows in this file are new for this brand.",
+        "back": "← Back",
+        "importRows": "Import {{count}} rows",
+        "conflictsHeader": "{{count}} of {{total}} SKUs already exist in your library for this brand.",
+        "applyAll": "Apply to all conflicts:",
+        "table": {
+          "sku": "SKU",
+          "existing": "Existing name",
+          "incoming": "Incoming name",
+          "action": "Action"
+        },
+        "action": {
+          "skip": "Skip",
+          "overwrite": "Overwrite",
+          "newVersion": "New version"
+        },
+        "importDecisions": "Import with these decisions"
+      },
+      "done": {
+        "title": "Import complete",
+        "inserted": "Inserted",
+        "overwritten": "Overwritten",
+        "skipped": "Skipped",
+        "newVersions": "New versions",
+        "another": "Import another file"
+      }
+    },
+    "history": {
+      "empty": "No imports yet.",
+      "table": {
+        "date": "Date",
+        "file": "File",
+        "brandId": "Brand ID",
+        "rows": "Rows"
+      }
+    }
   }
 }

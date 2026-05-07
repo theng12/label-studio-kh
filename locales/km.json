@@ -42,5 +42,397 @@
     "languageDescription": "ផ្លាស់ប្តូរអត្ថបទ UI ទាំងអស់ មិនចាំបាច់ចាប់ផ្តើមឡើងវិញ",
     "saveLocation": "ទីតាំងរក្សាទុកលំនាំដើម",
     "saveLocationDescription": "កន្លែងដែលឯកសារស្លាកត្រូវបានរក្សាទុកតាមលំនាំដើម"
+  },
+  "brands": {
+    "title": "ម៉ាក",
+    "addBrand": "បន្ថែមម៉ាក",
+    "searchPlaceholder": "ស្វែងរកម៉ាក…",
+    "brandCount_one": "{{count}} ម៉ាក",
+    "brandCount_other": "{{count}} ម៉ាក",
+    "emptySearch": {
+      "title": "មិនមានម៉ាកត្រូវនឹងការស្វែងរក",
+      "description": "សូមសាកល្បងពាក្យស្វែងរកផ្សេង ឬលុបប្រអប់ស្វែងរក។"
+    },
+    "empty": {
+      "title": "មិនទាន់មានម៉ាកទេ",
+      "description": "ម៉ាកមានស្លាកសញ្ញា ពណ៌ អាសយដ្ឋាន និងវិញ្ញាបនបត្រ។ ម៉ាកនីមួយៗអាចមានទម្រង់ច្រើន។",
+      "cta": "បង្កើតម៉ាកដំបូងរបស់អ្នក"
+    },
+    "card": {
+      "uncategorised": "មិនមានប្រភេទ",
+      "editTitle": "កែម៉ាក",
+      "deleteTitle": "លុបម៉ាក",
+      "openTemplates": "បើកទម្រង់",
+      "noTemplatesYet": "មិនទាន់មានទម្រង់ — បង្កើតមួយ →",
+      "templateCount_one": "{{count}} ទម្រង់",
+      "templateCount_other": "{{count}} ទម្រង់",
+      "moreSizes": "+{{count}} បន្ថែម"
+    },
+    "firstLaunchHint": {
+      "tryDemo": "សាកល្បងម៉ាកគំរូ",
+      "openTooltip": "បើកម៉ាកគំរូដើម្បីស្វែងយល់",
+      "dismiss": "បិទការណែនាំ"
+    },
+    "delete": {
+      "title": "លុប {{name}}?",
+      "fallbackName": "ម៉ាក",
+      "messageLine1Pre": "សកម្មភាពនេះនឹងលុបម៉ាកចេញពីបណ្ណាល័យរបស់អ្នក។ ",
+      "messageLine1Strong": "ទម្រង់ និងឯកសារស្លាកដែលបានបង្កើតសម្រាប់ម៉ាកនេះមិនត្រូវបានលុបទេ",
+      "messageLine1Post": " ពីថាស — វានឹងស្ថិតនៅកន្លែងដដែល ប៉ុន្តែនឹងលែងភ្ជាប់ទៅម៉ាកក្នុងកម្មវិធីនេះ។",
+      "messageLine2": "សកម្មភាពនេះមិនអាចមិនធ្វើបានទេ។",
+      "confirmLabel": "លុបម៉ាក",
+      "cancelLabel": "រក្សាទុក"
+    }
+  },
+  "templates": {
+    "title": "ទម្រង់",
+    "newTemplate": "ទម្រង់ថ្មី",
+    "noBrands": {
+      "title": "បង្កើតម៉ាកជាមុនសិន",
+      "description": "ទម្រង់ជាកម្មសិទ្ធិរបស់ម៉ាក។ បង្កើតម៉ាកនៅទំព័រម៉ាកដើម្បីចាប់ផ្តើម។"
+    },
+    "brandLabel": "ម៉ាក",
+    "empty": {
+      "title": "មិនទាន់មានទម្រង់ទេ",
+      "description": "ចុច \"ទម្រង់ថ្មី\" ដើម្បីចាប់ផ្តើមរចនា។"
+    },
+    "card": {
+      "elementCount_one": "{{count}} ធាតុ",
+      "elementCount_other": "{{count}} ធាតុ",
+      "renameTitle": "ប្តូរឈ្មោះទម្រង់",
+      "duplicateTitle": "ចម្លងទម្រង់",
+      "deleteTitle": "លុបទម្រង់"
+    },
+    "delete": {
+      "title": "លុប {{name}}?",
+      "fallbackName": "ទម្រង់",
+      "messageLine1Pre": "សកម្មភាពនេះនឹងលុបទម្រង់ចេញពីម៉ាកនេះ។ ",
+      "messageLine1Strong": "ឯកសារស្លាកដែលបានបង្កើតពីវានៅលើថាសមិនរងផលប៉ះពាល់ទេ",
+      "messageLine1Post": " — វានឹងស្ថិតនៅកន្លែងដដែល។",
+      "messageLine2": "សកម្មភាពនេះមិនអាចមិនធ្វើបានទេ។",
+      "confirmLabel": "លុបទម្រង់",
+      "cancelLabel": "រក្សាទុក"
+    },
+    "errors": {
+      "rename": "មិនអាចប្តូរឈ្មោះទម្រង់៖ {{error}}",
+      "duplicate": "មិនអាចចម្លងទម្រង់៖ {{error}}",
+      "delete": "មិនអាចលុបទម្រង់៖ {{error}}"
+    }
+  },
+  "designer": {
+    "topbar": {
+      "undoTitle": "មិនធ្វើ (⌘Z)",
+      "redoTitle": "ធ្វើឡើងវិញ (⌘Y)",
+      "clearAll": "សម្អាតទាំងអស់",
+      "clearAllTitle": "លុបធាតុទាំងអស់ចេញពីទម្រង់នេះ",
+      "save": "រក្សាទុក",
+      "saving": "កំពុងរក្សាទុក…",
+      "saved": "បានរក្សាទុក",
+      "saveDirtyTitle": "រក្សាទុកការផ្លាស់ប្តូរ (⌘S)",
+      "saveCleanTitle": "មិនមានអ្វីត្រូវរក្សាទុក — ទាន់សម័យហើយ",
+      "saveNewTitle": "រក្សាទុកទម្រង់នេះ",
+      "presets": "ទំហំសម្រេច",
+      "presetsTitle": "ជ្រើសរើសទំហំសម្រេច",
+      "unsavedChanges": "មិនទាន់រក្សាទុក",
+      "notYetSaved": "មិនទាន់រក្សាទុក",
+      "savedAgo": "បានរក្សាទុក {{ago}}",
+      "justNow": "ទើបតែ",
+      "secondsAgo": "{{count}} វិនាទីមុន",
+      "minutesAgo": "{{count}} នាទីមុន",
+      "hoursAgo": "{{count}} ម៉ោងមុន",
+      "daysAgo_one": "{{count}} ថ្ងៃមុន",
+      "daysAgo_other": "{{count}} ថ្ងៃមុន",
+      "clearTitle": "សម្អាតធាតុទាំងអស់?",
+      "clearMessagePre": "សកម្មភាពនេះនឹងលុប ",
+      "clearMessageElements_one": "ធាតុ",
+      "clearMessageElements_other": "ធាតុ",
+      "clearMessageMid": " ពី ",
+      "clearMessagePost": "។ ទម្រង់នៅតែមាន — មានតែខ្លឹមសារត្រូវបានសម្អាត។",
+      "clearMessageHint": "អ្នកអាចមិនធ្វើដោយ ⌘Z ប៉ុន្តែការផ្លាស់ប្តូរនឹងមិនត្រូវបានរក្សាទុកទេ រហូតដល់អ្នកចុច ",
+      "clearMessageHintSave": "រក្សាទុក",
+      "clearMessageHintEnd": "។",
+      "clearConfirm": "សម្អាតទាំងអស់",
+      "clearCancel": "រក្សាធាតុ"
+    },
+    "bottombar": {
+      "zoomOut": "បង្រួម",
+      "zoomIn": "ពង្រីក",
+      "fit": "សម​",
+      "fitTitle": "សមនឹងផ្ទៃធ្វើការ",
+      "actualSize": "ទំហំពិត",
+      "actualSizeTitle": "បង្ហាញស្ទីកគ័រនៅទំហំ ១:១",
+      "snap": "ខ្ទាស់ (1mm)",
+      "tightLayout": "ការរៀបចំតឹង",
+      "tightLayoutTitle": "ស្ទីកគ័រនេះតូច និងមានធាតុច្រើន — ខ្លះអាចពិបាកអានពេលបោះពុម្ព។",
+      "cursor": "x: {{x}} mm, y: {{y}} mm",
+      "selectedSize": "ទទឹង: {{w}} × កម្ពស់: {{h}} mm"
+    }
+  },
+  "generate": {
+    "title": "បង្កើត",
+    "noBrands": "បង្កើតម៉ាកជាមុនសិននៅទំព័រម៉ាក។",
+    "source": {
+      "title": "ប្រភព",
+      "brand": "ម៉ាក",
+      "template": "ទម្រង់",
+      "noTemplates": "មិនមានទម្រង់សម្រាប់ម៉ាកនេះ",
+      "skuCount_one": "SKU សម្រាប់ម៉ាកនេះ។ បាននាំចូលតាម​រយៈទិន្នន័យ និងនាំចូល។",
+      "skuCount_other": "SKU សម្រាប់ម៉ាកនេះ។ បាននាំចូលតាម​រយៈទិន្នន័យ និងនាំចូល។"
+    },
+    "output": {
+      "title": "លទ្ធផល",
+      "format": "ទម្រង់ឯកសារ",
+      "dpi": "DPI",
+      "filenamePattern": "លំនាំឈ្មោះឯកសារ",
+      "filenamePatternHint": "ជ្រើសរើសសម្រេច ឬវាយផ្ទាល់",
+      "exampleFirstRow": "ឧទាហរណ៍សម្រាប់ជួរទីមួយ៖",
+      "saveLocation": "ទីតាំងរក្សាទុក",
+      "saveLocationPlaceholder": "(មិនបានជ្រើសរើសថត)",
+      "browse": "រកមើល",
+      "folderOrg": "ការរៀបចំថត",
+      "folderOrgNone": "ទាំងអស់ក្នុងថតមួយ",
+      "folderOrgBrand": "តាមម៉ាក",
+      "folderOrgBrandSize": "តាមម៉ាក + ទំហំ",
+      "folderOrgBrandTemplate": "តាមម៉ាក + ទម្រង់",
+      "overwrite": "សរសេរជាន់លើឯកសារដែលមានឈ្មោះដូចគ្នា"
+    },
+    "preview": {
+      "title": "មើលជាមុន",
+      "selectTemplate": "ជ្រើសរើសទម្រង់ដើម្បីមើលជាមុន។",
+      "prev": "មុន",
+      "next": "បន្ទាប់",
+      "noData": "មិនមានទិន្នន័យ — បង្ហាញជួរគំរូ",
+      "indexOf": "{{idx}} ក្នុងចំណោម {{total}}",
+      "previewAsPdf": "មើលជាមុនជា PDF",
+      "previewAsPdfTitle": "បម្លែងជួរនេះជា PDF បណ្តោះអាសន្ន ហើយបើកក្នុងកម្មវិធីលំនាំដើម",
+      "generateOne": "បង្កើតមួយនេះ",
+      "generatingOne": "កំពុងបង្កើត…",
+      "generateOneTitle": "រក្សាទុកស្លាកមួយនេះប្រើការកំណត់លទ្ធផលបច្ចុប្បន្ន",
+      "saved": "បានរក្សាទុក {{filename}}",
+      "open": "បើក",
+      "reveal": "បង្ហាញ",
+      "canvasFooter": "ការមើលជាមុន {{w}}×{{h}}mm (HTML — លទ្ធផលចុងក្រោយត្រូវបានបង្កើតដោយ Puppeteer)"
+    },
+    "prereq": {
+      "missingOne": "មានរឿងមួយនៅខ្វះមុនពេលបង្កើត",
+      "missingMany": "មាន {{count}} រឿងនៅខ្វះមុនពេលបង្កើត",
+      "brandSelected": "ម៉ាក៖ {{name}}",
+      "brandNotSelected": "មិនបានជ្រើសរើសម៉ាក",
+      "brandFix": "ជ្រើសរើស ឬបង្កើតម៉ាក",
+      "templateSelected": "បានជ្រើសរើសទម្រង់",
+      "templatePickAbove": "ជ្រើសរើសទម្រង់ខាងលើ",
+      "brandHasNoTemplates": "{{name}} មិនទាន់មានទម្រង់ទេ",
+      "templateFix": "បង្កើតទម្រង់",
+      "thisBrand": "ម៉ាកនេះ",
+      "skuReady_one": "{{count}} SKU រួចរាល់",
+      "skuReady_other": "{{count}} SKU រួចរាល់",
+      "brandHasNoSkus": "{{name}} មិនទាន់មាន SKU ទេ",
+      "skuFix": "នាំចូល ឬបន្ថែម SKU",
+      "formatsChosen_one": "បានជ្រើសរើសទម្រង់លទ្ធផល {{count}}",
+      "formatsChosen_other": "បានជ្រើសរើសទម្រង់លទ្ធផល {{count}}",
+      "formatsNone": "មិនបានជ្រើសរើសទម្រង់លទ្ធផល",
+      "outputDirSet": "បានកំណត់ទីតាំងរក្សាទុក",
+      "outputDirNone": "មិនបានជ្រើសរើសទីតាំងរក្សាទុក",
+      "outputDirFix": "ជ្រើសរើសថត"
+    },
+    "scope": {
+      "label": "វិសាលភាព",
+      "all_one": "ទាំងអស់ — {{count}} ស្លាក",
+      "all_other": "ទាំងអស់ — {{count}} ស្លាក",
+      "first": "ដំបូង {{n}} (គំរូ)",
+      "sampleHint": "របៀបគំរូ — មានតែ {{n}} ជួរដំបូងនឹងត្រូវបាននាំចេញ"
+    },
+    "generateButton_one": "បង្កើត {{count}} ស្លាក ({{formats}})",
+    "generateButton_other": "បង្កើត {{count}} ស្លាក ({{formats}})",
+    "generateButtonBlockedTitle": "មានរឿងខ្លះនៅត្រូវកំណត់ — សូមមើលបញ្ជីខាងលើ។",
+    "progress": {
+      "title": "កំពុងបង្កើតស្លាក…",
+      "starting": "កំពុងចាប់ផ្តើម…",
+      "indexOfTotal": "{{index}} ក្នុងចំណោម {{total}} — {{sku}}",
+      "elapsed": "បានចំណាយ៖ {{duration}}",
+      "rate": "{{rate}} /វិ",
+      "remaining": "នៅសល់ ~{{duration}}",
+      "cancel": "បោះបង់ក្រោយធាតុបច្ចុប្បន្ន",
+      "complete": "ការបង្កើតបានបញ្ចប់",
+      "generated_one": "{{generated}} ឯកសារត្រូវបានបង្កើតក្នុងចំណោម {{total}} ធាតុ។",
+      "generated_other": "{{generated}} ឯកសារត្រូវបានបង្កើតក្នុងចំណោម {{total}} ធាតុ។",
+      "warnings_one": "{{count}} ការព្រមាន",
+      "warnings_other": "{{count}} ការព្រមាន",
+      "openFolder": "បើកថតលទ្ធផល",
+      "done": "រួចរាល់"
+    }
+  },
+  "dataImport": {
+    "title": "ទិន្នន័យ និងនាំចូល",
+    "tabs": {
+      "import": "នាំចូល",
+      "manual": "បញ្ចូលដោយដៃ",
+      "lookup": "ស្វែងរក SKU",
+      "history": "ប្រវត្តិនាំចូល"
+    },
+    "noBrand": "បង្កើតម៉ាកជាមុនសិននៅទំព័រម៉ាក។",
+    "lookup": {
+      "searchPlaceholder": "ស្វែងរក SKU ឬឈ្មោះ…",
+      "countOf": "{{shown}} ក្នុងចំណោម {{total}}",
+      "empty": "មិនទាន់មាន SKU សម្រាប់ម៉ាកនេះទេ។ នាំចូល CSV ឬបន្ថែមនៅផ្ទាំងបញ្ចូលដោយដៃ។",
+      "table": {
+        "sku": "SKU",
+        "product": "ផលិតផល",
+        "barcode": "បាកូដ",
+        "variant": "ពូជ",
+        "actions": "សកម្មភាព"
+      },
+      "row": {
+        "editTitle": "ចុចដើម្បីកែ",
+        "editButton": "កែ SKU នេះ",
+        "deleteButton": "លុប SKU នេះ"
+      },
+      "confirmDelete": "លុប SKU \"{{sku}}\"? ឯកសារស្លាកដែលបានបង្កើតនៅលើថាសមិនរងផលប៉ះពាល់ទេ។",
+      "showingFirst": "បង្ហាញលទ្ធផល 200 ដំបូង។",
+      "editDialog": {
+        "title": "កែ SKU",
+        "close": "បិទ"
+      }
+    },
+    "manual": {
+      "addToBrand": "បន្ថែមទៅម៉ាក",
+      "fields": {
+        "sku": "SKU",
+        "skuPlaceholder": "ឧ. GH-001",
+        "productName": "ឈ្មោះផលិតផល",
+        "productNamePlaceholder": "Stainless Grab Bar 60cm",
+        "barcode": "បាកូដ",
+        "barcodePlaceholder": "8851234567890",
+        "barcodeHint": "EAN-13, Code128 ។ល។ ទុកចោលប្រសិនបើមិនមានបាកូដ។",
+        "variant": "ពូជ",
+        "variantPlaceholder": "SATIN, WHITE, 60cm",
+        "description": "ការពិពណ៌នា",
+        "descriptionPlaceholder": "អត្ថប្រយោជន៍ផលិតផលខ្លី",
+        "unitQty": "បរិមាណឯកតា",
+        "unitWord": "ពាក្យឯកតា",
+        "unitWordPlaceholder": "UNIT, SET, PCS",
+        "productUrl": "URL ផលិតផល",
+        "productUrlPlaceholder": "https://example.com/p/sku",
+        "productUrlHint": "ប្រើដោយធាតុ QR កូដថាមវន្ត។",
+        "imagePath": "ផ្លូវរូបភាព",
+        "imagePathPlaceholder": "images/grab-bar-60.jpg",
+        "imagePathHint": "ប្រើដោយធាតុរូបភាពដែលភ្ជាប់ទៅជួរ CSV។",
+        "date": "កាលបរិច្ឆេទ",
+        "datePlaceholder": "DD/MM/YYYY",
+        "notes": "កំណត់សម្គាល់",
+        "notesPlaceholder": "ផ្ទៃក្នុង — មិនបោះពុម្ព"
+      },
+      "cancel": "បោះបង់",
+      "reset": "កំណត់ឡើងវិញ",
+      "saveAndAdd": "រក្សាទុក និងបន្ថែមមួយទៀត",
+      "saveSku": "រក្សាទុក SKU",
+      "saveChanges": "រក្សាការផ្លាស់ប្តូរ",
+      "saving": "កំពុងរក្សាទុក…",
+      "created": "បានបង្កើត SKU {{sku}}។",
+      "updated": "បានធ្វើបច្ចុប្បន្នភាព SKU {{sku}}។",
+      "saveFailed": "ការរក្សាទុកបរាជ័យ (មិនមានលទ្ធផលត្រឡប់មកវិញ)។",
+      "helperHint": "ការរក្សាទុក SKU ដែលមានស្រាប់ (ម៉ាកដូចគ្នា + កូដ SKU ដូចគ្នា) ធ្វើបច្ចុប្បន្នភាពជួរ ជំនួសឱ្យបង្កើតស្ទួន។ ដើម្បីកែ ឬដក SKU ចុចជួរនៅផ្ទាំងស្វែងរក SKU។"
+    },
+    "import": {
+      "intoBrand": "នាំចូលទៅម៉ាក",
+      "stepCount": "ជំហាន {{step}} ក្នុងចំណោម {{total}}",
+      "committing": "កំពុងនាំចូល…",
+      "pickFile": {
+        "title": "ទម្លាក់ឯកសារ CSV ឬ Excel នៅទីនេះ",
+        "hint": "គាំទ្រ៖ .csv, .tsv, .xlsx, .xls — រហូតដល់ 50,000 ជួរ។ ឈ្មោះជួរស្តង់ដារត្រូវបានរកឃើញដោយស្វ័យប្រវត្តិ; អ្នកនឹងអាចបញ្ជាក់ការផ្គូផ្គងបន្ទាប់។",
+        "browse": "រកឯកសារ…",
+        "dontHave": "មិនទាន់មានឯកសារ?",
+        "templateExplain": "ទាញយកគំរូ CSV ដែលមានជួរស្តង់ដារទាំងអស់ និងជួរឧទាហរណ៍មួយ។ ជួរដែលត្រូវការគឺ sku, product_name និង brand; ជួរផ្សេងៗគឺមិនចាំបាច់។",
+        "downloadTemplate": "ទាញយកគំរូ"
+      },
+      "mapping": {
+        "title": "ការផ្គូផ្គងជួរ",
+        "notMapped": "— មិនបានផ្គូផ្គង —",
+        "unmappedHint": "ជួរដែលមិនបានផ្គូផ្គង ({{count}}) ត្រូវបានរក្សាទុកជាទិន្នន័យបន្ថែម និងមិនត្រូវបានលុប។ ពួកវាអាចត្រូវបានយោងនៅក្នុងទម្រង់។"
+      },
+      "validation": {
+        "okRows": "ជួរត្រឹមត្រូវ",
+        "warnings": "ការព្រមាន",
+        "errors": "កំហុស",
+        "duplicates": "SKU ស្ទួនក្នុងឯកសារ"
+      },
+      "issues": {
+        "errors_one": "{{count}} កំហុស",
+        "errors_other": "{{count}} កំហុស",
+        "warnings_one": "{{count}} ការព្រមាន",
+        "warnings_other": "{{count}} ការព្រមាន",
+        "clickToShow": "ចុចដើម្បីមើលលម្អិត",
+        "row": "ជួរ",
+        "sku": "SKU",
+        "field": "វាល",
+        "issue": "បញ្ហា",
+        "showingFirst": "បង្ហាញ 500 បញ្ហាដំបូងក្នុងចំណោម {{total}}។",
+        "duplicates": "SKU ស្ទួននៅក្នុងឯកសារនេះ ({{count}})"
+      },
+      "barcodes": {
+        "generated_one": "បានបង្កើត {{count}} បាកូដ",
+        "generated_other": "បានបង្កើត {{count}} បាកូដ",
+        "empty_one": "{{count}} ជួរមិនមានបាកូដ",
+        "empty_other": "{{count}} ជួរមិនមានបាកូដ",
+        "hintGenerated": "កូដត្រឹមត្រូវ EAN-13 ដែលបានមកពី SKU នៃជួរនីមួយៗ។ ពួកវានឹងត្រូវបានរក្សាទុករួមជាមួយជួរដែលបាននាំចូល។",
+        "hintAvailable": "ជម្រើសបំពេញពួកវាដោយកូដ EAN-13 ត្រឹមត្រូវដែលបានមកពី SKU នៃជួរនីមួយៗ។ SKU ដូចគ្នាតែងតែទទួលបានកូដដូចគ្នា។",
+        "newColumn": "ជួរ barcode ថ្មីនឹងត្រូវបានបន្ថែមទៅការនាំចូល។",
+        "generating": "កំពុងបង្កើត…",
+        "generateAgain": "បង្កើតម្តងទៀត",
+        "generate": "បង្កើតបាកូដដែលខ្វះ"
+      },
+      "preview": {
+        "rowCount_one": "មើលជាមុន — {{shown}} ជួរ",
+        "rowCount_other": "មើលជាមុន — {{shown}} ជួរ",
+        "rowCountFiltered_one": "មើលជាមុន — {{shown}} ក្នុងចំណោម {{total}} ជួរ",
+        "rowCountFiltered_other": "មើលជាមុន — {{shown}} ក្នុងចំណោម {{total}} ជួរ",
+        "filterPlaceholder": "ត្រងជួរ…",
+        "pageSize": "ទំហំទំព័រ",
+        "noMatching": "មិនមានជួរផ្គូផ្គង។",
+        "showing": "បង្ហាញ {{from}}–{{to}} ក្នុងចំណោម {{total}}",
+        "zeroRows": "0 ជួរ",
+        "prev": "មុន",
+        "next": "បន្ទាប់",
+        "pickDifferent": "← ជ្រើសរើសឯកសារផ្សេង",
+        "checkDuplicates": "ពិនិត្យស្ទួន →"
+      },
+      "dedup": {
+        "noConflicts": "មិនមានស្ទួនជាមួយ SKU ដែលមានស្រាប់",
+        "allNew": "ជួរទាំងអស់ក្នុងឯកសារនេះថ្មីសម្រាប់ម៉ាកនេះ។",
+        "back": "← ត្រឡប់",
+        "importRows": "នាំចូល {{count}} ជួរ",
+        "conflictsHeader": "{{count}} ក្នុងចំណោម {{total}} SKU មានស្រាប់នៅក្នុងបណ្ណាល័យរបស់អ្នកសម្រាប់ម៉ាកនេះ។",
+        "applyAll": "អនុវត្តចំពោះស្ទួនទាំងអស់៖",
+        "table": {
+          "sku": "SKU",
+          "existing": "ឈ្មោះមានស្រាប់",
+          "incoming": "ឈ្មោះចូលថ្មី",
+          "action": "សកម្មភាព"
+        },
+        "action": {
+          "skip": "រំលង",
+          "overwrite": "សរសេរជាន់",
+          "newVersion": "កំណែថ្មី"
+        },
+        "importDecisions": "នាំចូលជាមួយការសម្រេចទាំងនេះ"
+      },
+      "done": {
+        "title": "ការនាំចូលបានបញ្ចប់",
+        "inserted": "បានបញ្ចូល",
+        "overwritten": "បានសរសេរជាន់",
+        "skipped": "បានរំលង",
+        "newVersions": "កំណែថ្មី",
+        "another": "នាំចូលឯកសារផ្សេងទៀត"
+      }
+    },
+    "history": {
+      "empty": "មិនទាន់មានការនាំចូលទេ។",
+      "table": {
+        "date": "កាលបរិច្ឆេទ",
+        "file": "ឯកសារ",
+        "brandId": "លេខសម្គាល់ម៉ាក",
+        "rows": "ជួរ"
+      }
+    }
   }
 }

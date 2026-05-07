@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   IconPlus,
   IconPencil,
@@ -15,6 +16,7 @@ import { toast } from '../components/Toast';
 import type { Template } from '../../shared/types/template';
 
 export default function Templates() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { brands, loading: brandsLoading, refresh } = useBrandStore();
@@ -65,7 +67,7 @@ export default function Templates() {
       const saved = await window.api.template.save({ ...target, name: trimmed });
       setTemplates((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
     } catch (err) {
-      toast.error(`Couldn't rename template: ${String(err)}`);
+      toast.error(t('templates.errors.rename', { error: String(err) }));
     }
   };
 
@@ -78,7 +80,7 @@ export default function Templates() {
       );
       if (copy) setTemplates((prev) => [...prev, copy]);
     } catch (err) {
-      toast.error(`Couldn't duplicate template: ${String(err)}`);
+      toast.error(t('templates.errors.duplicate', { error: String(err) }));
     }
   };
 
@@ -91,21 +93,23 @@ export default function Templates() {
       );
       if (ok) setTemplates((prev) => prev.filter((t) => t.id !== confirmDelete.id));
     } catch (err) {
-      toast.error(`Couldn't delete template: ${String(err)}`);
+      toast.error(t('templates.errors.delete', { error: String(err) }));
     }
     setConfirmDelete(null);
   };
 
   if (brands.length === 0) {
     return (
-      <Page title="Templates">
+      <Page title={t('templates.title')}>
         {brandsLoading ? (
           <TemplateCardSkeletonGrid />
         ) : (
           <div className="rounded-lg border border-dashed border-border-base p-12 text-center">
-            <h3 className="text-sm font-semibold text-fg-base">Create a brand first</h3>
+            <h3 className="text-sm font-semibold text-fg-base">
+              {t('templates.noBrands.title')}
+            </h3>
             <p className="mt-1 text-xs text-fg-muted">
-              Templates belong to brands. Create a brand on the Brands page to get started.
+              {t('templates.noBrands.description')}
             </p>
           </div>
         )}
@@ -116,7 +120,7 @@ export default function Templates() {
   return (
     <>
       <Page
-        title="Templates"
+        title={t('templates.title')}
         actions={
           <Button
             variant="primary"
@@ -124,12 +128,12 @@ export default function Templates() {
               selectedBrandId && navigate(`/designer/${selectedBrandId}/new`)
             }
           >
-            <IconPlus size={14} /> New template
+            <IconPlus size={14} /> {t('templates.newTemplate')}
           </Button>
         }
       >
         <div className="mb-4 flex items-center gap-2">
-          <span className="text-xs text-fg-muted">Brand</span>
+          <span className="text-xs text-fg-muted">{t('templates.brandLabel')}</span>
           <select
             value={selectedBrandId ?? ''}
             onChange={(e) => setSelectedBrandId(e.target.value)}
@@ -147,28 +151,30 @@ export default function Templates() {
           <TemplateCardSkeletonGrid />
         ) : templates.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border-base p-12 text-center">
-            <h3 className="text-sm font-semibold text-fg-base">No templates yet</h3>
+            <h3 className="text-sm font-semibold text-fg-base">
+              {t('templates.empty.title')}
+            </h3>
             <p className="mt-1 text-xs text-fg-muted">
-              Click "New template" to start designing.
+              {t('templates.empty.description')}
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {templates.map((t) => (
+            {templates.map((tpl) => (
               <TemplateCard
-                key={t.id}
-                template={t}
-                renaming={renaming?.id === t.id ? renaming.value : null}
+                key={tpl.id}
+                template={tpl}
+                renaming={renaming?.id === tpl.id ? renaming.value : null}
                 onOpen={() =>
                   selectedBrandId &&
-                  navigate(`/designer/${selectedBrandId}/${t.id}`)
+                  navigate(`/designer/${selectedBrandId}/${tpl.id}`)
                 }
-                onStartRename={() => setRenaming({ id: t.id, value: t.name })}
-                onChangeRename={(value) => setRenaming({ id: t.id, value })}
+                onStartRename={() => setRenaming({ id: tpl.id, value: tpl.name })}
+                onChangeRename={(value) => setRenaming({ id: tpl.id, value })}
                 onCommitRename={commitRename}
                 onCancelRename={() => setRenaming(null)}
-                onDuplicate={() => handleDuplicate(t)}
-                onDelete={() => setConfirmDelete(t)}
+                onDuplicate={() => handleDuplicate(tpl)}
+                onDelete={() => setConfirmDelete(tpl)}
               />
             ))}
           </div>
@@ -177,21 +183,21 @@ export default function Templates() {
 
       <ConfirmDialog
         open={!!confirmDelete}
-        title={`Delete ${confirmDelete?.name ?? 'template'}?`}
+        title={t('templates.delete.title', {
+          name: confirmDelete?.name ?? t('templates.delete.fallbackName'),
+        })}
         message={
           <>
-            This removes the template from this brand.{' '}
-            <strong>
-              Label files generated from it on disk are not affected
-            </strong>{' '}
-            — they stay where they are.
+            {t('templates.delete.messageLine1Pre')}
+            <strong>{t('templates.delete.messageLine1Strong')}</strong>
+            {t('templates.delete.messageLine1Post')}
             <br />
             <br />
-            This cannot be undone.
+            {t('templates.delete.messageLine2')}
           </>
         }
-        confirmLabel="Delete template"
-        cancelLabel="Keep it"
+        confirmLabel={t('templates.delete.confirmLabel')}
+        cancelLabel={t('templates.delete.cancelLabel')}
         tone="danger"
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(null)}
@@ -221,6 +227,7 @@ function TemplateCard({
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const isRenaming = renaming !== null;
 
@@ -277,8 +284,7 @@ function TemplateCard({
             {template.width_mm}×{template.height_mm} mm · {template.orientation}
           </div>
           <div className="mt-2 text-xs text-fg-subtle">
-            {template.elements.length} element
-            {template.elements.length === 1 ? '' : 's'}
+            {t('templates.card.elementCount', { count: template.elements.length })}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -287,7 +293,7 @@ function TemplateCard({
               e.stopPropagation();
               onStartRename();
             }}
-            title="Rename template"
+            title={t('templates.card.renameTitle')}
             className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base"
           >
             <IconPencil size={14} />
@@ -297,7 +303,7 @@ function TemplateCard({
               e.stopPropagation();
               onDuplicate();
             }}
-            title="Duplicate template"
+            title={t('templates.card.duplicateTitle')}
             className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base"
           >
             <IconCopy size={14} />
@@ -307,7 +313,7 @@ function TemplateCard({
               e.stopPropagation();
               onDelete();
             }}
-            title="Delete template"
+            title={t('templates.card.deleteTitle')}
             className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-danger"
           >
             <IconTrash size={14} />

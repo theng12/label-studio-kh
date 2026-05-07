@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   IconWand,
   IconFolder,
@@ -29,6 +30,7 @@ type SkuRow = Awaited<ReturnType<typeof window.api.import.listSkus>>[number];
 const DEFAULT_FILENAME_PATTERN = '{SKU}_{Size}';
 
 export default function Generate() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { brands, refresh } = useBrandStore();
   const appSettings = useSettingsStore((s) => s.settings);
@@ -115,11 +117,11 @@ export default function Generate() {
       if (templateId !== '') setTemplateId('');
       return;
     }
-    const stillValid = templates.some((t) => t.id === templateId);
+    const stillValid = templates.some((tpl) => tpl.id === templateId);
     if (!stillValid) setTemplateId(templates[0]!.id);
   }, [templates, templateId]);
 
-  const template = templates.find((t) => t.id === templateId) ?? null;
+  const template = templates.find((tpl) => tpl.id === templateId) ?? null;
   const brand = brands.find((b) => b.id === brandId) ?? null;
   const previewRow = skus[previewIdx]
     ? skuToRow(skus[previewIdx]!)
@@ -223,18 +225,20 @@ export default function Generate() {
 
   if (brands.length === 0) {
     return (
-      <Page title="Generate">
-        <Empty msg="Create a brand first on the Brands page." />
+      <Page title={t('generate.title')}>
+        <Empty msg={t('generate.noBrands')} />
       </Page>
     );
   }
 
+  const labelCount = sampleScope === 'all' ? skus.length : Math.min(sampleScope, skus.length);
+
   return (
-    <Page title="Generate">
+    <Page title={t('generate.title')}>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="space-y-4">
-          <Section title="Source">
-            <Field label="Brand">
+          <Section title={t('generate.source.title')}>
+            <Field label={t('generate.source.brand')}>
               <select
                 value={brandId}
                 onChange={(e) => setBrandId(e.target.value)}
@@ -248,30 +252,32 @@ export default function Generate() {
               </select>
             </Field>
 
-            <Field label="Template">
+            <Field label={t('generate.source.template')}>
               <select
                 value={templateId}
                 onChange={(e) => setTemplateId(e.target.value)}
                 disabled={templates.length === 0}
                 className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
               >
-                {templates.length === 0 && <option>No templates for this brand</option>}
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} — {t.width_mm}×{t.height_mm}mm
+                {templates.length === 0 && (
+                  <option>{t('generate.source.noTemplates')}</option>
+                )}
+                {templates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name} — {tpl.width_mm}×{tpl.height_mm}mm
                   </option>
                 ))}
               </select>
             </Field>
 
             <div className="text-xs text-fg-muted">
-              <strong className="text-fg-base">{skus.length}</strong> SKU{skus.length === 1 ? '' : 's'}{' '}
-              for this brand. Imported via Data & Import.
+              <strong className="text-fg-base">{skus.length}</strong>{' '}
+              {t('generate.source.skuCount', { count: skus.length })}
             </div>
           </Section>
 
-          <Section title="Output">
-            <Field label="Format">
+          <Section title={t('generate.output.title')}>
+            <Field label={t('generate.output.format')}>
               <div className="flex gap-2">
                 {(['pdf', 'png', 'jpeg'] as ExportFormat[]).map((f) => (
                   <label key={f} className="flex items-center gap-1 text-xs">
@@ -290,7 +296,7 @@ export default function Generate() {
               </div>
             </Field>
 
-            <Field label="DPI">
+            <Field label={t('generate.output.dpi')}>
               <div className="flex gap-1 rounded-md border border-border-base bg-bg-surface p-0.5">
                 {[150, 300, 600].map((d) => (
                   <button
@@ -307,43 +313,48 @@ export default function Generate() {
               </div>
             </Field>
 
-            <Field label="Filename pattern" hint="Pick a preset or type your own">
+            <Field
+              label={t('generate.output.filenamePattern')}
+              hint={t('generate.output.filenamePatternHint')}
+            >
               <FilenamePatternInput
                 value={filenamePattern}
                 onChange={setFilenamePattern}
               />
               <div className="mt-1 text-[10px] text-fg-subtle">
-                Example for first row:{' '}
+                {t('generate.output.exampleFirstRow')}{' '}
                 <code className="rounded bg-bg-elevated px-1 py-px">
                   {samplePreview(filenamePattern, previewRow, brand?.name ?? '', template)}
                 </code>
               </div>
             </Field>
 
-            <Field label="Save location">
+            <Field label={t('generate.output.saveLocation')}>
               <div className="flex gap-2">
                 <input
                   value={outputDir}
                   onChange={(e) => setOutputDir(e.target.value)}
-                  placeholder="(no folder selected)"
+                  placeholder={t('generate.output.saveLocationPlaceholder')}
                   className="flex-1 rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
                 />
                 <Button onClick={onPickFolder} size="sm">
-                  <IconFolder size={14} /> Browse
+                  <IconFolder size={14} /> {t('generate.output.browse')}
                 </Button>
               </div>
             </Field>
 
-            <Field label="Folder organization">
+            <Field label={t('generate.output.folderOrg')}>
               <select
                 value={folderOrg}
                 onChange={(e) => setFolderOrg(e.target.value as typeof folderOrg)}
                 className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
               >
-                <option value="none">All in one folder</option>
-                <option value="brand">By brand</option>
-                <option value="brand_size">By brand + size</option>
-                <option value="brand_template">By brand + template</option>
+                <option value="none">{t('generate.output.folderOrgNone')}</option>
+                <option value="brand">{t('generate.output.folderOrgBrand')}</option>
+                <option value="brand_size">{t('generate.output.folderOrgBrandSize')}</option>
+                <option value="brand_template">
+                  {t('generate.output.folderOrgBrandTemplate')}
+                </option>
               </select>
             </Field>
 
@@ -353,13 +364,13 @@ export default function Generate() {
                 checked={overwrite}
                 onChange={(e) => setOverwrite(e.target.checked)}
               />
-              Overwrite existing files with the same name
+              {t('generate.output.overwrite')}
             </label>
           </Section>
         </div>
 
         <div className="space-y-4">
-          <Section title="Preview">
+          <Section title={t('generate.preview.title')}>
             {template ? (
               <>
                 <PreviewCanvas template={template} row={previewRow} brand={brand} />
@@ -370,12 +381,15 @@ export default function Generate() {
                     disabled={previewIdx === 0 || skus.length === 0}
                     onClick={() => setPreviewIdx(Math.max(0, previewIdx - 1))}
                   >
-                    <IconChevronLeft size={14} /> Prev
+                    <IconChevronLeft size={14} /> {t('generate.preview.prev')}
                   </Button>
                   <span>
                     {skus.length === 0
-                      ? 'No data — showing demo row'
-                      : `${previewIdx + 1} of ${skus.length}`}
+                      ? t('generate.preview.noData')
+                      : t('generate.preview.indexOf', {
+                          idx: previewIdx + 1,
+                          total: skus.length,
+                        })}
                   </span>
                   <Button
                     size="sm"
@@ -383,7 +397,7 @@ export default function Generate() {
                     disabled={previewIdx >= skus.length - 1 || skus.length === 0}
                     onClick={() => setPreviewIdx(Math.min(skus.length - 1, previewIdx + 1))}
                   >
-                    Next <IconChevronRight size={14} />
+                    {t('generate.preview.next')} <IconChevronRight size={14} />
                   </Button>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
@@ -392,9 +406,9 @@ export default function Generate() {
                     variant="secondary"
                     onClick={onPreviewFullSize}
                     disabled={!brand || !template}
-                    title="Render this one row as a temporary PDF and open it in your default app"
+                    title={t('generate.preview.previewAsPdfTitle')}
                   >
-                    <IconExternalLink size={14} /> Preview as PDF
+                    <IconExternalLink size={14} /> {t('generate.preview.previewAsPdf')}
                   </Button>
                   <Button
                     size="sm"
@@ -407,10 +421,12 @@ export default function Generate() {
                       formats.length === 0 ||
                       singleSaving
                     }
-                    title="Save just this one label using your current Output settings (formats, DPI, folder)"
+                    title={t('generate.preview.generateOneTitle')}
                   >
                     <IconWand size={14} />{' '}
-                    {singleSaving ? 'Generating…' : 'Generate this one'}
+                    {singleSaving
+                      ? t('generate.preview.generatingOne')
+                      : t('generate.preview.generateOne')}
                   </Button>
                 </div>
                 {singleResult && (
@@ -427,7 +443,9 @@ export default function Generate() {
                     ) : (
                       <span className="flex items-center justify-between gap-2">
                         <span className="truncate" title={singleResult.file}>
-                          Saved {singleResult.file.split('/').pop()}
+                          {t('generate.preview.saved', {
+                            filename: singleResult.file.split('/').pop(),
+                          })}
                         </span>
                         <span className="flex shrink-0 items-center gap-1">
                           <button
@@ -436,7 +454,7 @@ export default function Generate() {
                             }
                             className="rounded border border-border-base bg-bg-elevated px-1.5 py-0.5 text-[10px] hover:bg-bg-hover"
                           >
-                            Open
+                            {t('generate.preview.open')}
                           </button>
                           <button
                             onClick={() =>
@@ -444,7 +462,7 @@ export default function Generate() {
                             }
                             className="rounded border border-border-base bg-bg-elevated px-1.5 py-0.5 text-[10px] hover:bg-bg-hover"
                           >
-                            Reveal
+                            {t('generate.preview.reveal')}
                           </button>
                         </span>
                       </span>
@@ -453,7 +471,9 @@ export default function Generate() {
                 )}
               </>
             ) : (
-              <div className="text-sm text-fg-muted">Select a template to preview.</div>
+              <div className="text-sm text-fg-muted">
+                {t('generate.preview.selectTemplate')}
+              </div>
             )}
           </Section>
 
@@ -474,7 +494,7 @@ export default function Generate() {
 
           {skus.length > 0 && (
             <div className="flex items-center gap-2 text-xs text-fg-muted">
-              <span>Scope</span>
+              <span>{t('generate.scope.label')}</span>
               <select
                 value={String(sampleScope)}
                 onChange={(e) => {
@@ -484,17 +504,16 @@ export default function Generate() {
                 className="rounded-md border border-border-base bg-bg-surface px-2 py-1 text-xs"
               >
                 <option value="all">
-                  All — {skus.length.toLocaleString()} label
-                  {skus.length === 1 ? '' : 's'}
+                  {t('generate.scope.all', { count: skus.length })}
                 </option>
-                <option value="5">First 5 (sample)</option>
-                <option value="10">First 10 (sample)</option>
-                <option value="25">First 25 (sample)</option>
-                <option value="50">First 50 (sample)</option>
+                <option value="5">{t('generate.scope.first', { n: 5 })}</option>
+                <option value="10">{t('generate.scope.first', { n: 10 })}</option>
+                <option value="25">{t('generate.scope.first', { n: 25 })}</option>
+                <option value="50">{t('generate.scope.first', { n: 50 })}</option>
               </select>
               {sampleScope !== 'all' && (
                 <span className="text-[10px] text-fg-subtle">
-                  Sample mode — only the first {sampleScope} rows will be exported
+                  {t('generate.scope.sampleHint', { n: sampleScope })}
                 </span>
               )}
             </div>
@@ -505,15 +524,13 @@ export default function Generate() {
             disabled={!canGenerate || running}
             onClick={onGenerate}
             className="w-full"
-            title={canGenerate ? '' : 'Some things still need to be set — see the checklist above.'}
+            title={canGenerate ? '' : t('generate.generateButtonBlockedTitle')}
           >
-            <IconWand size={14} /> Generate{' '}
-            {sampleScope === 'all'
-              ? skus.length.toLocaleString()
-              : Math.min(sampleScope, skus.length)}{' '}
-            label
-            {(sampleScope === 'all' ? skus.length : sampleScope) === 1 ? '' : 's'}{' '}
-            ({formats.map((f) => f.toUpperCase()).join('+') || '—'})
+            <IconWand size={14} />{' '}
+            {t('generate.generateButton', {
+              count: labelCount,
+              formats: formats.map((f) => f.toUpperCase()).join('+') || '—',
+            })}
           </Button>
         </div>
       </div>
@@ -641,6 +658,8 @@ function PrereqChecklist({
   onGoToImport: () => void;
   onPickFolder: () => void;
 }) {
+  const { t } = useTranslation();
+  const brandName = brand?.name ?? t('generate.prereq.thisBrand');
   const items: Array<{
     ok: boolean;
     label: string;
@@ -648,42 +667,48 @@ function PrereqChecklist({
   }> = [
     {
       ok: !!brand,
-      label: brand ? `Brand: ${brand.name}` : 'No brand selected',
-      fix: !brand ? { label: 'Pick or create a brand', onClick: onGoToBrands } : undefined,
+      label: brand
+        ? t('generate.prereq.brandSelected', { name: brand.name })
+        : t('generate.prereq.brandNotSelected'),
+      fix: !brand
+        ? { label: t('generate.prereq.brandFix'), onClick: onGoToBrands }
+        : undefined,
     },
     {
       ok: brandHasTemplates && templateSelected,
       label: brandHasTemplates
         ? templateSelected
-          ? 'Template selected'
-          : 'Pick a template above'
-        : `${brand?.name ?? 'This brand'} has no templates yet`,
+          ? t('generate.prereq.templateSelected')
+          : t('generate.prereq.templatePickAbove')
+        : t('generate.prereq.brandHasNoTemplates', { name: brandName }),
       fix: !brandHasTemplates
-        ? { label: 'Create a template', onClick: onGoToTemplates }
+        ? { label: t('generate.prereq.templateFix'), onClick: onGoToTemplates }
         : undefined,
     },
     {
       ok: skuCount > 0,
       label:
         skuCount > 0
-          ? `${skuCount.toLocaleString()} SKU${skuCount === 1 ? '' : 's'} ready`
-          : `${brand?.name ?? 'This brand'} has no SKUs yet`,
+          ? t('generate.prereq.skuReady', { count: skuCount })
+          : t('generate.prereq.brandHasNoSkus', { name: brandName }),
       fix: skuCount === 0
-        ? { label: 'Import or add SKUs', onClick: onGoToImport }
+        ? { label: t('generate.prereq.skuFix'), onClick: onGoToImport }
         : undefined,
     },
     {
       ok: formatsCount > 0,
       label:
         formatsCount > 0
-          ? `${formatsCount} output format${formatsCount === 1 ? '' : 's'} chosen`
-          : 'No output format selected',
+          ? t('generate.prereq.formatsChosen', { count: formatsCount })
+          : t('generate.prereq.formatsNone'),
     },
     {
       ok: outputDirSet,
-      label: outputDirSet ? 'Save location set' : 'No save location chosen',
+      label: outputDirSet
+        ? t('generate.prereq.outputDirSet')
+        : t('generate.prereq.outputDirNone'),
       fix: !outputDirSet
-        ? { label: 'Pick a folder', onClick: onPickFolder }
+        ? { label: t('generate.prereq.outputDirFix'), onClick: onPickFolder }
         : undefined,
     },
   ];
@@ -696,8 +721,8 @@ function PrereqChecklist({
       <div className="mb-2 flex items-center gap-2 font-medium text-warning">
         <IconAlertCircle size={14} />
         {blockers.length === 1
-          ? "One thing still missing before we can generate"
-          : `${blockers.length} things still missing before we can generate`}
+          ? t('generate.prereq.missingOne')
+          : t('generate.prereq.missingMany', { count: blockers.length })}
       </div>
       <ul className="space-y-1.5">
         {items.map((i, idx) => (
@@ -748,6 +773,7 @@ function PreviewCanvas({
   row: Record<string, string>;
   brand: import('../../shared/types/brand').Brand | null;
 }) {
+  const { t } = useTranslation();
   // Light-weight HTML/CSS preview (same as designer). Real output uses Puppeteer.
   return (
     <div className="rounded-md border border-border-subtle bg-white p-4">
@@ -787,7 +813,10 @@ function PreviewCanvas({
         </div>
       </div>
       <div className="mt-2 text-center text-[10px] text-fg-subtle">
-        {template.width_mm}×{template.height_mm}mm preview (HTML — final output is rendered by Puppeteer)
+        {t('generate.preview.canvasFooter', {
+          w: template.width_mm,
+          h: template.height_mm,
+        })}
       </div>
     </div>
   );
@@ -822,6 +851,7 @@ function ProgressOverlay({
   onClose: () => void;
   outputDir: string;
 }) {
+  const { t } = useTranslation();
   const elapsed = Date.now() - startTime;
   const pct = progress ? Math.round((progress.index / progress.total) * 100) : summary ? 100 : 0;
   const rate =
@@ -837,15 +867,19 @@ function ProgressOverlay({
         {summary ? (
           <>
             <div className="flex items-center gap-2 text-sm font-semibold text-success">
-              <IconCheck size={18} /> Generation complete
+              <IconCheck size={18} /> {t('generate.progress.complete')}
             </div>
             <div className="mt-3 text-sm text-fg-base">
-              <strong>{summary.generated}</strong> file{summary.generated === 1 ? '' : 's'} generated of {summary.total} item{summary.total === 1 ? '' : 's'}.
+              {t('generate.progress.generated', {
+                generated: summary.generated,
+                total: summary.total,
+                count: summary.total,
+              })}
             </div>
             {summary.errors.length > 0 && (
               <details className="mt-2 text-xs text-fg-muted">
                 <summary className="cursor-pointer text-warning">
-                  {summary.errors.length} warning{summary.errors.length === 1 ? '' : 's'}
+                  {t('generate.progress.warnings', { count: summary.errors.length })}
                 </summary>
                 <ul className="mt-2 max-h-40 overflow-y-auto rounded border border-border-subtle p-2 font-mono">
                   {summary.errors.slice(0, 50).map((e, i) => (
@@ -862,20 +896,26 @@ function ProgressOverlay({
                 onClick={() => window.api.export.revealInFinder(outputDir)}
                 disabled={!outputDir}
               >
-                <IconFolder size={14} /> Open output folder
+                <IconFolder size={14} /> {t('generate.progress.openFolder')}
               </Button>
               <Button variant="primary" onClick={onClose}>
-                Done
+                {t('generate.progress.done')}
               </Button>
             </div>
           </>
         ) : (
           <>
-            <div className="text-sm font-semibold text-fg-base">Generating labels…</div>
+            <div className="text-sm font-semibold text-fg-base">
+              {t('generate.progress.title')}
+            </div>
             <div className="mt-1 text-xs text-fg-muted">
               {progress
-                ? `${progress.index} of ${progress.total} — ${progress.sku}`
-                : 'Starting…'}
+                ? t('generate.progress.indexOfTotal', {
+                    index: progress.index,
+                    total: progress.total,
+                    sku: progress.sku,
+                  })
+                : t('generate.progress.starting')}
             </div>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-bg-elevated">
               <div
@@ -884,13 +924,23 @@ function ProgressOverlay({
               />
             </div>
             <div className="mt-2 flex justify-between text-[10px] text-fg-subtle">
-              <span>Elapsed: {formatDuration(elapsed)}</span>
-              <span>{rate ? `${rate.toFixed(1)} /s` : ''}</span>
-              <span>{remaining ? `~${formatDuration(remaining * 1000)} left` : ''}</span>
+              <span>
+                {t('generate.progress.elapsed', { duration: formatDuration(elapsed) })}
+              </span>
+              <span>
+                {rate ? t('generate.progress.rate', { rate: rate.toFixed(1) }) : ''}
+              </span>
+              <span>
+                {remaining
+                  ? t('generate.progress.remaining', {
+                      duration: formatDuration(remaining * 1000),
+                    })
+                  : ''}
+              </span>
             </div>
             <div className="mt-4 flex items-center justify-end">
               <Button variant="ghost" onClick={onCancel}>
-                <IconX size={14} /> Cancel after current item
+                <IconX size={14} /> {t('generate.progress.cancel')}
               </Button>
             </div>
           </>

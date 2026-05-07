@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   IconPlus,
   IconMinus,
@@ -13,6 +14,7 @@ const SIZE_WARNING_AREA_MM2 = 400; // matches the default in SettingsService
 const ELEMENTS_WARNING_THRESHOLD = 6;
 
 export function BottomBar() {
+  const { t } = useTranslation();
   const zoom = useDesignerStore((s) => s.zoom);
   const setZoom = useDesignerStore((s) => s.setZoom);
   const snap = useDesignerStore((s) => s.snap);
@@ -51,7 +53,7 @@ export function BottomBar() {
 
   const zoomLabel =
     zoom === 'fit'
-      ? 'Fit'
+      ? t('designer.bottombar.fit')
       : zoom >= 1
         ? `${(zoom as number).toFixed((zoom as number) % 1 === 0 ? 0 : 1)}×`
         : `${Math.round((zoom as number) * 100)}%`;
@@ -69,7 +71,7 @@ export function BottomBar() {
           <button
             onClick={() => cycleZoom(-1)}
             className="rounded p-1 hover:bg-bg-hover hover:text-fg-base"
-            aria-label="Zoom out"
+            aria-label={t('designer.bottombar.zoomOut')}
           >
             <IconMinus size={14} />
           </button>
@@ -79,28 +81,28 @@ export function BottomBar() {
           <button
             onClick={() => cycleZoom(1)}
             className="rounded p-1 hover:bg-bg-hover hover:text-fg-base"
-            aria-label="Zoom in"
+            aria-label={t('designer.bottombar.zoomIn')}
           >
             <IconPlus size={14} />
           </button>
           <button
             onClick={() => setZoom('fit')}
             className="ml-1 flex items-center gap-1 rounded px-2 py-1 hover:bg-bg-hover hover:text-fg-base"
-            title="Fit to workspace"
+            title={t('designer.bottombar.fitTitle')}
           >
-            <IconArrowsMaximize size={12} /> Fit
+            <IconArrowsMaximize size={12} /> {t('designer.bottombar.fit')}
           </button>
           <button
             onClick={() => setPreviewOpen(true)}
             className="ml-1 flex items-center gap-1 rounded px-2 py-1 hover:bg-bg-hover hover:text-fg-base"
-            title="Show the sticker at 1:1 physical size"
+            title={t('designer.bottombar.actualSizeTitle')}
           >
-            <IconRulerMeasure size={12} /> Actual size
+            <IconRulerMeasure size={12} /> {t('designer.bottombar.actualSize')}
           </button>
           <span className="mx-2 h-4 w-px bg-border-base" />
           <label className="flex items-center gap-1.5">
             <input type="checkbox" checked={snap} onChange={toggleSnap} />
-            Snap (1mm)
+            {t('designer.bottombar.snap')}
           </label>
         </div>
 
@@ -108,18 +110,24 @@ export function BottomBar() {
           {sizeWarning && (
             <span
               className="flex items-center gap-1 text-warning"
-              title="This sticker is small and has many elements — some may be hard to read when printed."
+              title={t('designer.bottombar.tightLayoutTitle')}
             >
               <IconAlertTriangle size={12} />
-              Tight layout
+              {t('designer.bottombar.tightLayout')}
             </span>
           )}
           <span>
-            x: {cursor.x.toFixed(1)} mm, y: {cursor.y.toFixed(1)} mm
+            {t('designer.bottombar.cursor', {
+              x: cursor.x.toFixed(1),
+              y: cursor.y.toFixed(1),
+            })}
           </span>
           {selected && (
             <span>
-              W: {selected.width_mm.toFixed(1)} × H: {selected.height_mm.toFixed(1)} mm
+              {t('designer.bottombar.selectedSize', {
+                w: selected.width_mm.toFixed(1),
+                h: selected.height_mm.toFixed(1),
+              })}
             </span>
           )}
         </div>

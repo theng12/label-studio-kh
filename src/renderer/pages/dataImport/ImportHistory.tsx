@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export function ImportHistory() {
+  const { t } = useTranslation();
   const [imports, setImports] = useState<
     Awaited<ReturnType<typeof window.api.import.listImports>>
   >([]);
@@ -12,7 +14,7 @@ export function ImportHistory() {
   if (imports.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border-base p-8 text-center text-sm text-fg-muted">
-        No imports yet.
+        {t('dataImport.history.empty')}
       </div>
     );
   }
@@ -22,10 +24,10 @@ export function ImportHistory() {
       <table className="w-full text-xs">
         <thead className="bg-bg-elevated text-fg-muted">
           <tr>
-            <th className="px-2 py-1.5 text-left">Date</th>
-            <th className="px-2 py-1.5 text-left">File</th>
-            <th className="px-2 py-1.5 text-left">Brand ID</th>
-            <th className="px-2 py-1.5 text-right">Rows</th>
+            <th className="px-2 py-1.5 text-left">{t('dataImport.history.table.date')}</th>
+            <th className="px-2 py-1.5 text-left">{t('dataImport.history.table.file')}</th>
+            <th className="px-2 py-1.5 text-left">{t('dataImport.history.table.brandId')}</th>
+            <th className="px-2 py-1.5 text-right">{t('dataImport.history.table.rows')}</th>
           </tr>
         </thead>
         <tbody>

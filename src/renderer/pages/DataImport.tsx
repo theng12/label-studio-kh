@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Page } from '../components/Page';
 import { useBrandStore } from '../stores/brandStore';
 import { useImportStore } from '../stores/importStore';
@@ -10,6 +11,7 @@ import { ImportHistory } from './dataImport/ImportHistory';
 type DataTab = 'import' | 'manual' | 'lookup' | 'history';
 
 export default function DataImport() {
+  const { t } = useTranslation();
   const { brands, refresh } = useBrandStore();
   const im = useImportStore();
   const [tab, setTab] = useState<DataTab>('import');
@@ -23,25 +25,25 @@ export default function DataImport() {
   }, [brands, im]);
 
   return (
-    <Page title="Data & Import">
+    <Page title={t('dataImport.title')}>
       <div className="mb-4 flex gap-1 border-b border-border-base">
         <TabBtn active={tab === 'import'} onClick={() => setTab('import')}>
-          Import
+          {t('dataImport.tabs.import')}
         </TabBtn>
         <TabBtn active={tab === 'manual'} onClick={() => setTab('manual')}>
-          Manual entry
+          {t('dataImport.tabs.manual')}
         </TabBtn>
         <TabBtn active={tab === 'lookup'} onClick={() => setTab('lookup')}>
-          SKU lookup
+          {t('dataImport.tabs.lookup')}
         </TabBtn>
         <TabBtn active={tab === 'history'} onClick={() => setTab('history')}>
-          Import history
+          {t('dataImport.tabs.history')}
         </TabBtn>
       </div>
 
       {brands.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border-base p-12 text-center text-sm text-fg-muted">
-          Create a brand first on the Brands page.
+          {t('dataImport.noBrand')}
         </div>
       ) : tab === 'import' ? (
         <ImportFlow />
