@@ -52,6 +52,16 @@ export default function Generate() {
   const [summary, setSummary] = useState<BulkExportSummary | null>(null);
   const startTimeRef = useRef<number>(0);
 
+  // Scope of the bulk run: 'all' (default) or first-N for sample testing.
+  const [sampleScope, setSampleScope] = useState<'all' | 5 | 10 | 25 | 50>('all');
+
+  // After a single-row "Generate this one" run, show a small inline result.
+  const [singleResult, setSingleResult] = useState<{
+    file: string;
+    error?: string;
+  } | null>(null);
+  const [singleSaving, setSingleSaving] = useState(false);
+
   useEffect(() => {
     void refresh();
     void refreshSettings();
@@ -148,6 +158,36 @@ export default function Generate() {
     if (file) await window.api.export.openInOS(file);
   };
 
+  /**
+   * Generate just the currently-previewed row using the user's real export
+   * settings (formats, DPI, folder, naming pattern). Lets you smoke-test the
+   * pipeline on one item before committing to the full batch.
+   */
+  const onGenerateOne = async () => {
+    if (!template || !brand || !outputDir) return;
+    setSingleSaving(true);
+    setSingleResult(null);
+    try {
+      const r = await window.api.export.single({
+        template,
+        brand,
+        row: previewRow,
+        index: previewIdx + 1,
+        total: skus.length || 1,
+        settings,
+      });
+      const file = r.files[0];
+      setSingleResult({
+        file: file ?? '',
+        error: r.errors[0],
+      });
+    } catch (err) {
+      setSingleResult({ file: '', error: String(err) });
+    } finally {
+      setSingleSaving(false);
+    }
+  };
+
   const onGenerate = async () => {
     if (!template || !brand || skus.length === 0) return;
     const id = crypto.randomUUID();
@@ -160,7 +200,9 @@ export default function Generate() {
     const off = window.api.export.onProgress(id, (info) => setProgress(info));
 
     try {
-      const rows = skus.map(skuToRow);
+      const allRows = skus.map(skuToRow);
+      const rows =
+        sampleScope === 'all' ? allRows : allRows.slice(0, sampleScope);
       const result = await window.api.export.bulk({
         runId: id,
         template,
@@ -344,11 +386,71 @@ export default function Generate() {
                     Next <IconChevronRight size={14} />
                   </Button>
                 </div>
-                <div className="mt-2">
-                  <Button size="sm" variant="secondary" onClick={onPreviewFullSize} disabled={!brand || !template}>
+                <div className="mt-2 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={onPreviewFullSize}
+                    disabled={!brand || !template}
+                    title="Render this one row as a temporary PDF and open it in your default app"
+                  >
                     <IconExternalLink size={14} /> Preview as PDF
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={onGenerateOne}
+                    disabled={
+                      !brand ||
+                      !template ||
+                      !outputDir ||
+                      formats.length === 0 ||
+                      singleSaving
+                    }
+                    title="Save just this one label using your current Output settings (formats, DPI, folder)"
+                  >
+                    <IconWand size={14} />{' '}
+                    {singleSaving ? 'Generating…' : 'Generate this one'}
+                  </Button>
                 </div>
+                {singleResult && (
+                  <div
+                    className={[
+                      'mt-2 rounded-md border p-2 text-xs',
+                      singleResult.error
+                        ? 'border-danger/40 bg-danger/10 text-danger'
+                        : 'border-success/40 bg-success/10 text-fg-base',
+                    ].join(' ')}
+                  >
+                    {singleResult.error ? (
+                      <span>{singleResult.error}</span>
+                    ) : (
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate" title={singleResult.file}>
+                          Saved {singleResult.file.split('/').pop()}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1">
+                          <button
+                            onClick={() =>
+                              window.api.export.openInOS(singleResult.file)
+                            }
+                            className="rounded border border-border-base bg-bg-elevated px-1.5 py-0.5 text-[10px] hover:bg-bg-hover"
+                          >
+                            Open
+                          </button>
+                          <button
+                            onClick={() =>
+                              window.api.export.revealInFinder(singleResult.file)
+                            }
+                            className="rounded border border-border-base bg-bg-elevated px-1.5 py-0.5 text-[10px] hover:bg-bg-hover"
+                          >
+                            Reveal
+                          </button>
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <div className="text-sm text-fg-muted">Select a template to preview.</div>
@@ -370,6 +472,34 @@ export default function Generate() {
             />
           )}
 
+          {skus.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-fg-muted">
+              <span>Scope</span>
+              <select
+                value={String(sampleScope)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSampleScope(v === 'all' ? 'all' : (parseInt(v, 10) as 5 | 10 | 25 | 50));
+                }}
+                className="rounded-md border border-border-base bg-bg-surface px-2 py-1 text-xs"
+              >
+                <option value="all">
+                  All — {skus.length.toLocaleString()} label
+                  {skus.length === 1 ? '' : 's'}
+                </option>
+                <option value="5">First 5 (sample)</option>
+                <option value="10">First 10 (sample)</option>
+                <option value="25">First 25 (sample)</option>
+                <option value="50">First 50 (sample)</option>
+              </select>
+              {sampleScope !== 'all' && (
+                <span className="text-[10px] text-fg-subtle">
+                  Sample mode — only the first {sampleScope} rows will be exported
+                </span>
+              )}
+            </div>
+          )}
+
           <Button
             variant="primary"
             disabled={!canGenerate || running}
@@ -377,7 +507,12 @@ export default function Generate() {
             className="w-full"
             title={canGenerate ? '' : 'Some things still need to be set — see the checklist above.'}
           >
-            <IconWand size={14} /> Generate {skus.length} label{skus.length === 1 ? '' : 's'}{' '}
+            <IconWand size={14} /> Generate{' '}
+            {sampleScope === 'all'
+              ? skus.length.toLocaleString()
+              : Math.min(sampleScope, skus.length)}{' '}
+            label
+            {(sampleScope === 'all' ? skus.length : sampleScope) === 1 ? '' : 's'}{' '}
             ({formats.map((f) => f.toUpperCase()).join('+') || '—'})
           </Button>
         </div>
