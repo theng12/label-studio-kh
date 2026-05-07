@@ -78,11 +78,27 @@ export interface QRElement extends BaseElement {
   errorCorrection: 'L' | 'M' | 'Q' | 'H';
 }
 
+export type BrandField =
+  | 'address'
+  | 'phone'
+  | 'email'
+  | 'website'
+  | 'tagline'
+  | 'customerCareLabel';
+
 export interface TextElement extends BaseElement {
   type: 'text' | 'sku';
-  dataSource: 'static' | 'csv_column';
+  /**
+   * Where the text comes from at render time.
+   * - static: the staticText field below
+   * - csv_column: a value from the imported product row
+   * - brand_field: a field from the active brand (address, phone, etc.)
+   */
+  dataSource: 'static' | 'csv_column' | 'brand_field';
   staticText: string;
   csvColumn: string;
+  /** Which brand field to display when dataSource is 'brand_field'. */
+  brandField?: BrandField;
   fontSize: number;
   fontFamily: string;
   fontWeight: 'normal' | 'bold';

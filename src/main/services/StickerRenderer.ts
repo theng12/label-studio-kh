@@ -59,9 +59,28 @@ function escapeHtml(s: string): string {
 function resolveTextValue(
   el: Extract<TemplateElement, { type: 'text' | 'sku' }>,
   row: Record<string, string>,
+  brand: Brand | null,
 ): string {
   if (el.dataSource === 'csv_column') {
     return String(row[el.csvColumn] ?? '');
+  }
+  if (el.dataSource === 'brand_field') {
+    const f = el.brandField ?? 'address';
+    if (!brand) return '';
+    switch (f) {
+      case 'address':
+        return brand.address ?? '';
+      case 'phone':
+        return brand.phone ?? '';
+      case 'email':
+        return brand.email ?? '';
+      case 'website':
+        return brand.website ?? '';
+      case 'tagline':
+        return brand.tagline ?? '';
+      case 'customerCareLabel':
+        return brand.customerCareLabel ?? '';
+    }
   }
   return el.staticText;
 }
@@ -230,7 +249,7 @@ async function renderElement(
 
     case 'text':
     case 'sku': {
-      const raw = resolveTextValue(el, ctx.row);
+      const raw = resolveTextValue(el, ctx.row, ctx.brand);
       const text = truncate(raw, el.maxChars);
       const justify =
         el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start';

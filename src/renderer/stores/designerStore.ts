@@ -20,7 +20,12 @@ interface DesignerState {
   select: (ids: string[]) => void;
   toggleSelect: (id: string) => void;
 
-  addElement: (type: ElementType, x_mm: number, y_mm: number) => void;
+  addElement: (
+    type: ElementType,
+    x_mm: number,
+    y_mm: number,
+    overrides?: Partial<TemplateElement>,
+  ) => void;
   updateElement: (id: string, patch: Partial<TemplateElement>) => void;
   removeSelected: () => void;
   clearAllElements: () => void;
@@ -124,12 +129,13 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     });
   },
 
-  addElement: (type, x_mm, y_mm) => {
+  addElement: (type, x_mm, y_mm, overrides) => {
     const t = get().template;
     if (!t) return;
     const maxZ = t.elements.reduce((m, e) => Math.max(m, e.zIndex), 0);
     const el = {
       ...defaultElement(type),
+      ...(overrides ?? {}),
       id: uid(),
       x_mm,
       y_mm,

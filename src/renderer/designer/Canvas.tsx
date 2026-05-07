@@ -179,13 +179,28 @@ export function Canvas() {
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const type = e.dataTransfer.getData('application/x-lskh-element');
-    if (!type) return;
+    const raw = e.dataTransfer.getData('application/x-lskh-element');
+    if (!raw) return;
+    // Newer palette items ship a JSON spec ({ type, overrides }); older drags
+    // shipped just the type string. Handle both for forward/back safety.
+    let type: TemplateElement['type'];
+    let overrides: Partial<TemplateElement> | undefined;
+    try {
+      const parsed = JSON.parse(raw) as {
+        type: TemplateElement['type'];
+        overrides?: Partial<TemplateElement> | null;
+      };
+      type = parsed.type;
+      overrides = parsed.overrides ?? undefined;
+    } catch {
+      type = raw as TemplateElement['type'];
+    }
     const { x, y } = clientToMm(e.clientX, e.clientY);
     addElement(
-      type as TemplateElement['type'],
+      type,
       Math.max(0, snapMm(x - 5, snapOn)),
       Math.max(0, snapMm(y - 5, snapOn)),
+      overrides,
     );
   };
 

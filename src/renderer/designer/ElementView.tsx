@@ -1,10 +1,28 @@
-import type { TemplateElement } from '../../shared/types/template';
+import type { TemplateElement, BrandField } from '../../shared/types/template';
 import type { Brand } from '../../shared/types/brand';
 import { flagFromCode, formatPrice } from '../../shared/format';
 
 function localFileUrl(path: string): string {
   const segments = path.split('/').map(encodeURIComponent).join('/');
   return `lskh-file://${segments}`;
+}
+
+function brandFieldValue(brand: Brand | null | undefined, field: BrandField | undefined): string {
+  if (!brand) return '';
+  switch (field ?? 'address') {
+    case 'address':
+      return brand.address ?? '';
+    case 'phone':
+      return brand.phone ?? '';
+    case 'email':
+      return brand.email ?? '';
+    case 'website':
+      return brand.website ?? '';
+    case 'tagline':
+      return brand.tagline ?? '';
+    case 'customerCareLabel':
+      return brand.customerCareLabel ?? '';
+  }
 }
 
 function resolveLogoPath(
@@ -151,10 +169,17 @@ export function ElementView({
 
     case 'sku':
     case 'text': {
-      const text =
-        element.dataSource === 'static'
-          ? element.staticText
-          : `{${element.csvColumn || 'column'}}`;
+      let text: string;
+      if (element.dataSource === 'static') {
+        text = element.staticText;
+      } else if (element.dataSource === 'brand_field') {
+        // Show the live brand value when we have a brand; otherwise show a
+        // helpful placeholder so the box isn't blank in the designer.
+        const v = brandFieldValue(brand, element.brandField);
+        text = v || `{brand.${element.brandField ?? 'address'}}`;
+      } else {
+        text = `{${element.csvColumn || 'column'}}`;
+      }
       const multiline = element.type === 'text' && element.multiline === true;
       const verticalAlign = element.verticalAlign ?? 'top';
       return (

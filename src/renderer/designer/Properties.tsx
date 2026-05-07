@@ -270,17 +270,21 @@ function TypeSpecificFields({
               value={element.dataSource}
               onChange={(e) => {
                 onPatch({
-                  dataSource: e.target.value as 'static' | 'csv_column',
+                  dataSource: e.target.value as
+                    | 'static'
+                    | 'csv_column'
+                    | 'brand_field',
                 } as Partial<TemplateElement>);
                 onCommit();
               }}
               className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
             >
               <option value="static">Static text</option>
-              <option value="csv_column">From CSV column</option>
+              <option value="csv_column">From CSV column (per product)</option>
+              <option value="brand_field">From brand info (address, phone, …)</option>
             </select>
           </Field>
-          {element.dataSource === 'static' ? (
+          {element.dataSource === 'static' && (
             <Field
               label="Static text"
               hint={
@@ -303,7 +307,8 @@ function TypeSpecificFields({
                 ].join(' ')}
               />
             </Field>
-          ) : (
+          )}
+          {element.dataSource === 'csv_column' && (
             <Field label="CSV column">
               <input
                 value={element.csvColumn}
@@ -313,6 +318,36 @@ function TypeSpecificFields({
                 onBlur={onCommit}
                 className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
               />
+            </Field>
+          )}
+          {element.dataSource === 'brand_field' && (
+            <Field
+              label="Brand field"
+              hint="Pulls live from this brand's stored info. Edit on the brand and the labels update automatically."
+            >
+              <select
+                value={element.brandField ?? 'address'}
+                onChange={(e) => {
+                  onPatch({
+                    brandField: e.target.value as
+                      | 'address'
+                      | 'phone'
+                      | 'email'
+                      | 'website'
+                      | 'tagline'
+                      | 'customerCareLabel',
+                  } as Partial<TemplateElement>);
+                  onCommit();
+                }}
+                className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+              >
+                <option value="address">Address</option>
+                <option value="phone">Phone</option>
+                <option value="email">Email</option>
+                <option value="website">Website</option>
+                <option value="tagline">Tagline</option>
+                <option value="customerCareLabel">Customer care label</option>
+              </select>
             </Field>
           )}
           <div className="grid grid-cols-2 gap-2">

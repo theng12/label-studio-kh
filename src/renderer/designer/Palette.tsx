@@ -13,27 +13,62 @@ import {
   IconSquare,
   IconCurrencyDollar,
   IconWorld,
+  IconAddressBook,
   type Icon,
 } from '@tabler/icons-react';
-import type { ElementType } from '../../shared/types/template';
+import type {
+  ElementType,
+  TemplateElement,
+} from '../../shared/types/template';
 import { useDesignerStore } from '../stores/designerStore';
 
-const ITEMS: { type: ElementType; label: string; icon: Icon }[] = [
-  { type: 'logo', label: 'Logo', icon: IconBrandAbstract },
-  { type: 'barcode', label: 'Barcode', icon: IconBarcode },
-  { type: 'qr', label: 'QR code', icon: IconQrcode },
-  { type: 'sku', label: 'SKU', icon: IconHash },
-  { type: 'text', label: 'Text', icon: IconLetterT },
-  { type: 'price', label: 'Price', icon: IconCurrencyDollar },
-  { type: 'image', label: 'Image', icon: IconPhoto },
-  { type: 'colorbar', label: 'Color bar', icon: IconLayoutBottombar },
-  { type: 'strip', label: 'Strip box', icon: IconBorderHorizontal },
-  { type: 'cert', label: 'Cert badge', icon: IconRosette },
-  { type: 'divider', label: 'Divider', icon: IconSeparator },
-  { type: 'date', label: 'Date', icon: IconCalendar },
-  { type: 'country', label: 'Origin', icon: IconWorld },
-  { type: 'rect', label: 'Rectangle', icon: IconSquare },
+interface PaletteItem {
+  key: string;
+  label: string;
+  icon: Icon;
+  type: ElementType;
+  /** Optional overrides applied on top of the type's defaults. */
+  overrides?: Partial<TemplateElement>;
+}
+
+const ITEMS: PaletteItem[] = [
+  { key: 'logo', type: 'logo', label: 'Logo', icon: IconBrandAbstract },
+  { key: 'barcode', type: 'barcode', label: 'Barcode', icon: IconBarcode },
+  { key: 'qr', type: 'qr', label: 'QR code', icon: IconQrcode },
+  { key: 'sku', type: 'sku', label: 'SKU', icon: IconHash },
+  { key: 'text', type: 'text', label: 'Text', icon: IconLetterT },
+  { key: 'price', type: 'price', label: 'Price', icon: IconCurrencyDollar },
+  {
+    // 'Brand info' = a Text element pre-bound to the brand's address. Users
+    // can switch to phone / email / website / tagline / customer-care via the
+    // properties panel. Multiline by default since addresses usually wrap.
+    key: 'brandinfo',
+    type: 'text',
+    label: 'Brand info',
+    icon: IconAddressBook,
+    overrides: {
+      dataSource: 'brand_field',
+      brandField: 'address',
+      width_mm: 50,
+      height_mm: 14,
+      multiline: true,
+      lineHeight: 1.2,
+      verticalAlign: 'top',
+      fontSize: 7,
+      name: 'Brand info',
+    } as Partial<TemplateElement>,
+  },
+  { key: 'image', type: 'image', label: 'Image', icon: IconPhoto },
+  { key: 'colorbar', type: 'colorbar', label: 'Color bar', icon: IconLayoutBottombar },
+  { key: 'strip', type: 'strip', label: 'Strip box', icon: IconBorderHorizontal },
+  { key: 'cert', type: 'cert', label: 'Cert badge', icon: IconRosette },
+  { key: 'divider', type: 'divider', label: 'Divider', icon: IconSeparator },
+  { key: 'date', type: 'date', label: 'Date', icon: IconCalendar },
+  { key: 'country', type: 'country', label: 'Origin', icon: IconWorld },
+  { key: 'rect', type: 'rect', label: 'Rectangle', icon: IconSquare },
 ];
+
+const MIME = 'application/x-lskh-element';
 
 export function Palette() {
   const addElement = useDesignerStore((s) => s.addElement);
@@ -47,18 +82,22 @@ export function Palette() {
       <div className="grid grid-cols-2 gap-1">
         {ITEMS.map((item) => (
           <button
-            key={item.type}
+            key={item.key}
             draggable
-            onDragStart={(e) =>
-              e.dataTransfer.setData('application/x-lskh-element', item.type)
-            }
+            onDragStart={(e) => {
+              // Ship the whole spec so Canvas can apply overrides for items
+              // like 'Brand info' that are presets on top of a base type.
+              e.dataTransfer.setData(
+                MIME,
+                JSON.stringify({ type: item.type, overrides: item.overrides ?? null }),
+              );
+            }}
             onDoubleClick={() => {
               if (!template) return;
-              // place near top-left when added by double-click
-              addElement(item.type, 5, 5);
+              addElement(item.type, 5, 5, item.overrides);
             }}
             className="flex items-center gap-2 rounded-md border border-border-subtle bg-bg-base px-2 py-2 text-xs text-fg-base transition-colors hover:bg-bg-hover"
-            title={`Drag onto canvas, or double-click to place`}
+            title="Drag onto canvas, or double-click to place"
           >
             <item.icon size={16} stroke={1.75} />
             <span className="truncate">{item.label}</span>
@@ -71,3 +110,5 @@ export function Palette() {
     </div>
   );
 }
+
+export const PALETTE_MIME = MIME;
