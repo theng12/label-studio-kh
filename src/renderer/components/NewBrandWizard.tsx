@@ -1,9 +1,25 @@
 import { useState } from 'react';
-import { IconX, IconArrowLeft, IconArrowRight, IconCheck } from '@tabler/icons-react';
+import {
+  IconX,
+  IconArrowLeft,
+  IconArrowRight,
+  IconCheck,
+  IconUpload,
+  IconTrash,
+  IconPhoto,
+} from '@tabler/icons-react';
 import { Button } from './Button';
 import { Field, TextInput, TextArea, ColorInput } from './FormField';
 import { useBrandStore } from '../stores/brandStore';
 import type { Brand, NewBrandInput } from '../../shared/types/brand';
+
+// Convert an absolute filesystem path to the lskh-file:// URL the renderer
+// can use as an <img src>. The custom protocol is registered in main/index.ts.
+function localFileUrl(path: string): string {
+  // Encode each segment to handle spaces and special chars.
+  const segments = path.split('/').map(encodeURIComponent).join('/');
+  return `lskh-file://${segments}`;
+}
 
 const CATEGORIES = ['FMCG', 'Electronics', 'Hardware', 'Beauty', 'Other'] as const;
 const FONTS = ['NotoSans', 'Inter', 'System default'] as const;
@@ -81,14 +97,54 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const prev = () => setStep((s) => Math.max(s - 1, 0));
 
+  /**
+   * Copies any newly-picked files into the brand's permanent assets folder
+   * and rewrites the draft's logoPath / certBadges with the resolved paths.
+   * Files already saved on the brand pass through unchanged.
+   */
+  const finaliseAssets = async (
+    brandId: string,
+    original: { logo: string | null; certs: string[] },
+  ): Promise<{ logoPath: string | null; certBadges: string[] }> => {
+    let logoPath = draft.logoPath;
+    if (logoPath && logoPath !== original.logo) {
+      logoPath = await window.api.brand.importAsset(brandId, logoPath, 'logo');
+    }
+
+    const certBadges: string[] = [];
+    for (const c of draft.certBadges) {
+      if (original.certs.includes(c)) {
+        certBadges.push(c);
+      } else {
+        const imported = await window.api.brand.importAsset(brandId, c, 'cert');
+        certBadges.push(imported);
+      }
+    }
+
+    return { logoPath, certBadges };
+  };
+
   const submit = async () => {
     setSubmitting(true);
     try {
       if (isEdit && existing) {
-        await update(existing.id, draft);
+        // Edit: import any new files into the existing brand's assets folder,
+        // then write the patch in one update.
+        const assets = await finaliseAssets(existing.id, {
+          logo: existing.logoPath,
+          certs: existing.certBadges,
+        });
+        await update(existing.id, { ...draft, ...assets });
         onCreated(existing.id);
       } else {
-        const brand = await create(draft);
+        // Create: persist the brand first (we need its id to scope the asset
+        // folder), then import files, then patch the brand with the final
+        // permanent paths.
+        const brand = await create({ ...draft, logoPath: null, certBadges: [] });
+        const assets = await finaliseAssets(brand.id, { logo: null, certs: [] });
+        if (assets.logoPath || assets.certBadges.length > 0) {
+          await update(brand.id, assets);
+        }
         onCreated(brand.id);
       }
     } finally {
@@ -185,14 +241,14 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
 
           {step === 1 && (
             <div className="space-y-4">
-              <div className="rounded-lg border border-dashed border-border-base p-12 text-center">
-                <p className="text-sm text-fg-muted">
-                  Logo upload UI lands in the next iteration.
-                </p>
-                <p className="mt-1 text-xs text-fg-subtle">
-                  For now, you can skip this step. A placeholder will be shown on labels until you add one.
-                </p>
-              </div>
+              <LogoUpload
+                logoPath={draft.logoPath}
+                onChange={(path) => set({ logoPath: path })}
+              />
+              <p className="text-xs text-fg-subtle">
+                Optional. PNG, JPG, JPEG, SVG, or WEBP. Files are copied into
+                this brand's assets folder when you finish the wizard.
+              </p>
             </div>
           )}
 
@@ -273,14 +329,14 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
 
           {step === 4 && (
             <div className="space-y-4">
-              <div className="rounded-lg border border-dashed border-border-base p-12 text-center">
-                <p className="text-sm text-fg-muted">
-                  Certification badge upload lands in the next iteration.
-                </p>
-                <p className="mt-1 text-xs text-fg-subtle">
-                  You'll be able to upload TIS, ISO, or any custom certification badges.
-                </p>
-              </div>
+              <CertBadgesUpload
+                certBadges={draft.certBadges}
+                onChange={(certs) => set({ certBadges: certs })}
+              />
+              <p className="text-xs text-fg-subtle">
+                Optional. Upload TIS, ISO, or any other certification PNGs you
+                want to display on labels for this brand.
+              </p>
             </div>
           )}
 
@@ -301,6 +357,39 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
                 }
               />
               <ReviewRow label="Category" value={draft.category ?? '—'} />
+              <ReviewRow
+                label="Logo"
+                value={
+                  draft.logoPath ? (
+                    <img
+                      src={localFileUrl(draft.logoPath)}
+                      alt="Logo"
+                      className="h-6 w-6 rounded border border-border-base bg-white object-contain"
+                    />
+                  ) : (
+                    '—'
+                  )
+                }
+              />
+              <ReviewRow
+                label="Certifications"
+                value={
+                  draft.certBadges.length > 0 ? (
+                    <span className="flex items-center gap-1">
+                      {draft.certBadges.map((c, i) => (
+                        <img
+                          key={i}
+                          src={localFileUrl(c)}
+                          alt=""
+                          className="h-6 w-6 rounded border border-border-base bg-white object-contain"
+                        />
+                      ))}
+                    </span>
+                  ) : (
+                    '—'
+                  )
+                }
+              />
               <ReviewRow label="Tagline" value={draft.tagline || '—'} />
               <ReviewRow label="Established" value={draft.establishedYear || '—'} />
               <ReviewRow label="Default font" value={draft.defaultFont} />
@@ -347,6 +436,187 @@ function ReviewRow({ label, value }: { label: string; value: React.ReactNode }) 
     <div className="flex items-baseline justify-between gap-4 border-b border-border-subtle py-2">
       <span className="text-xs uppercase tracking-wide text-fg-subtle">{label}</span>
       <span className="text-sm text-fg-base">{value}</span>
+    </div>
+  );
+}
+
+// ── Logo upload ──────────────────────────────────────────────────────────────
+
+function LogoUpload({
+  logoPath,
+  onChange,
+}: {
+  logoPath: string | null;
+  onChange: (path: string | null) => void;
+}) {
+  const [drag, setDrag] = useState(false);
+
+  const onPick = async () => {
+    const path = await window.api.dialog.pickImage();
+    if (path) onChange(path);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDrag(false);
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const filePath = (file as File & { path?: string }).path;
+    if (!filePath) return;
+    onChange(filePath);
+  };
+
+  if (logoPath) {
+    return (
+      <div className="rounded-lg border border-border-base bg-bg-surface p-4">
+        <div className="flex items-center gap-4">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-white p-2">
+            <img
+              src={localFileUrl(logoPath)}
+              alt="Logo preview"
+              className="max-h-full max-w-full object-contain"
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-fg-base">Logo</div>
+            <div
+              className="mt-1 truncate text-xs text-fg-muted"
+              title={logoPath}
+            >
+              {logoPath.split('/').pop()}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" variant="secondary" onClick={onPick}>
+                <IconUpload size={14} /> Replace
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => onChange(null)}>
+                <IconTrash size={14} /> Remove
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDrag(true);
+      }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={onDrop}
+      className={[
+        'rounded-lg border-2 border-dashed p-10 text-center transition-colors',
+        drag ? 'border-accent bg-accent/5' : 'border-border-base bg-bg-surface',
+      ].join(' ')}
+    >
+      <IconPhoto size={28} className="mx-auto text-fg-subtle" />
+      <h3 className="mt-2 text-sm font-semibold text-fg-base">Drop a logo here</h3>
+      <p className="mx-auto mt-1 max-w-md text-xs text-fg-muted">
+        Or pick from your computer. Square or near-square images work best.
+      </p>
+      <div className="mt-3 inline-block">
+        <Button variant="primary" size="sm" onClick={onPick}>
+          <IconUpload size={14} /> Choose file…
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Cert badges upload ───────────────────────────────────────────────────────
+
+function CertBadgesUpload({
+  certBadges,
+  onChange,
+}: {
+  certBadges: string[];
+  onChange: (paths: string[]) => void;
+}) {
+  const [drag, setDrag] = useState(false);
+
+  const onPick = async () => {
+    const paths = await window.api.dialog.pickImages();
+    if (paths.length > 0) onChange([...certBadges, ...paths]);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDrag(false);
+    const paths: string[] = [];
+    for (const file of Array.from(e.dataTransfer.files)) {
+      const p = (file as File & { path?: string }).path;
+      if (p) paths.push(p);
+    }
+    if (paths.length > 0) onChange([...certBadges, ...paths]);
+  };
+
+  const removeAt = (i: number) => {
+    const next = certBadges.filter((_, idx) => idx !== i);
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDrag(true);
+        }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={onDrop}
+        className={[
+          'rounded-lg border-2 border-dashed p-8 text-center transition-colors',
+          drag ? 'border-accent bg-accent/5' : 'border-border-base bg-bg-surface',
+        ].join(' ')}
+      >
+        <IconPhoto size={24} className="mx-auto text-fg-subtle" />
+        <h3 className="mt-2 text-sm font-semibold text-fg-base">
+          Drop certification badges here
+        </h3>
+        <p className="mx-auto mt-1 max-w-md text-xs text-fg-muted">
+          Pick one or many. Each is added to the list below.
+        </p>
+        <div className="mt-3 inline-block">
+          <Button variant="primary" size="sm" onClick={onPick}>
+            <IconUpload size={14} /> Choose files…
+          </Button>
+        </div>
+      </div>
+
+      {certBadges.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
+          {certBadges.map((path, i) => (
+            <div
+              key={`${path}-${i}`}
+              className="group relative rounded-md border border-border-base bg-white p-2"
+            >
+              <div className="flex h-20 items-center justify-center">
+                <img
+                  src={localFileUrl(path)}
+                  alt=""
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+              <div
+                className="mt-1 truncate text-center text-[10px] text-fg-muted"
+                title={path}
+              >
+                {path.split('/').pop()}
+              </div>
+              <button
+                onClick={() => removeAt(i)}
+                title="Remove"
+                className="absolute right-1 top-1 rounded-full bg-bg-surface p-1 text-fg-muted opacity-0 shadow transition-opacity hover:text-danger group-hover:opacity-100"
+              >
+                <IconX size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

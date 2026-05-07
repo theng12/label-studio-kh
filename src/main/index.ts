@@ -1,5 +1,6 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, protocol, net } from 'electron';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { registerAppIpc } from './ipc/app';
 import { registerBrandIpc } from './ipc/brand';
 import { registerTemplateIpc } from './ipc/template';
@@ -10,6 +11,7 @@ import { registerFileIpc } from './ipc/file';
 import { registerSettingsIpc } from './ipc/settings';
 import { registerLicenseIpc } from './ipc/license';
 import { registerSkuIpc } from './ipc/sku';
+import { registerDialogIpc } from './ipc/dialog';
 import { shutdownBrowser } from './services/ExportService';
 import { closeDb } from './services/Database';
 import { DemoSeed } from './services/DemoSeed';
@@ -52,7 +54,27 @@ function createMainWindow(): BrowserWindow {
   return win;
 }
 
+// Allow the renderer to display local files via a custom protocol. Plain
+// file:// URLs are blocked by the renderer's CSP; this gives us a controlled
+// way to expose user-picked images and brand assets to <img src="..." />.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'lskh-file',
+    privileges: { secure: true, supportFetchAPI: true, stream: true, bypassCSP: true },
+  },
+]);
+
 app.whenReady().then(() => {
+  // Resolve lskh-file://<absolute-path-with-leading-slash> by stripping the
+  // scheme + host and serving the file directly.
+  protocol.handle('lskh-file', (request) => {
+    const url = new URL(request.url);
+    // Path starts with a leading "/"; on macOS this is already an absolute
+    // POSIX path. Decode to handle spaces and other URL-escaped chars.
+    const filePath = decodeURIComponent(url.pathname);
+    return net.fetch(pathToFileURL(filePath).toString());
+  });
+
   loadEnv();
   registerAppIpc();
   registerBrandIpc();
@@ -64,6 +86,7 @@ app.whenReady().then(() => {
   registerSettingsIpc();
   registerLicenseIpc();
   registerSkuIpc();
+  registerDialogIpc();
   try {
     DemoSeed.ensure();
   } catch (err) {

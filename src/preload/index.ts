@@ -72,6 +72,18 @@ const api = {
     update: (id: string, patch: Partial<NewBrandInput>): Promise<Brand | null> =>
       ipcRenderer.invoke('brand:update', id, patch),
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke('brand:delete', id),
+    importAsset: (
+      brandId: string,
+      sourcePath: string,
+      kind: 'logo' | 'cert',
+    ): Promise<string> =>
+      ipcRenderer.invoke('brand:importAsset', brandId, sourcePath, kind),
+    removeAsset: (filePath: string): Promise<boolean> =>
+      ipcRenderer.invoke('brand:removeAsset', filePath),
+  },
+  dialog: {
+    pickImage: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickImage'),
+    pickImages: (): Promise<string[]> => ipcRenderer.invoke('dialog:pickImages'),
   },
   template: {
     listForBrand: (brandId: string): Promise<Template[]> =>

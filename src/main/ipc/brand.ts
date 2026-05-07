@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { BrandService } from '../services/BrandService';
+import { AssetService } from '../services/AssetService';
 import type { NewBrandInput } from '@shared/types/brand';
 
 export function registerBrandIpc(): void {
@@ -10,4 +11,17 @@ export function registerBrandIpc(): void {
     BrandService.update(id, patch),
   );
   ipcMain.handle('brand:delete', (_e, id: string) => BrandService.delete(id));
+
+  // Copies a user-picked file into the brand's assets folder. Returns the new
+  // permanent path. Caller is responsible for storing it on the brand.
+  ipcMain.handle(
+    'brand:importAsset',
+    (_e, brandId: string, sourcePath: string, kind: 'logo' | 'cert') =>
+      AssetService.importFile(brandId, sourcePath, kind),
+  );
+
+  ipcMain.handle('brand:removeAsset', (_e, filePath: string) => {
+    AssetService.removeFile(filePath);
+    return true;
+  });
 }
