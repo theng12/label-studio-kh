@@ -1,4 +1,6 @@
-import { ipcMain, dialog } from 'electron';
+import { ipcMain, dialog, app } from 'electron';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   parseFile,
   autoMap,
@@ -22,6 +24,11 @@ export function registerImportIpc(): void {
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
+  });
+
+  ipcMain.handle('import:demoSamplePath', () => {
+    const p = join(app.getPath('userData'), 'demo-products.csv');
+    return existsSync(p) ? p : null;
   });
 
   ipcMain.handle('import:parseFile', (_e, path: string) => parseFile(path));

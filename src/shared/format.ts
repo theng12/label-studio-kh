@@ -2,6 +2,24 @@
 // engine (StickerRenderer). Keeping them here means the designer preview and
 // the printed output always match.
 
+// JsBarcode uses a different format-name spelling than our UI types. Translate
+// here so callers can pass the friendly name everywhere and we only need one
+// place to keep in sync with the JsBarcode option list.
+export type UiBarcodeFormat = 'EAN-13' | 'Code128' | 'Code39' | 'UPC-A';
+
+export function toJsBarcodeFormat(f: UiBarcodeFormat): string {
+  switch (f) {
+    case 'EAN-13':
+      return 'EAN13';
+    case 'Code128':
+      return 'CODE128';
+    case 'Code39':
+      return 'CODE39';
+    case 'UPC-A':
+      return 'UPC';
+  }
+}
+
 // Typographic conversions. The spec stores fontSize in points (a physical
 // unit). The canvas renders in CSS pixels at a zoom-dependent pxPerMm, so we
 // have to convert pt → mm → px to keep text proportionate as the user zooms.

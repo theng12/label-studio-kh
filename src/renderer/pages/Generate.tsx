@@ -15,6 +15,7 @@ import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 import { useBrandStore } from '../stores/brandStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useDefaultBrand } from '../hooks/useDefaultBrand';
 import { ElementView } from '../designer/ElementView';
 import { FilenamePatternInput } from '../components/FilenamePatternInput';
 import type { Template } from '../../shared/types/template';
@@ -35,7 +36,12 @@ export default function Generate() {
   const { brands, refresh } = useBrandStore();
   const appSettings = useSettingsStore((s) => s.settings);
   const refreshSettings = useSettingsStore((s) => s.refresh);
-  const [brandId, setBrandId] = useState<string>('');
+  const { visibleBrands, defaultBrandId, pickBrand } = useDefaultBrand();
+  const [brandId, setBrandIdState] = useState<string>('');
+  const setBrandId = (id: string) => {
+    setBrandIdState(id);
+    if (id) pickBrand(id);
+  };
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState<string>('');
   const [skus, setSkus] = useState<SkuRow[]>([]);
@@ -94,8 +100,9 @@ export default function Generate() {
   }, [appSettings]);
 
   useEffect(() => {
-    if (!brandId && brands.length > 0) setBrandId(brands[0]!.id);
-  }, [brands, brandId]);
+    if (!brandId && defaultBrandId) setBrandIdState(defaultBrandId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultBrandId]);
 
   useEffect(() => {
     if (!brandId) return;
@@ -244,7 +251,7 @@ export default function Generate() {
                 onChange={(e) => setBrandId(e.target.value)}
                 className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
               >
-                {brands.map((b) => (
+                {visibleBrands.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
                   </option>

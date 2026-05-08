@@ -81,7 +81,11 @@
       "messageLine1Post": " from disk — they stay where they are, but they'll no longer be linked to a brand in this app.",
       "messageLine2": "This cannot be undone.",
       "confirmLabel": "Delete brand",
-      "cancelLabel": "Keep it"
+      "cancelLabel": "Keep it",
+      "demoTitle": "Hide the demo brand?",
+      "demoMessage": "The demo brand is built-in and can't be deleted, but you can hide it from your library so it stops appearing in lists. You can bring it back any time from Settings.",
+      "demoConfirmLabel": "Hide demo brand",
+      "demoHidden": "Demo brand hidden. You can bring it back from Settings."
     }
   },
   "templates": {
@@ -341,6 +345,7 @@
         "title": "Drop a CSV or Excel file here",
         "hint": "Supported: .csv, .tsv, .xlsx, .xls — up to 50,000 rows. Standard column names are auto-detected; you'll be able to confirm the mapping next.",
         "browse": "Browse for file…",
+        "trySample": "Try sample data",
         "dontHave": "Don't have a file yet?",
         "templateExplain": "Download a CSV template with all standard columns and one example row. Required columns are sku, product_name, and brand; the rest are optional.",
         "downloadTemplate": "Download template"

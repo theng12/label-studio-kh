@@ -1,8 +1,9 @@
 import JsBarcode from 'jsbarcode';
 import { DOMImplementation, XMLSerializer } from '@xmldom/xmldom';
 import QRCode from 'qrcode';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { app } from 'electron';
 import type { Template, TemplateElement } from '@shared/types/template';
 import type { Brand } from '@shared/types/brand';
@@ -11,6 +12,8 @@ import {
   formatDate as fmtDate,
   formatPrice,
   parseDateLoose,
+  toJsBarcodeFormat,
+  type UiBarcodeFormat,
 } from '@shared/format';
 
 // Font loading: each entry maps a CSS family name → file under resources/fonts/.
@@ -30,6 +33,33 @@ const FONT_DEFS: Array<{ family: string; weight: 400 | 700; file: string }> = [
   { family: 'NotoSansJP', weight: 700, file: 'NotoSansJP-Bold.otf' },
 ];
 
+// Build a properly URL-encoded file:// URL from an absolute filesystem path.
+// Used for @font-face src values where Chromium loads the bytes itself.
+function fileUrl(p: string): string {
+  return pathToFileURL(p).href;
+}
+
+// Read a local image and return it as a base64 data: URL. Used for <img src>
+// values in the export pipeline because page.setContent() leaves the document
+// at about:blank, and Chromium's loader for <img> against file:// URLs from a
+// non-file:// document is unreliable across Puppeteer versions. Inlining the
+// bytes sidesteps the entire URL/origin problem. Returns '' if the file is
+// missing so the caller can render its "missing" placeholder.
+const IMG_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
+function embedLocalImage(p: string): string {
+  if (!p || !existsSync(p)) return '';
+  const mime = IMG_MIME[extname(p).toLowerCase()] ?? 'application/octet-stream';
+  const b64 = readFileSync(p).toString('base64');
+  return `data:${mime};base64,${b64}`;
+}
+
 function fontFaceCss(): string {
   // Resolve fonts dir at runtime: in dev, resources/fonts is at the project root.
   // In production it'll be inside the asar resources.
@@ -44,7 +74,7 @@ function fontFaceCss(): string {
     const format = def.file.endsWith('.otf') ? 'opentype' : 'truetype';
     blocks.push(
       `@font-face{font-family:'${def.family}';font-weight:${def.weight};` +
-        `font-style:normal;font-display:swap;src:url('file://${path}') format('${format}');}`,
+        `font-style:normal;font-display:swap;src:url('${fileUrl(path)}') format('${format}');}`,
     );
   }
   return blocks.join('\n');
@@ -160,7 +190,7 @@ function generateBarcodeSvg(value: string, format: string, color: string): strin
   try {
     // JsBarcode supports an undocumented `xmlDocument` option for non-browser environments.
     JsBarcode(svgNode as unknown as SVGSVGElement, value, {
-      format,
+      format: toJsBarcodeFormat(format as UiBarcodeFormat),
       displayValue: true,
       lineColor: color,
       background: '#FFFFFF',
@@ -228,10 +258,11 @@ async function renderElement(
       const logos = ctx.brand?.logos ?? [];
       const byId = el.logoId ? logos.find((l) => l.id === el.logoId) : null;
       const path = byId?.path ?? logos[0]?.path ?? ctx.brand?.logoPath ?? '';
-      if (!path) {
+      const src = embedLocalImage(path);
+      if (!src) {
         return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#f6f6f6;color:#999;font-size:8pt;">LOGO</div>`;
       }
-      return `<div style="${styleAttr}"><img src="file://${path}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
+      return `<div style="${styleAttr}"><img src="${src}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
     }
 
     case 'barcode': {
@@ -336,7 +367,11 @@ async function renderElement(
       if (!path) {
         return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#f8f8f8;color:#aaa;font-size:7pt;">IMG</div>`;
       }
-      const src = path.startsWith('/') ? `file://${path}` : path;
+      // Local fs paths get inlined; remote URLs (http/https/data:) pass through.
+      const src = path.startsWith('/') ? embedLocalImage(path) : path;
+      if (!src) {
+        return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#f8f8f8;color:#aaa;font-size:7pt;">IMG</div>`;
+      }
       return `<div style="${styleAttr}"><img src="${src}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
     }
 
@@ -361,10 +396,11 @@ async function renderElement(
     }
 
     case 'cert': {
-      if (!el.assetPath) {
+      const certSrc = embedLocalImage(el.assetPath);
+      if (!certSrc) {
         return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#fafafa;color:#aaa;font-size:6pt;">CERT</div>`;
       }
-      return `<div style="${styleAttr}"><img src="file://${el.assetPath}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
+      return `<div style="${styleAttr}"><img src="${certSrc}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
     }
 
     case 'divider': {

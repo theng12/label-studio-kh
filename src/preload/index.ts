@@ -138,6 +138,8 @@ const api = {
   },
   import: {
     pickFile: (): Promise<string | null> => ipcRenderer.invoke('import:pickFile'),
+    demoSamplePath: (): Promise<string | null> =>
+      ipcRenderer.invoke('import:demoSamplePath'),
     parseFile: (path: string): Promise<ParsedFile> =>
       ipcRenderer.invoke('import:parseFile', path),
     autoMap: (columns: string[]): Promise<ColumnMapping> =>
@@ -261,6 +263,7 @@ const api = {
       sizeWarningAreaMm2: number;
       hideDemoBrand: boolean;
       uiLanguage: string;
+      lastUsedBrandId: string | null;
     }> => ipcRenderer.invoke('settings:get'),
     set: (patch: Record<string, unknown>): Promise<unknown> =>
       ipcRenderer.invoke('settings:set', patch),

@@ -16,6 +16,7 @@ import { useBrandStore } from '../stores/brandStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { NewBrandWizard } from '../components/NewBrandWizard';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { toast } from '../components/Toast';
 import type { Brand } from '../../shared/types/brand';
 
 const FIRST_LAUNCH_HINT_KEY = 'brandsFirstLaunchHintDismissed';
@@ -32,6 +33,7 @@ export default function Brands() {
   const { brands, loading, refresh, remove } = useBrandStore();
   const settings = useSettingsStore((s) => s.settings);
   const refreshSettings = useSettingsStore((s) => s.refresh);
+  const setSettings = useSettingsStore((s) => s.set);
   const [wizard, setWizard] = useState<WizardState>({ mode: 'closed' });
   const [confirmDelete, setConfirmDelete] = useState<Brand | null>(null);
   const [query, setQuery] = useState('');
@@ -171,27 +173,43 @@ export default function Brands() {
 
       <ConfirmDialog
         open={!!confirmDelete}
-        title={t('brands.delete.title', {
-          name: confirmDelete?.name ?? t('brands.delete.fallbackName'),
-        })}
-        message={
-          <>
-            {t('brands.delete.messageLine1Pre')}
-            <strong>{t('brands.delete.messageLine1Strong')}</strong>
-            {t('brands.delete.messageLine1Post')}
-            <br />
-            <br />
-            {t('brands.delete.messageLine2')}
-          </>
+        title={
+          confirmDelete?.isDemo
+            ? t('brands.delete.demoTitle')
+            : t('brands.delete.title', {
+                name: confirmDelete?.name ?? t('brands.delete.fallbackName'),
+              })
         }
-        confirmLabel={t('brands.delete.confirmLabel')}
+        message={
+          confirmDelete?.isDemo ? (
+            <>{t('brands.delete.demoMessage')}</>
+          ) : (
+            <>
+              {t('brands.delete.messageLine1Pre')}
+              <strong>{t('brands.delete.messageLine1Strong')}</strong>
+              {t('brands.delete.messageLine1Post')}
+              <br />
+              <br />
+              {t('brands.delete.messageLine2')}
+            </>
+          )
+        }
+        confirmLabel={
+          confirmDelete?.isDemo
+            ? t('brands.delete.demoConfirmLabel')
+            : t('brands.delete.confirmLabel')
+        }
         cancelLabel={t('brands.delete.cancelLabel')}
         tone="danger"
         onConfirm={async () => {
-          if (confirmDelete) {
+          if (!confirmDelete) return;
+          if (confirmDelete.isDemo) {
+            await setSettings({ hideDemoBrand: true });
+            toast.success(t('brands.delete.demoHidden'));
+          } else {
             await remove(confirmDelete.id);
-            setConfirmDelete(null);
           }
+          setConfirmDelete(null);
         }}
         onCancel={() => setConfirmDelete(null)}
       />

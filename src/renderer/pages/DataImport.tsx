@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Page } from '../components/Page';
 import { useBrandStore } from '../stores/brandStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import { useDefaultBrand } from '../hooks/useDefaultBrand';
 import { useImportStore } from '../stores/importStore';
 import { ImportFlow } from './dataImport/ImportFlow';
 import { ManualEntry } from './dataImport/ManualEntry';
@@ -13,16 +15,19 @@ type DataTab = 'import' | 'manual' | 'lookup' | 'history';
 export default function DataImport() {
   const { t } = useTranslation();
   const { brands, refresh } = useBrandStore();
+  const refreshSettings = useSettingsStore((s) => s.refresh);
+  const { defaultBrandId } = useDefaultBrand();
   const im = useImportStore();
   const [tab, setTab] = useState<DataTab>('import');
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshSettings();
+  }, [refresh, refreshSettings]);
 
   useEffect(() => {
-    if (!im.brandId && brands.length > 0) im.setBrandId(brands[0]!.id);
-  }, [brands, im]);
+    if (!im.brandId && defaultBrandId) im.setBrandId(defaultBrandId);
+  }, [defaultBrandId, im]);
 
   return (
     <Page title={t('dataImport.title')}>

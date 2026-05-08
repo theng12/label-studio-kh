@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   IconFileImport,
@@ -7,9 +7,10 @@ import {
   IconCheck,
   IconX,
   IconDownload,
+  IconSparkles,
 } from '@tabler/icons-react';
 import { Button } from '../../components/Button';
-import { useBrandStore } from '../../stores/brandStore';
+import { useDefaultBrand } from '../../hooks/useDefaultBrand';
 import { useImportStore } from '../../stores/importStore';
 import { STANDARD_COLUMNS, REQUIRED_COLUMNS } from '../../../shared/types/import';
 import type { DedupAction } from '../../../shared/types/import';
@@ -17,7 +18,7 @@ import type { DedupAction } from '../../../shared/types/import';
 export function ImportFlow() {
   const { t } = useTranslation();
   const im = useImportStore();
-  const { brands } = useBrandStore();
+  const { visibleBrands, pickBrand } = useDefaultBrand();
 
   const stepNumber =
     im.step === 'pickFile'
@@ -34,10 +35,13 @@ export function ImportFlow() {
         <span className="text-xs text-fg-muted">{t('dataImport.import.intoBrand')}</span>
         <select
           value={im.brandId ?? ''}
-          onChange={(e) => im.setBrandId(e.target.value)}
+          onChange={(e) => {
+            im.setBrandId(e.target.value);
+            pickBrand(e.target.value);
+          }}
           className="rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm text-fg-base"
         >
-          {brands.map((b) => (
+          {visibleBrands.map((b) => (
             <option key={b.id} value={b.id}>
               {b.name}
             </option>
@@ -71,10 +75,19 @@ function StepPickFile() {
   const { t } = useTranslation();
   const im = useImportStore();
   const [drag, setDrag] = useState(false);
+  const [demoPath, setDemoPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    void window.api.import.demoSamplePath().then(setDemoPath);
+  }, []);
 
   const onPick = async () => {
     const path = await window.api.import.pickFile();
     if (path) await im.loadFile(path);
+  };
+
+  const onTrySample = async () => {
+    if (demoPath) await im.loadFile(demoPath);
   };
 
   const onDrop = async (e: React.DragEvent) => {
@@ -109,10 +122,18 @@ function StepPickFile() {
         <p className="mx-auto mt-1 max-w-md text-xs text-fg-muted">
           {t('dataImport.import.pickFile.hint')}
         </p>
-        <div className="mt-4 inline-block">
+        <div className="mt-4 inline-flex items-center gap-2">
           <Button variant="primary" onClick={onPick}>
             <IconFileSpreadsheet size={14} /> {t('dataImport.import.pickFile.browse')}
           </Button>
+          {demoPath && (
+            <button
+              onClick={onTrySample}
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-accent hover:bg-accent/10 transition-colors"
+            >
+              <IconSparkles size={14} /> {t('dataImport.import.pickFile.trySample')}
+            </button>
+          )}
         </div>
       </div>
 
