@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { Canvas } from '../designer/Canvas';
 import { Palette } from '../designer/Palette';
 import { Layers } from '../designer/Layers';
-import { Properties } from '../designer/Properties';
+import { Properties } from '../designer/properties';
 import { TopBar } from '../designer/TopBar';
 import { BottomBar } from '../designer/BottomBar';
 import { AlignmentToolbar } from '../designer/AlignmentToolbar';
