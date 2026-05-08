@@ -178,6 +178,24 @@
       "tightLayoutTitle": "This sticker is small and has many elements — some may be hard to read when printed.",
       "cursor": "x: {{x}} mm, y: {{y}} mm",
       "selectedSize": "W: {{w}} × H: {{h}} mm"
+    },
+    "toolbar": {
+      "label": "Alignment",
+      "centerOnCanvas": "Center on canvas",
+      "fillCanvas": "Fill canvas",
+      "alignLeft": "Align left edges",
+      "alignCenter": "Align horizontal centers",
+      "alignRight": "Align right edges",
+      "alignTop": "Align top edges",
+      "alignMiddle": "Align vertical centers",
+      "alignBottom": "Align bottom edges",
+      "distributeHorizontal": "Distribute horizontally",
+      "distributeVertical": "Distribute vertically",
+      "matchWidth": "Match width to first selected",
+      "matchHeight": "Match height to first selected",
+      "matchBoth": "Match width & height to first selected",
+      "needTwoOrMore": "Select 2+ elements",
+      "needThreeOrMore": "Select 3+ elements to distribute"
     }
   },
   "generate": {

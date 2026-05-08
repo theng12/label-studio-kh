@@ -178,6 +178,24 @@
       "tightLayoutTitle": "ស្ទីកគ័រនេះតូច និងមានធាតុច្រើន — ខ្លះអាចពិបាកអានពេលបោះពុម្ព។",
       "cursor": "x: {{x}} mm, y: {{y}} mm",
       "selectedSize": "ទទឹង: {{w}} × កម្ពស់: {{h}} mm"
+    },
+    "toolbar": {
+      "label": "តម្រឹម",
+      "centerOnCanvas": "ដាក់នៅកណ្តាលផ្ទាំង",
+      "fillCanvas": "បំពេញពេញផ្ទាំង",
+      "alignLeft": "តម្រឹមគែមឆ្វេង",
+      "alignCenter": "តម្រឹមកណ្តាលផ្ដេក",
+      "alignRight": "តម្រឹមគែមស្ដាំ",
+      "alignTop": "តម្រឹមគែមលើ",
+      "alignMiddle": "តម្រឹមកណ្តាលបញ្ឈរ",
+      "alignBottom": "តម្រឹមគែមក្រោម",
+      "distributeHorizontal": "ចែកចាយផ្ដេក",
+      "distributeVertical": "ចែកចាយបញ្ឈរ",
+      "matchWidth": "ផ្គូផ្គងទទឹងតាមធាតុដំបូង",
+      "matchHeight": "ផ្គូផ្គងកម្ពស់តាមធាតុដំបូង",
+      "matchBoth": "ផ្គូផ្គងទទឹង និងកម្ពស់តាមធាតុដំបូង",
+      "needTwoOrMore": "ជ្រើសរើសធាតុ ២+",
+      "needThreeOrMore": "ជ្រើសរើសធាតុ ៣+ ដើម្បីចែកចាយ"
     }
   },
   "generate": {

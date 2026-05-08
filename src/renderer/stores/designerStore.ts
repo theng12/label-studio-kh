@@ -6,6 +6,7 @@ export type Zoom = 'fit' | number;
 
 export type AlignMode = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
 export type DistributeAxis = 'horizontal' | 'vertical';
+export type MatchSizeAxis = 'width' | 'height' | 'both';
 
 /**
  * Anchor for bounding-box resizes. Identifies the corner/midpoint of the
@@ -99,6 +100,26 @@ interface DesignerState {
 
   alignSelected: (mode: AlignMode) => void;
   distributeSelected: (axis: DistributeAxis) => void;
+  /**
+   * Translate the selection's union bounding box so its center coincides with
+   * the canvas center. Internal layout is preserved (every selected element
+   * shifts by the same dx/dy). Skips locked elements. Works with 1+ selected.
+   */
+  centerSelectionOnCanvas: () => void;
+  /**
+   * Resize every selected element to fill the entire canvas (x=0, y=0,
+   * width=template.width_mm, height=template.height_mm). Skips locked
+   * elements. Works with 1+ selected.
+   */
+  fillToCanvas: () => void;
+  /**
+   * Apply the FIRST selected element's width/height/both to every other
+   * selected element. The "first" is the lowest-zIndex member of the current
+   * selection — the bottom of the visual stack — chosen because it's the
+   * most predictable reference in a multi-select. Skips locked targets.
+   * Requires 2+ selected.
+   */
+  matchSize: (axis: MatchSizeAxis) => void;
   /**
    * Scale every selected element relative to the union bounding box's anchor
    * (the opposite corner/edge of the dragged handle). Positions and sizes
@@ -511,6 +532,85 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       return axis === 'horizontal'
         ? ({ ...e, x_mm: p } as TemplateElement)
         : ({ ...e, y_mm: p } as TemplateElement);
+    });
+    set({
+      template: { ...t, elements, updatedAt: new Date().toISOString() },
+    });
+    get().pushHistory();
+  },
+
+  centerSelectionOnCanvas: () => {
+    const t = get().template;
+    if (!t) return;
+    const { selectedIds } = get();
+    if (selectedIds.length === 0) return;
+    const sel = t.elements.filter((e) => selectedIds.includes(e.id) && !e.locked);
+    if (sel.length === 0) return;
+    const bb = unionBounds(sel);
+    if (!bb) return;
+    const dx = (t.width_mm - bb.width) / 2 - bb.x;
+    const dy = (t.height_mm - bb.height) / 2 - bb.y;
+    if (dx === 0 && dy === 0) return;
+    const targetIds = new Set(sel.map((e) => e.id));
+    const elements = t.elements.map((e) =>
+      targetIds.has(e.id)
+        ? ({ ...e, x_mm: e.x_mm + dx, y_mm: e.y_mm + dy } as TemplateElement)
+        : e,
+    );
+    set({
+      template: { ...t, elements, updatedAt: new Date().toISOString() },
+    });
+    get().pushHistory();
+  },
+
+  fillToCanvas: () => {
+    const t = get().template;
+    if (!t) return;
+    const { selectedIds } = get();
+    if (selectedIds.length === 0) return;
+    const targetIds = new Set(
+      t.elements.filter((e) => selectedIds.includes(e.id) && !e.locked).map((e) => e.id),
+    );
+    if (targetIds.size === 0) return;
+    const elements = t.elements.map((e) =>
+      targetIds.has(e.id)
+        ? ({
+            ...e,
+            x_mm: 0,
+            y_mm: 0,
+            width_mm: t.width_mm,
+            height_mm: t.height_mm,
+          } as TemplateElement)
+        : e,
+    );
+    set({
+      template: { ...t, elements, updatedAt: new Date().toISOString() },
+    });
+    get().pushHistory();
+  },
+
+  matchSize: (axis) => {
+    const t = get().template;
+    if (!t) return;
+    const { selectedIds } = get();
+    if (selectedIds.length < 2) return;
+    // Take the bottom-most (lowest zIndex) selected as the source. Picking by
+    // zIndex makes the choice deterministic regardless of click order.
+    const sel = t.elements
+      .filter((e) => selectedIds.includes(e.id))
+      .sort((a, b) => a.zIndex - b.zIndex);
+    const source = sel[0];
+    if (!source) return;
+    const targetIds = new Set(
+      sel.slice(1).filter((e) => !e.locked).map((e) => e.id),
+    );
+    if (targetIds.size === 0) return;
+    const elements = t.elements.map((e) => {
+      if (!targetIds.has(e.id)) return e;
+      const next = { ...e } as TemplateElement;
+      if (axis === 'width' || axis === 'both') next.width_mm = source.width_mm;
+      if (axis === 'height' || axis === 'both') next.height_mm = source.height_mm;
+      return next;
     });
     set({
       template: { ...t, elements, updatedAt: new Date().toISOString() },
