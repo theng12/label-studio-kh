@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   IconX,
   IconArrowLeft,
@@ -9,6 +10,7 @@ import {
   IconPhoto,
 } from '@tabler/icons-react';
 import { Button } from './Button';
+import { ConfirmDialog } from './ConfirmDialog';
 import { Field, TextInput, TextArea, ColorInput } from './FormField';
 import { useBrandStore } from '../stores/brandStore';
 import type { Brand, BrandLogo, NewBrandInput } from '../../shared/types/brand';
@@ -83,12 +85,31 @@ function brandToDraft(b: Brand): NewBrandInput {
   };
 }
 
+const IDENTITY_STEP = STEPS.findIndex((s) => s.key === 'identity');
+
+// Fields populated across the Identity and Contact steps. If every one is
+// empty/whitespace at save time, "Brand info" elements on labels will render
+// blank — so we surface a soft warning before persisting.
+function hasEmptyBrandInfo(draft: NewBrandInput): boolean {
+  const fields = [
+    draft.website,
+    draft.address,
+    draft.phone,
+    draft.email,
+    draft.tagline,
+    draft.establishedYear,
+  ];
+  return fields.every((v) => !v || v.trim() === '');
+}
+
 export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
+  const { t } = useTranslation();
   const create = useBrandStore((s) => s.create);
   const update = useBrandStore((s) => s.update);
   const isEdit = !!existing;
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [emptyInfoWarning, setEmptyInfoWarning] = useState(false);
   const [draft, setDraft] = useState<NewBrandInput>(() =>
     existing ? brandToDraft(existing) : DEFAULT_DRAFT,
   );
@@ -150,7 +171,15 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
     };
   };
 
-  const submit = async () => {
+  const onSaveClick = () => {
+    if (hasEmptyBrandInfo(draft)) {
+      setEmptyInfoWarning(true);
+      return;
+    }
+    void performSave();
+  };
+
+  const performSave = async () => {
     setSubmitting(true);
     try {
       if (isEdit && existing) {
@@ -474,7 +503,7 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
               Next <IconArrowRight size={14} />
             </Button>
           ) : (
-            <Button variant="primary" disabled={submitting} onClick={submit}>
+            <Button variant="primary" disabled={submitting} onClick={onSaveClick}>
               {submitting
                 ? isEdit
                   ? 'Saving…'
@@ -486,6 +515,23 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
           )}
         </div>
       </footer>
+
+      <ConfirmDialog
+        open={emptyInfoWarning}
+        tone="warning"
+        title={t('brands.wizard.emptyInfoWarning.title')}
+        message={t('brands.wizard.emptyInfoWarning.message')}
+        confirmLabel={t('brands.wizard.emptyInfoWarning.confirmLabel')}
+        cancelLabel={t('brands.wizard.emptyInfoWarning.cancelLabel')}
+        onConfirm={() => {
+          setEmptyInfoWarning(false);
+          void performSave();
+        }}
+        onCancel={() => {
+          setEmptyInfoWarning(false);
+          setStep(IDENTITY_STEP);
+        }}
+      />
     </div>
   );
 }

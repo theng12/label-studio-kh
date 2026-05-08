@@ -86,6 +86,14 @@
       "demoMessage": "The demo brand is built-in and can't be deleted, but you can hide it from your library so it stops appearing in lists. You can bring it back any time from Settings.",
       "demoConfirmLabel": "Hide demo brand",
       "demoHidden": "Demo brand hidden. You can bring it back from Settings."
+    },
+    "wizard": {
+      "emptyInfoWarning": {
+        "title": "No brand info filled in",
+        "message": "You haven't filled in any contact or identity info (website, address, phone, email, tagline, established year). \"Brand info\" elements on your labels will render blank. Save anyway?",
+        "confirmLabel": "Save anyway",
+        "cancelLabel": "Go back"
+      }
     }
   },
   "templates": {
