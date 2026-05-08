@@ -138,6 +138,8 @@ const api = {
   },
   import: {
     pickFile: (): Promise<string | null> => ipcRenderer.invoke('import:pickFile'),
+    demoSamplePath: (): Promise<string | null> =>
+      ipcRenderer.invoke('import:demoSamplePath'),
     parseFile: (path: string): Promise<ParsedFile> =>
       ipcRenderer.invoke('import:parseFile', path),
     autoMap: (columns: string[]): Promise<ColumnMapping> =>

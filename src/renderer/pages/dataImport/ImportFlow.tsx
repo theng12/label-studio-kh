@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   IconFileImport,
@@ -7,6 +7,7 @@ import {
   IconCheck,
   IconX,
   IconDownload,
+  IconSparkles,
 } from '@tabler/icons-react';
 import { Button } from '../../components/Button';
 import { useBrandStore } from '../../stores/brandStore';
@@ -71,10 +72,19 @@ function StepPickFile() {
   const { t } = useTranslation();
   const im = useImportStore();
   const [drag, setDrag] = useState(false);
+  const [demoPath, setDemoPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    void window.api.import.demoSamplePath().then(setDemoPath);
+  }, []);
 
   const onPick = async () => {
     const path = await window.api.import.pickFile();
     if (path) await im.loadFile(path);
+  };
+
+  const onTrySample = async () => {
+    if (demoPath) await im.loadFile(demoPath);
   };
 
   const onDrop = async (e: React.DragEvent) => {
@@ -109,10 +119,18 @@ function StepPickFile() {
         <p className="mx-auto mt-1 max-w-md text-xs text-fg-muted">
           {t('dataImport.import.pickFile.hint')}
         </p>
-        <div className="mt-4 inline-block">
+        <div className="mt-4 inline-flex items-center gap-2">
           <Button variant="primary" onClick={onPick}>
             <IconFileSpreadsheet size={14} /> {t('dataImport.import.pickFile.browse')}
           </Button>
+          {demoPath && (
+            <button
+              onClick={onTrySample}
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-accent hover:bg-accent/10 transition-colors"
+            >
+              <IconSparkles size={14} /> {t('dataImport.import.pickFile.trySample')}
+            </button>
+          )}
         </div>
       </div>
 

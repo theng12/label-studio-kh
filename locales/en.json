@@ -341,6 +341,7 @@
         "title": "Drop a CSV or Excel file here",
         "hint": "Supported: .csv, .tsv, .xlsx, .xls — up to 50,000 rows. Standard column names are auto-detected; you'll be able to confirm the mapping next.",
         "browse": "Browse for file…",
+        "trySample": "Try sample data",
         "dontHave": "Don't have a file yet?",
         "templateExplain": "Download a CSV template with all standard columns and one example row. Required columns are sku, product_name, and brand; the rest are optional.",
         "downloadTemplate": "Download template"
