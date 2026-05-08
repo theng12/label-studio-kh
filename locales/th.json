@@ -80,7 +80,7 @@
       "messageLine1Pre": "This removes the brand from your library. ",
       "messageLine1Strong": "Templates and generated label files for this brand are not deleted",
       "messageLine1Post": " from disk — they stay where they are, but they'll no longer be linked to a brand in this app.",
-      "messageLine2": "This cannot be undone.",
+      "messageLine2": "You can undo this from the toast that appears.",
       "confirmLabel": "Delete brand",
       "cancelLabel": "Keep it"
     }

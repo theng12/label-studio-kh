@@ -86,6 +86,8 @@ const api = {
     update: (id: string, patch: Partial<NewBrandInput>): Promise<Brand | null> =>
       ipcRenderer.invoke('brand:update', id, patch),
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke('brand:delete', id),
+    restore: (id: string): Promise<Brand | null> =>
+      ipcRenderer.invoke('brand:restore', id),
     importAsset: (
       brandId: string,
       sourcePath: string,
@@ -220,6 +222,8 @@ const api = {
     distinctSizes: (): Promise<string[]> => ipcRenderer.invoke('file:distinctSizes'),
     delete: (id: string, alsoFromDisk: boolean): Promise<boolean> =>
       ipcRenderer.invoke('file:delete', id, alsoFromDisk),
+    restore: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke('file:restore', id),
     reprint: (
       id: string,
     ): Promise<{ files: string[]; errors: string[] } | null> =>

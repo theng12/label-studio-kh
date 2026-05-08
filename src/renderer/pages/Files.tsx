@@ -11,6 +11,7 @@ import {
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { toast } from '../components/Toast';
 import { useBrandStore } from '../stores/brandStore';
 
 type FileEntry = Awaited<ReturnType<typeof window.api.files.list>>[number];
@@ -153,16 +154,34 @@ export default function Files() {
     await reload();
   };
 
+  const restoreFiles = async (ids: string[]) => {
+    let restored = 0;
+    for (const id of ids) {
+      try {
+        const ok = await window.api.files.restore(id);
+        if (ok) restored++;
+      } catch (err) {
+        console.error('Restore failed for', id, err);
+      }
+    }
+    await reload();
+    if (restored > 0) {
+      toast.success(`Restored ${restored} file${restored === 1 ? '' : 's'}.`);
+    }
+  };
+
   const onBulkDeleteConfirmed = async () => {
     setConfirmBulkDelete(false);
     if (selectedFiles.length === 0) return;
     setBulkProgress({ kind: 'delete', done: 0, total: selectedFiles.length });
     const failed = new Set<string>();
+    const succeeded: string[] = [];
     for (let i = 0; i < selectedFiles.length; i++) {
       const f = selectedFiles[i];
       try {
         const ok = await window.api.files.delete(f.id, true);
-        if (!ok) failed.add(f.id);
+        if (ok) succeeded.push(f.id);
+        else failed.add(f.id);
       } catch (err) {
         console.error('Delete failed for', f.id, err);
         failed.add(f.id);
@@ -176,6 +195,19 @@ export default function Files() {
       alert(`Failed to delete ${failed.size} file(s). They remain selected.`);
     }
     await reload();
+    if (succeeded.length > 0) {
+      toast.info(
+        `Deleted ${succeeded.length} file${succeeded.length === 1 ? '' : 's'}.`,
+        {
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              void restoreFiles(succeeded);
+            },
+          },
+        },
+      );
+    }
   };
 
   const filterBrandName =
@@ -454,7 +486,8 @@ export default function Files() {
         message={
           <>
             Removes this entry from the file index. The file on disk will{' '}
-            <strong>also be deleted</strong> if you confirm.
+            <strong>also be deleted</strong> if you confirm. You can undo this
+            from the toast that appears.
             <br />
             <br />
             <code className="break-all rounded bg-bg-elevated px-1 py-0.5 text-[10px]">
@@ -467,9 +500,20 @@ export default function Files() {
         tone="danger"
         onConfirm={async () => {
           if (confirmDelete) {
-            await window.api.files.delete(confirmDelete.id, true);
+            const target = confirmDelete;
+            const ok = await window.api.files.delete(target.id, true);
             setConfirmDelete(null);
             await reload();
+            if (ok) {
+              toast.info(`Deleted ${filenameOf(target.file_path)}.`, {
+                action: {
+                  label: 'Undo',
+                  onClick: () => {
+                    void restoreFiles([target.id]);
+                  },
+                },
+              });
+            }
           }
         }}
         onCancel={() => setConfirmDelete(null)}
@@ -481,8 +525,8 @@ export default function Files() {
         message={
           <>
             Removes <strong>{selected.size}</strong> entries from the file index.
-            The files on disk will <strong>also be deleted</strong>. This cannot
-            be undone.
+            The files on disk will <strong>also be deleted</strong>. You can undo
+            this from the toast that appears.
           </>
         }
         confirmLabel={`Delete ${selected.size} file${selected.size === 1 ? '' : 's'}`}

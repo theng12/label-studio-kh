@@ -5,7 +5,7 @@ import { mkdirSync, existsSync } from 'node:fs';
 
 let _db: Database.Database | null = null;
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -70,7 +70,8 @@ CREATE TABLE IF NOT EXISTS generations (
   template_snapshot TEXT,
   data_snapshot     TEXT,
   brand_snapshot    TEXT,
-  created_at   TEXT NOT NULL
+  created_at   TEXT NOT NULL,
+  deleted_at   TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_generations_sku ON generations(sku);
@@ -109,6 +110,18 @@ export function getDb(): Database.Database {
     _db
       .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
       .run('2', 'version');
+    row.value = '2';
+  }
+  if (row?.value === '2') {
+    // v2 → v3: deleted_at column for soft-delete + undo in File Manager.
+    try {
+      _db.exec('ALTER TABLE generations ADD COLUMN deleted_at TEXT');
+    } catch (e) {
+      if (!String(e).includes('duplicate column name')) throw e;
+    }
+    _db
+      .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
+      .run('3', 'version');
   }
 
   return _db;

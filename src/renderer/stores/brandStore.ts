@@ -10,6 +10,7 @@ interface BrandState {
   create: (input: NewBrandInput) => Promise<Brand>;
   update: (id: string, patch: Partial<NewBrandInput>) => Promise<Brand | null>;
   remove: (id: string) => Promise<boolean>;
+  restore: (id: string) => Promise<Brand | null>;
 }
 
 export const useBrandStore = create<BrandState>((set, get) => ({
@@ -54,12 +55,44 @@ export const useBrandStore = create<BrandState>((set, get) => ({
   },
 
   remove: async (id) => {
+    // Snapshot the brand before the destructive call so the toast's Undo
+    // closure has a name to show even if the list state has moved on.
+    const target = get().brands.find((b) => b.id === id) ?? null;
     try {
       const ok = await window.api.brand.delete(id);
-      if (ok) set({ brands: get().brands.filter((b) => b.id !== id) });
-      return ok;
+      if (!ok) return false;
+      set({ brands: get().brands.filter((b) => b.id !== id) });
+      const name = target?.name ?? 'Brand';
+      toast.info(`Brand "${name}" deleted.`, {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            void get().restore(id);
+          },
+        },
+      });
+      return true;
     } catch (err) {
       toast.error(`Couldn't delete brand: ${String(err)}`);
+      throw err;
+    }
+  },
+
+  restore: async (id) => {
+    try {
+      const restored = await window.api.brand.restore(id);
+      if (restored) {
+        const exists = get().brands.some((b) => b.id === restored.id);
+        set({
+          brands: exists
+            ? get().brands.map((b) => (b.id === restored.id ? restored : b))
+            : [...get().brands, restored],
+        });
+        toast.success(`Brand "${restored.name}" restored.`);
+      }
+      return restored;
+    } catch (err) {
+      toast.error(`Couldn't restore brand: ${String(err)}`);
       throw err;
     }
   },

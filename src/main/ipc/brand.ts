@@ -11,6 +11,7 @@ export function registerBrandIpc(): void {
     BrandService.update(id, patch),
   );
   ipcMain.handle('brand:delete', (_e, id: string) => BrandService.delete(id));
+  ipcMain.handle('brand:restore', (_e, id: string) => BrandService.restore(id));
 
   // Copies a user-picked file into the brand's assets folder. Returns the new
   // permanent path. Caller is responsible for storing it on the brand.

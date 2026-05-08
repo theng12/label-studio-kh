@@ -24,7 +24,7 @@ function migrateBrand(brand: Brand): Brand {
   return { ...brand, logos: [] };
 }
 
-function readBrands(): Brand[] {
+function readAll(): Brand[] {
   const file = paths.brandsFile();
   if (!existsSync(file)) return [];
   try {
@@ -38,7 +38,7 @@ function readBrands(): Brand[] {
   }
 }
 
-function writeBrands(brands: Brand[]): void {
+function writeAll(brands: Brand[]): void {
   const file = paths.brandsFile();
   paths.ensure(dirname(file));
   writeFileSync(file, JSON.stringify({ brands }, null, 2), 'utf8');
@@ -46,15 +46,16 @@ function writeBrands(brands: Brand[]): void {
 
 export const BrandService = {
   list(): Brand[] {
-    return readBrands();
+    return readAll().filter((b) => !b.deletedAt);
   },
 
   get(id: string): Brand | null {
-    return readBrands().find((b) => b.id === id) ?? null;
+    const b = readAll().find((b) => b.id === id);
+    return b && !b.deletedAt ? b : null;
   },
 
   create(input: NewBrandInput): Brand {
-    const brands = readBrands();
+    const brands = readAll();
     const brand: Brand = {
       ...input,
       id: randomUUID(),
@@ -62,27 +63,57 @@ export const BrandService = {
       updatedAt: nowIso(),
     };
     brands.push(brand);
-    writeBrands(brands);
+    writeAll(brands);
     return brand;
   },
 
   update(id: string, patch: Partial<NewBrandInput>): Brand | null {
-    const brands = readBrands();
+    const brands = readAll();
     const i = brands.findIndex((b) => b.id === id);
-    if (i < 0) return null;
+    if (i < 0 || brands[i]!.deletedAt) return null;
     const updated: Brand = { ...brands[i]!, ...patch, id, updatedAt: nowIso() };
     brands[i] = updated;
-    writeBrands(brands);
+    writeAll(brands);
     return updated;
   },
 
+  /**
+   * Soft-delete: marks the brand with `deletedAt` so it disappears from `list()`
+   * but stays around for undo. The next app start purges it permanently.
+   */
   delete(id: string): boolean {
-    const brands = readBrands();
-    const target = brands.find((b) => b.id === id);
-    if (!target) return false;
+    const brands = readAll();
+    const i = brands.findIndex((b) => b.id === id);
+    if (i < 0) return false;
+    const target = brands[i]!;
     if (target.isDemo) return false; // demo brand can be hidden, never deleted
-    const next = brands.filter((b) => b.id !== id);
-    writeBrands(next);
+    if (target.deletedAt) return true; // already soft-deleted
+    brands[i] = { ...target, deletedAt: nowIso(), updatedAt: nowIso() };
+    writeAll(brands);
     return true;
+  },
+
+  restore(id: string): Brand | null {
+    const brands = readAll();
+    const i = brands.findIndex((b) => b.id === id);
+    if (i < 0) return null;
+    const target = brands[i]!;
+    if (!target.deletedAt) return target;
+    const restored: Brand = { ...target, deletedAt: null, updatedAt: nowIso() };
+    brands[i] = restored;
+    writeAll(brands);
+    return restored;
+  },
+
+  /**
+   * Hard-delete any brand with a `deletedAt` tombstone. Called once at app
+   * start so undo only works within the session that triggered the delete.
+   */
+  purgeDeleted(): number {
+    const brands = readAll();
+    const kept = brands.filter((b) => !b.deletedAt);
+    if (kept.length === brands.length) return 0;
+    writeAll(kept);
+    return brands.length - kept.length;
   },
 };

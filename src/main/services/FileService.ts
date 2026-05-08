@@ -31,10 +31,14 @@ export interface FileFilters {
   batchId?: string;
 }
 
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
 export const FileService = {
   list(filters: FileFilters, limit = 500): FileEntry[] {
     const db = getDb();
-    const where: string[] = [];
+    const where: string[] = ['deleted_at IS NULL'];
     const params: Array<string | number> = [];
 
     if (filters.query) {
@@ -68,7 +72,7 @@ export const FileService = {
 
     const sql = `SELECT id, batch_id, sku, brand_id, template_id, format, dpi, size_label, file_path, file_size, created_at
                  FROM generations
-                 ${where.length > 0 ? 'WHERE ' + where.join(' AND ') : ''}
+                 WHERE ${where.join(' AND ')}
                  ORDER BY created_at DESC
                  LIMIT ${limit}`;
 
@@ -99,27 +103,74 @@ export const FileService = {
   distinctSizes(): string[] {
     const db = getDb();
     const rows = db
-      .prepare(`SELECT DISTINCT size_label FROM generations ORDER BY size_label`)
+      .prepare(
+        `SELECT DISTINCT size_label FROM generations WHERE deleted_at IS NULL ORDER BY size_label`,
+      )
       .all() as Array<{ size_label: string }>;
     return rows.map((r) => r.size_label);
   },
 
-  delete(id: string, alsoFromDisk: boolean): boolean {
+  /**
+   * Soft-delete: tombstones the row so it disappears from `list()`. The file on
+   * disk is left in place so an undo can restore the entry without re-rendering.
+   * `purgeDeleted()` (run at app start) is what actually removes the file and
+   * the row.
+   *
+   * `alsoFromDisk` is retained for IPC compatibility — disk removal now always
+   * happens at purge time, so the flag has no immediate effect.
+   */
+  delete(id: string, _alsoFromDisk: boolean): boolean {
     const db = getDb();
     const row = db
-      .prepare(`SELECT file_path FROM generations WHERE id = ?`)
-      .get(id) as { file_path: string } | undefined;
+      .prepare(
+        `SELECT id, deleted_at FROM generations WHERE id = ?`,
+      )
+      .get(id) as { id: string; deleted_at: string | null } | undefined;
     if (!row) return false;
-
-    if (alsoFromDisk) {
-      try {
-        if (existsSync(row.file_path)) unlinkSync(row.file_path);
-      } catch (err) {
-        console.error('Failed to delete file from disk:', err);
-      }
-    }
-    db.prepare(`DELETE FROM generations WHERE id = ?`).run(id);
+    if (row.deleted_at) return true;
+    db.prepare(`UPDATE generations SET deleted_at = ? WHERE id = ?`).run(
+      nowIso(),
+      id,
+    );
     return true;
+  },
+
+  restore(id: string): boolean {
+    const db = getDb();
+    const row = db
+      .prepare(`SELECT id FROM generations WHERE id = ? AND deleted_at IS NOT NULL`)
+      .get(id) as { id: string } | undefined;
+    if (!row) return false;
+    db.prepare(`UPDATE generations SET deleted_at = NULL WHERE id = ?`).run(id);
+    return true;
+  },
+
+  /**
+   * Hard-delete every tombstoned generation: remove the file from disk (best
+   * effort) and drop the row. Called once at app start so undo is scoped to the
+   * session that triggered the delete.
+   */
+  purgeDeleted(): number {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        `SELECT id, file_path FROM generations WHERE deleted_at IS NOT NULL`,
+      )
+      .all() as Array<{ id: string; file_path: string }>;
+    if (rows.length === 0) return 0;
+    const stmt = db.prepare(`DELETE FROM generations WHERE id = ?`);
+    const tx = db.transaction((items: typeof rows) => {
+      for (const r of items) {
+        try {
+          if (existsSync(r.file_path)) unlinkSync(r.file_path);
+        } catch (err) {
+          console.error('Failed to delete file from disk:', err);
+        }
+        stmt.run(r.id);
+      }
+    });
+    tx(rows);
+    return rows.length;
   },
 
   /**
@@ -133,7 +184,7 @@ export const FileService = {
       .prepare(
         `SELECT id, sku, brand_id, template_id, format, dpi, size_label, file_path, template_snapshot, data_snapshot, brand_snapshot
          FROM generations
-         WHERE id = ?`,
+         WHERE id = ? AND deleted_at IS NULL`,
       )
       .get(id) as
       | {

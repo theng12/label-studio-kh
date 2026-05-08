@@ -16,6 +16,8 @@ import { registerBarcodeIpc } from './ipc/barcode';
 import { shutdownBarcodeBrowser } from './services/BarcodeService';
 import { shutdownBrowser } from './services/ExportService';
 import { closeDb } from './services/Database';
+import { BrandService } from './services/BrandService';
+import { FileService } from './services/FileService';
 import { DemoSeed } from './services/DemoSeed';
 import { initUpdater } from './services/Updater';
 import { loadEnv } from './services/EnvLoader';
@@ -94,6 +96,13 @@ app.whenReady().then(() => {
     DemoSeed.ensure();
   } catch (err) {
     console.error('Demo seed failed:', err);
+  }
+  // Purge anything tombstoned by the previous session — undo is session-scoped.
+  try {
+    BrandService.purgeDeleted();
+    FileService.purgeDeleted();
+  } catch (err) {
+    console.error('Purge of soft-deleted records failed:', err);
   }
   initUpdater();
   createMainWindow();

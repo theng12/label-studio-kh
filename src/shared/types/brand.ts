@@ -41,6 +41,12 @@ export interface Brand {
   customerCareLabel?: string;
   hidden?: boolean; // demo brand can be hidden but not deleted
   isDemo?: boolean;
+  /**
+   * Soft-delete tombstone. When set, the brand is hidden from `list()` but the
+   * record (and on-disk assets) remain so a delete can be undone within the
+   * session. Brands with this set are purged on next app start.
+   */
+  deletedAt?: string | null;
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }

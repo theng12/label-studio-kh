@@ -7,5 +7,6 @@ export function registerFileIpc(): void {
   ipcMain.handle('file:delete', (_e, id: string, alsoFromDisk: boolean) =>
     FileService.delete(id, alsoFromDisk),
   );
+  ipcMain.handle('file:restore', (_e, id: string) => FileService.restore(id));
   ipcMain.handle('file:reprint', (_e, id: string) => FileService.reprint(id));
 }
