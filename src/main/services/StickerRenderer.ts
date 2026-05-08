@@ -3,6 +3,7 @@ import { DOMImplementation, XMLSerializer } from '@xmldom/xmldom';
 import QRCode from 'qrcode';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { app } from 'electron';
 import type { Template, TemplateElement } from '@shared/types/template';
 import type { Brand } from '@shared/types/brand';
@@ -30,6 +31,15 @@ const FONT_DEFS: Array<{ family: string; weight: 400 | 700; file: string }> = [
   { family: 'NotoSansJP', weight: 700, file: 'NotoSansJP-Bold.otf' },
 ];
 
+// Build a properly URL-encoded file:// URL from an absolute filesystem path.
+// `file://${rawPath}` breaks whenever the path contains spaces or non-ASCII
+// characters (very common on macOS where userData lives under "Application
+// Support"), so all <img src> / @font-face src values that point at a local
+// file must go through this helper.
+function fileUrl(p: string): string {
+  return pathToFileURL(p).href;
+}
+
 function fontFaceCss(): string {
   // Resolve fonts dir at runtime: in dev, resources/fonts is at the project root.
   // In production it'll be inside the asar resources.
@@ -44,7 +54,7 @@ function fontFaceCss(): string {
     const format = def.file.endsWith('.otf') ? 'opentype' : 'truetype';
     blocks.push(
       `@font-face{font-family:'${def.family}';font-weight:${def.weight};` +
-        `font-style:normal;font-display:swap;src:url('file://${path}') format('${format}');}`,
+        `font-style:normal;font-display:swap;src:url('${fileUrl(path)}') format('${format}');}`,
     );
   }
   return blocks.join('\n');
@@ -231,7 +241,7 @@ async function renderElement(
       if (!path) {
         return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#f6f6f6;color:#999;font-size:8pt;">LOGO</div>`;
       }
-      return `<div style="${styleAttr}"><img src="file://${path}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
+      return `<div style="${styleAttr}"><img src="${fileUrl(path)}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
     }
 
     case 'barcode': {
@@ -336,7 +346,7 @@ async function renderElement(
       if (!path) {
         return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#f8f8f8;color:#aaa;font-size:7pt;">IMG</div>`;
       }
-      const src = path.startsWith('/') ? `file://${path}` : path;
+      const src = path.startsWith('/') ? fileUrl(path) : path;
       return `<div style="${styleAttr}"><img src="${src}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
     }
 
@@ -364,7 +374,7 @@ async function renderElement(
       if (!el.assetPath) {
         return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#fafafa;color:#aaa;font-size:6pt;">CERT</div>`;
       }
-      return `<div style="${styleAttr}"><img src="file://${el.assetPath}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
+      return `<div style="${styleAttr}"><img src="${fileUrl(el.assetPath)}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
     }
 
     case 'divider': {
