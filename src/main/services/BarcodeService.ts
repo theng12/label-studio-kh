@@ -3,7 +3,7 @@ import { DOMImplementation, XMLSerializer } from '@xmldom/xmldom';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import puppeteer, { type Browser } from 'puppeteer';
-import { generateEan13FromSeed } from '@shared/format';
+import { generateEan13FromSeed, toJsBarcodeFormat } from '@shared/format';
 
 export type BarcodeFormat = 'EAN-13' | 'Code128' | 'Code39' | 'UPC-A';
 export type BarcodeOutput = 'svg' | 'png';
@@ -52,7 +52,7 @@ export function generateSvg(value: string, format: BarcodeFormat, showText: bool
   }
   try {
     JsBarcode(svgNode as unknown as SVGSVGElement, value, {
-      format,
+      format: toJsBarcodeFormat(format),
       displayValue: showText,
       lineColor: '#000000',
       background: '#FFFFFF',

@@ -12,6 +12,8 @@ import {
   formatDate as fmtDate,
   formatPrice,
   parseDateLoose,
+  toJsBarcodeFormat,
+  type UiBarcodeFormat,
 } from '@shared/format';
 
 // Font loading: each entry maps a CSS family name → file under resources/fonts/.
@@ -170,7 +172,7 @@ function generateBarcodeSvg(value: string, format: string, color: string): strin
   try {
     // JsBarcode supports an undocumented `xmlDocument` option for non-browser environments.
     JsBarcode(svgNode as unknown as SVGSVGElement, value, {
-      format,
+      format: toJsBarcodeFormat(format as UiBarcodeFormat),
       displayValue: true,
       lineColor: color,
       background: '#FFFFFF',

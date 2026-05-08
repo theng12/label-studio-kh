@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
+import { toJsBarcodeFormat } from '../../shared/format';
 
 /**
  * Live barcode preview rendered with JsBarcode straight into a real SVG
@@ -27,7 +28,7 @@ export function BarcodeView({
     const v = value || fallback;
     try {
       JsBarcode(ref.current, v, {
-        format,
+        format: toJsBarcodeFormat(format),
         displayValue: showText,
         lineColor: barColor || '#000000',
         background: '#FFFFFF',
