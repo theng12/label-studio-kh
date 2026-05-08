@@ -41,7 +41,13 @@
     "language": "Language",
     "languageDescription": "Changes all UI text. Restart not required.",
     "saveLocation": "Default save location",
-    "saveLocationDescription": "Where generated label files are saved by default."
+    "saveLocationDescription": "Where generated label files are saved by default.",
+    "fonts": "Bundled fonts",
+    "fontsDescription": "Noto Sans for Latin, Khmer, Thai, Korean, Chinese, and Japanese.",
+    "fontsLoading": "Checking…",
+    "fontsLoaded": "Fonts loaded: {{loaded}} / {{total}}",
+    "fontsMissingTooltip": "Missing: {{files}}",
+    "fontsMissingNudge": "Some fonts are missing. Run this then restart the app:"
   },
   "brands": {
     "title": "Brands",

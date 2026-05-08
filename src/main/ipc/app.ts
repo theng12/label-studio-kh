@@ -1,4 +1,5 @@
 import { app, ipcMain } from 'electron';
+import { getFontStatus } from '../services/FontService';
 
 export interface AppInfo {
   name: string;
@@ -22,4 +23,6 @@ export function registerAppIpc(): void {
     platform: process.platform,
     isDev: !app.isPackaged,
   }));
+
+  ipcMain.handle('app:getFontStatus', () => getFontStatus());
 }

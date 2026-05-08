@@ -2,9 +2,7 @@ import JsBarcode from 'jsbarcode';
 import { DOMImplementation, XMLSerializer } from '@xmldom/xmldom';
 import QRCode from 'qrcode';
 import { existsSync, readFileSync } from 'node:fs';
-import { extname, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { app } from 'electron';
+import { extname } from 'node:path';
 import type { Template, TemplateElement } from '@shared/types/template';
 import type { Brand } from '@shared/types/brand';
 import {
@@ -15,29 +13,7 @@ import {
   toJsBarcodeFormat,
   type UiBarcodeFormat,
 } from '@shared/format';
-
-// Font loading: each entry maps a CSS family name → file under resources/fonts/.
-// Missing files are silently skipped (font-display: swap → system fallback).
-const FONT_DEFS: Array<{ family: string; weight: 400 | 700; file: string }> = [
-  { family: 'NotoSans', weight: 400, file: 'NotoSans-Regular.ttf' },
-  { family: 'NotoSans', weight: 700, file: 'NotoSans-Bold.ttf' },
-  { family: 'NotoSansKhmer', weight: 400, file: 'NotoSansKhmer-Regular.ttf' },
-  { family: 'NotoSansKhmer', weight: 700, file: 'NotoSansKhmer-Bold.ttf' },
-  { family: 'NotoSansThai', weight: 400, file: 'NotoSansThai-Regular.ttf' },
-  { family: 'NotoSansThai', weight: 700, file: 'NotoSansThai-Bold.ttf' },
-  { family: 'NotoSansKR', weight: 400, file: 'NotoSansKR-Regular.otf' },
-  { family: 'NotoSansKR', weight: 700, file: 'NotoSansKR-Bold.otf' },
-  { family: 'NotoSansSC', weight: 400, file: 'NotoSansSC-Regular.otf' },
-  { family: 'NotoSansSC', weight: 700, file: 'NotoSansSC-Bold.otf' },
-  { family: 'NotoSansJP', weight: 400, file: 'NotoSansJP-Regular.otf' },
-  { family: 'NotoSansJP', weight: 700, file: 'NotoSansJP-Bold.otf' },
-];
-
-// Build a properly URL-encoded file:// URL from an absolute filesystem path.
-// Used for @font-face src values where Chromium loads the bytes itself.
-function fileUrl(p: string): string {
-  return pathToFileURL(p).href;
-}
+import { fontFaceCss } from './FontService';
 
 // Read a local image and return it as a base64 data: URL. Used for <img src>
 // values in the export pipeline because page.setContent() leaves the document
@@ -58,26 +34,6 @@ function embedLocalImage(p: string): string {
   const mime = IMG_MIME[extname(p).toLowerCase()] ?? 'application/octet-stream';
   const b64 = readFileSync(p).toString('base64');
   return `data:${mime};base64,${b64}`;
-}
-
-function fontFaceCss(): string {
-  // Resolve fonts dir at runtime: in dev, resources/fonts is at the project root.
-  // In production it'll be inside the asar resources.
-  const root = app.isPackaged
-    ? join(process.resourcesPath, 'fonts')
-    : join(process.cwd(), 'resources', 'fonts');
-
-  const blocks: string[] = [];
-  for (const def of FONT_DEFS) {
-    const path = join(root, def.file);
-    if (!existsSync(path)) continue;
-    const format = def.file.endsWith('.otf') ? 'opentype' : 'truetype';
-    blocks.push(
-      `@font-face{font-family:'${def.family}';font-weight:${def.weight};` +
-        `font-style:normal;font-display:swap;src:url('${fileUrl(path)}') format('${format}');}`,
-    );
-  }
-  return blocks.join('\n');
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

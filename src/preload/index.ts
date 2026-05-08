@@ -72,6 +72,11 @@ const api = {
       platform: NodeJS.Platform;
       isDev: boolean;
     }> => ipcRenderer.invoke('app:getInfo'),
+    getFontStatus: (): Promise<{
+      loaded: string[];
+      missing: string[];
+      total: number;
+    }> => ipcRenderer.invoke('app:getFontStatus'),
   },
   brand: {
     list: (): Promise<Brand[]> => ipcRenderer.invoke('brand:list'),

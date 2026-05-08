@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { IconCheck, IconAlertTriangle } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 import { useThemeStore, type ThemeMode } from '../stores/themeStore';
@@ -8,6 +9,7 @@ import { FilenamePatternInput } from '../components/FilenamePatternInput';
 
 type AppSettings = Awaited<ReturnType<typeof window.api.settings.get>>;
 type AppInfo = Awaited<ReturnType<typeof window.api.app.getInfo>>;
+type FontStatus = Awaited<ReturnType<typeof window.api.app.getFontStatus>>;
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
@@ -15,10 +17,12 @@ export default function Settings() {
   const setMode = useThemeStore((s) => s.setMode);
   const [s, setS] = useState<AppSettings | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const [fontStatus, setFontStatus] = useState<FontStatus | null>(null);
 
   useEffect(() => {
     void window.api.settings.get().then(setS);
     void window.api.app.getInfo().then(setInfo);
+    void window.api.app.getFontStatus().then(setFontStatus);
   }, []);
 
   const update = async (patch: Partial<AppSettings>) => {
@@ -53,6 +57,8 @@ export default function Settings() {
           ))}
         </select>
       </Row>
+
+      <FontStatusRow status={fontStatus} />
 
       <Row
         label={t('settings.saveLocation')}
@@ -197,6 +203,80 @@ function Row({
         <div className="mt-0.5 text-xs text-fg-muted">{description}</div>
       </div>
       <div>{children}</div>
+    </div>
+  );
+}
+
+function FontStatusRow({ status }: { status: FontStatus | null }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+
+  const loaded = status?.loaded.length ?? 0;
+  const total = status?.total ?? 0;
+  const missing = status?.missing ?? [];
+  const allLoaded = status !== null && missing.length === 0;
+  const downloadCmd = 'node scripts/download-fonts.mjs';
+
+  return (
+    <div className="border-b border-border-subtle py-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-medium text-fg-base">
+            {t('settings.fonts')}
+          </div>
+          <div className="mt-0.5 text-xs text-fg-muted">
+            {t('settings.fontsDescription')}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => missing.length > 0 && setExpanded((v) => !v)}
+          disabled={missing.length === 0}
+          title={
+            missing.length > 0
+              ? t('settings.fontsMissingTooltip', { files: missing.join(', ') })
+              : undefined
+          }
+          className={[
+            'inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium',
+            missing.length > 0 ? 'cursor-pointer hover:bg-bg-elevated' : 'cursor-default',
+            allLoaded
+              ? 'text-success'
+              : status === null
+                ? 'text-fg-muted'
+                : 'text-warning',
+          ].join(' ')}
+        >
+          {allLoaded ? (
+            <IconCheck size={16} stroke={2.5} />
+          ) : status === null ? null : (
+            <IconAlertTriangle size={16} stroke={2.5} />
+          )}
+          <span>
+            {status === null
+              ? t('settings.fontsLoading')
+              : t('settings.fontsLoaded', { loaded, total })}
+          </span>
+        </button>
+      </div>
+
+      {status !== null && !allLoaded && (
+        <div className="mt-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs">
+          <div className="text-fg-base">
+            {t('settings.fontsMissingNudge')}{' '}
+            <code className="rounded bg-bg-elevated px-1 py-0.5 font-mono">
+              {downloadCmd}
+            </code>
+          </div>
+          {expanded && (
+            <ul className="mt-2 list-disc space-y-0.5 pl-5 font-mono text-fg-muted">
+              {missing.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
