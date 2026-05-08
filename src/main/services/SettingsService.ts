@@ -14,6 +14,10 @@ export interface AppSettings {
   sizeWarningAreaMm2: number;
   hideDemoBrand: boolean;
   uiLanguage: string;
+  /** Last brand the user explicitly picked in Templates / Generate / Data Import.
+   *  Used as the default selection on next launch so brand-scoped pages don't
+   *  reset to the alphabetically-first brand (which is usually "Demo brand"). */
+  lastUsedBrandId: string | null;
 }
 
 let cache: AppSettings | null = null;
@@ -33,6 +37,7 @@ function defaults(): AppSettings {
     sizeWarningAreaMm2: 400,
     hideDemoBrand: false,
     uiLanguage: 'en',
+    lastUsedBrandId: null,
   };
 }
 

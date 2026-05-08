@@ -10,7 +10,7 @@ import {
   IconSparkles,
 } from '@tabler/icons-react';
 import { Button } from '../../components/Button';
-import { useBrandStore } from '../../stores/brandStore';
+import { useDefaultBrand } from '../../hooks/useDefaultBrand';
 import { useImportStore } from '../../stores/importStore';
 import { STANDARD_COLUMNS, REQUIRED_COLUMNS } from '../../../shared/types/import';
 import type { DedupAction } from '../../../shared/types/import';
@@ -18,7 +18,7 @@ import type { DedupAction } from '../../../shared/types/import';
 export function ImportFlow() {
   const { t } = useTranslation();
   const im = useImportStore();
-  const { brands } = useBrandStore();
+  const { visibleBrands, pickBrand } = useDefaultBrand();
 
   const stepNumber =
     im.step === 'pickFile'
@@ -35,10 +35,13 @@ export function ImportFlow() {
         <span className="text-xs text-fg-muted">{t('dataImport.import.intoBrand')}</span>
         <select
           value={im.brandId ?? ''}
-          onChange={(e) => im.setBrandId(e.target.value)}
+          onChange={(e) => {
+            im.setBrandId(e.target.value);
+            pickBrand(e.target.value);
+          }}
           className="rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm text-fg-base"
         >
-          {brands.map((b) => (
+          {visibleBrands.map((b) => (
             <option key={b.id} value={b.id}>
               {b.name}
             </option>

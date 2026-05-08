@@ -263,6 +263,7 @@ const api = {
       sizeWarningAreaMm2: number;
       hideDemoBrand: boolean;
       uiLanguage: string;
+      lastUsedBrandId: string | null;
     }> => ipcRenderer.invoke('settings:get'),
     set: (patch: Record<string, unknown>): Promise<unknown> =>
       ipcRenderer.invoke('settings:set', patch),

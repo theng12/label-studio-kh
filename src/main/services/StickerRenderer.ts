@@ -1,8 +1,8 @@
 import JsBarcode from 'jsbarcode';
 import { DOMImplementation, XMLSerializer } from '@xmldom/xmldom';
 import QRCode from 'qrcode';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app } from 'electron';
 import type { Template, TemplateElement } from '@shared/types/template';
@@ -34,12 +34,30 @@ const FONT_DEFS: Array<{ family: string; weight: 400 | 700; file: string }> = [
 ];
 
 // Build a properly URL-encoded file:// URL from an absolute filesystem path.
-// `file://${rawPath}` breaks whenever the path contains spaces or non-ASCII
-// characters (very common on macOS where userData lives under "Application
-// Support"), so all <img src> / @font-face src values that point at a local
-// file must go through this helper.
+// Used for @font-face src values where Chromium loads the bytes itself.
 function fileUrl(p: string): string {
   return pathToFileURL(p).href;
+}
+
+// Read a local image and return it as a base64 data: URL. Used for <img src>
+// values in the export pipeline because page.setContent() leaves the document
+// at about:blank, and Chromium's loader for <img> against file:// URLs from a
+// non-file:// document is unreliable across Puppeteer versions. Inlining the
+// bytes sidesteps the entire URL/origin problem. Returns '' if the file is
+// missing so the caller can render its "missing" placeholder.
+const IMG_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
+function embedLocalImage(p: string): string {
+  if (!p || !existsSync(p)) return '';
+  const mime = IMG_MIME[extname(p).toLowerCase()] ?? 'application/octet-stream';
+  const b64 = readFileSync(p).toString('base64');
+  return `data:${mime};base64,${b64}`;
 }
 
 function fontFaceCss(): string {
@@ -240,10 +258,11 @@ async function renderElement(
       const logos = ctx.brand?.logos ?? [];
       const byId = el.logoId ? logos.find((l) => l.id === el.logoId) : null;
       const path = byId?.path ?? logos[0]?.path ?? ctx.brand?.logoPath ?? '';
-      if (!path) {
+      const src = embedLocalImage(path);
+      if (!src) {
         return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#f6f6f6;color:#999;font-size:8pt;">LOGO</div>`;
       }
-      return `<div style="${styleAttr}"><img src="${fileUrl(path)}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
+      return `<div style="${styleAttr}"><img src="${src}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
     }
 
     case 'barcode': {
@@ -348,7 +367,11 @@ async function renderElement(
       if (!path) {
         return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#f8f8f8;color:#aaa;font-size:7pt;">IMG</div>`;
       }
-      const src = path.startsWith('/') ? fileUrl(path) : path;
+      // Local fs paths get inlined; remote URLs (http/https/data:) pass through.
+      const src = path.startsWith('/') ? embedLocalImage(path) : path;
+      if (!src) {
+        return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#f8f8f8;color:#aaa;font-size:7pt;">IMG</div>`;
+      }
       return `<div style="${styleAttr}"><img src="${src}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
     }
 
@@ -373,10 +396,11 @@ async function renderElement(
     }
 
     case 'cert': {
-      if (!el.assetPath) {
+      const certSrc = embedLocalImage(el.assetPath);
+      if (!certSrc) {
         return `<div style="${styleAttr};display:flex;align-items:center;justify-content:center;background:#fafafa;color:#aaa;font-size:6pt;">CERT</div>`;
       }
-      return `<div style="${styleAttr}"><img src="${fileUrl(el.assetPath)}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
+      return `<div style="${styleAttr}"><img src="${certSrc}" style="width:100%;height:100%;object-fit:${el.objectFit};" /></div>`;
     }
 
     case 'divider': {

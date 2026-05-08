@@ -12,6 +12,8 @@ import { Button } from '../components/Button';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TemplateCardSkeletonGrid } from '../components/Skeleton';
 import { useBrandStore } from '../stores/brandStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import { useDefaultBrand } from '../hooks/useDefaultBrand';
 import { toast } from '../components/Toast';
 import type { Template } from '../../shared/types/template';
 
@@ -20,9 +22,15 @@ export default function Templates() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { brands, loading: brandsLoading, refresh } = useBrandStore();
-  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(
+  const refreshSettings = useSettingsStore((s) => s.refresh);
+  const { visibleBrands, defaultBrandId, pickBrand } = useDefaultBrand();
+  const [selectedBrandId, setSelectedBrandIdState] = useState<string | null>(
     params.get('brand'),
   );
+  const setSelectedBrandId = (id: string | null) => {
+    setSelectedBrandIdState(id);
+    if (id) pickBrand(id);
+  };
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(
@@ -32,13 +40,16 @@ export default function Templates() {
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshSettings();
+  }, [refresh, refreshSettings]);
 
   useEffect(() => {
-    if (!selectedBrandId && brands.length > 0) {
-      setSelectedBrandId(brands[0]!.id);
+    if (!selectedBrandId && defaultBrandId) {
+      // Don't push to lastUsed here — this is the auto-default, not a user pick.
+      setSelectedBrandIdState(defaultBrandId);
     }
-  }, [brands, selectedBrandId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultBrandId]);
 
   useEffect(() => {
     if (!selectedBrandId) return;
@@ -139,7 +150,7 @@ export default function Templates() {
             onChange={(e) => setSelectedBrandId(e.target.value)}
             className="rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm text-fg-base"
           >
-            {brands.map((b) => (
+            {visibleBrands.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
               </option>
