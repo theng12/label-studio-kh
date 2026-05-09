@@ -751,9 +751,12 @@ function StepDedup() {
         />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border-base">
+      {/* Cap height so the action bar below stays reachable without scrolling
+          past every conflict row. Sticky thead keeps column labels visible
+          while the user reviews. Same pattern as the IssuesList above. */}
+      <div className="scrollbar-thin max-h-[60vh] overflow-auto rounded-lg border border-border-base">
         <table className="w-full text-xs">
-          <thead className="bg-bg-elevated text-fg-muted">
+          <thead className="sticky top-0 z-10 bg-bg-elevated text-fg-muted">
             <tr>
               <th className="px-2 py-1.5 text-left">
                 {t('dataImport.import.dedup.table.sku')}

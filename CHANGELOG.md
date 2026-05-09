@@ -6,6 +6,41 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [SemVer](https://semver.org/spec/v2.0.0.html). Until 1.0.0,
 minor versions can introduce breaking changes; we'll call them out clearly.
 
+## [0.2.1] — 2026-05-09
+
+### Added
+
+- **Brand wizard warns on empty Identity/Contact.** Saving a brand with every
+  Identity and Contact field blank (website, address, phone, email, tagline,
+  established year) now surfaces a soft-block warning. "Brand info" elements
+  on labels would otherwise render blank with no hint of why. Save anyway is
+  still one click.
+- **Designer alignment toolbar — centre, fill, match-size.** Three new
+  selection-relative actions in the existing floating toolbar above the
+  canvas. Centre on canvas shifts the selection's bounding box to the canvas
+  centre; Fill grows each selected element to the full canvas; Match-size
+  copies width/height/both from the bottom-most (lowest-zIndex) selection.
+  Toolbar now appears with ≥1 element selected; per-button enablement
+  reflects the minimum selection count.
+- **Settings — bundled-fonts status row.** Indicator showing how many of the
+  12 bundled Noto Sans fonts loaded. Green tick when all present; amber
+  warning + expandable file list and one-line download nudge when partial.
+- **Brand & file delete — undo via toast.** Outside the Designer, deleting a
+  brand or generated file is no longer instantly permanent. Toast surfaces an
+  Undo button (8 s window). Defer-then-purge architecture: brand delete
+  writes a `deletedAt` tombstone in `brands.json`; file delete sets a
+  `deleted_at` column on `generations` (schema **v3** migration). Tombstoned
+  rows are filtered from list views; restore clears them; permanent purge
+  runs at next app start, unlinking files from disk.
+
+### Fixed
+
+- **Import dedup step: action button reachable without scrolling.** With many
+  conflicts (e.g. re-importing 1000 SKUs against an existing 1000), the
+  conflicts table grew unbounded and pushed the "Import N decisions" button
+  far below the viewport. Conflicts table is now capped at 60 vh with a
+  scrollable inner area and a sticky header — the action bar stays in view.
+
 ## [0.2.0] — 2026-05
 
 A substantial round of additions on top of the spec-complete 0.1.0.
