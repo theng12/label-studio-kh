@@ -1,5 +1,6 @@
 import { type TemplateElement } from '../../../shared/types/template';
 import { Field } from '../../components/FormField';
+import { CsvColumnInput } from './shared';
 
 export function QRProperties({
   element,
@@ -79,16 +80,15 @@ export function QRProperties({
       {(element.mode === 'dynamic_csv' || element.mode === 'custom') && (
         <Field
           label="CSV column"
-          hint="The column should contain a full URL for each row."
+          hint="Pick from the list or type any column name. The column should contain a full URL for each row."
         >
-          <input
+          <CsvColumnInput
             value={element.csvColumn}
-            onChange={(e) =>
-              onPatch({ csvColumn: e.target.value } as Partial<TemplateElement>)
+            onChange={(v) =>
+              onPatch({ csvColumn: v } as Partial<TemplateElement>)
             }
-            onBlur={onCommit}
+            onCommit={onCommit}
             placeholder="product_url"
-            className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
           />
         </Field>
       )}

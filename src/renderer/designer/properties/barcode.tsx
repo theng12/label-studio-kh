@@ -1,5 +1,6 @@
 import { type TemplateElement } from '../../../shared/types/template';
 import { Field, ColorInput } from '../../components/FormField';
+import { CsvColumnInput } from './shared';
 
 export function BarcodeProperties({
   element,
@@ -62,16 +63,15 @@ export function BarcodeProperties({
       {element.dataSource === 'csv_column' ? (
         <Field
           label="CSV column"
-          hint="The column holding the barcode value for each row."
+          hint="Pick from the list or type any column name. The column should hold the barcode value for each row."
         >
-          <input
+          <CsvColumnInput
             value={element.csvColumn}
-            onChange={(e) =>
-              onPatch({ csvColumn: e.target.value } as Partial<TemplateElement>)
+            onChange={(v) =>
+              onPatch({ csvColumn: v } as Partial<TemplateElement>)
             }
-            onBlur={onCommit}
+            onCommit={onCommit}
             placeholder="barcode"
-            className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
           />
         </Field>
       ) : (

@@ -1,7 +1,7 @@
 import { type TemplateElement } from '../../../shared/types/template';
 import { Field, ColorInput } from '../../components/FormField';
 import { FontPicker } from '../../components/FontPicker';
-import { NumberInput, formatPreviewSample } from './shared';
+import { CsvColumnInput, NumberInput, formatPreviewSample } from './shared';
 
 export function DateProperties({
   element,
@@ -44,14 +44,16 @@ export function DateProperties({
         </Field>
       )}
       {element.mode === 'csv_column' && (
-        <Field label="CSV column">
-          <input
+        <Field
+          label="CSV column"
+          hint="Pick from the list or type any column name."
+        >
+          <CsvColumnInput
             value={element.csvColumn}
-            onChange={(e) =>
-              onPatch({ csvColumn: e.target.value } as Partial<TemplateElement>)
+            onChange={(v) =>
+              onPatch({ csvColumn: v } as Partial<TemplateElement>)
             }
-            onBlur={onCommit}
-            className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+            onCommit={onCommit}
             placeholder="date"
           />
         </Field>

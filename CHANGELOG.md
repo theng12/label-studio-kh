@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [SemVer](https://semver.org/spec/v2.0.0.html). Until 1.0.0,
 minor versions can introduce breaking changes; we'll call them out clearly.
 
+## [0.2.2] — 2026-05-09
+
+### Added
+
+- **Designer — discoverable CSV column picker.** Every "From CSV column"
+  field in the property panel (Text, SKU, Barcode, QR, Image, Country, Date,
+  Price, Sale price) now offers a built-in dropdown of the standard product
+  columns — `sku`, `product_name`, `barcode`, `description`, `variant`,
+  `unit_qty`, `unit_word`, `product_url`, `product_image_path`, `date`,
+  `notes` — plus the per-element conventional extras (`country`, `price`,
+  `sale_price`). You can still type any custom column name, including
+  user-defined columns preserved in `extra_json`.
+
 ## [0.2.1] — 2026-05-09
 
 ### Added
