@@ -13,6 +13,11 @@ asarUnpack:
 mac:
   category: public.app-category.productivity
   icon: resources/icon.png
+  # Force the arch suffix into every Mac DMG filename. Without this,
+  # electron-builder gives the "primary" arch no suffix, producing one
+  # arm64-suffixed file and one un-suffixed file — confusing on the
+  # Releases page where users scan filenames to pick the right download.
+  artifactName: ${productName}-${version}-${arch}.${ext}
   target:
     - target: dmg
       # Build BOTH Apple Silicon (arm64) and Intel (x64) Macs. Intel Macs
