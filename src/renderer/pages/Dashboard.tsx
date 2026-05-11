@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { IconDatabaseImport, IconWand, IconHeart, IconX } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
-import { useLicenseStore } from '../stores/licenseStore';
 
 type Stats = Awaited<ReturnType<typeof window.api.dashboard.stats>>;
 type RecentBrand = Awaited<ReturnType<typeof window.api.dashboard.recentBrands>>[number];
@@ -17,8 +16,6 @@ export default function Dashboard() {
   const [recentBrands, setRecentBrands] = useState<RecentBrand[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [showDonate, setShowDonate] = useState(false);
-  const licensed = useLicenseStore((s) => s.licensed);
-  const refreshLicense = useLicenseStore((s) => s.refresh);
 
   useEffect(() => {
     const load = async () => {
@@ -32,16 +29,12 @@ export default function Dashboard() {
       setActivity(a);
     };
     void load();
-    void refreshLicense();
-  }, [refreshLicense]);
+  }, []);
 
-  // Donation nudge: hidden entirely when licensed; otherwise show if never
-  // dismissed, or dismissed > 7 days ago.
+  // Donation nudge: shows on first launch and again 7 days after the user
+  // dismisses it. No license gating (the app is free; donations are the only
+  // way to support development now).
   useEffect(() => {
-    if (licensed) {
-      setShowDonate(false);
-      return;
-    }
     const at = localStorage.getItem(DONATION_DISMISS_KEY);
     if (!at) {
       setShowDonate(true);
@@ -50,7 +43,7 @@ export default function Dashboard() {
     const lastMs = parseInt(at, 10);
     const ageDays = (Date.now() - lastMs) / (1000 * 60 * 60 * 24);
     setShowDonate(ageDays >= 7);
-  }, [licensed]);
+  }, []);
 
   const dismissDonate = () => {
     localStorage.setItem(DONATION_DISMISS_KEY, String(Date.now()));
@@ -127,14 +120,16 @@ export default function Dashboard() {
           <IconHeart size={18} className="mt-0.5 text-danger" />
           <div className="flex-1 text-sm text-fg-base">
             <strong>Label Studio KH is free.</strong> If it saves you hours each
-            week, you can support development with a one-time donation or license.
+            week, you can support development with a donation — every bit keeps
+            the app maintained and the bugs fixed.
           </div>
           <Button size="sm" variant="secondary" onClick={() => navigate('/support')}>
-            Learn more
+            Donate
           </Button>
           <button
             onClick={dismissDonate}
-            aria-label="Dismiss"
+            aria-label="Dismiss for 7 days"
+            title="Dismiss for 7 days"
             className="rounded p-1 text-fg-muted hover:text-fg-base"
           >
             <IconX size={14} />

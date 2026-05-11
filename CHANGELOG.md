@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [SemVer](https://semver.org/spec/v2.0.0.html). Until 1.0.0,
 minor versions can introduce breaking changes; we'll call them out clearly.
 
+## [0.2.6] — 2026-05-11
+
+### Removed
+
+- **Licensing feature retired.** The license-key activation flow,
+  `LicenseService`, `licenseStore`, the `Licensed` sidebar badge, the
+  license type definitions, the IPC handlers, and the
+  `scripts/generate-license.mjs` key generator are all gone — roughly
+  200 lines deleted. Existing `license.json` files in `userData/` are
+  inert and harmless (nothing reads them anymore). The
+  `LICENSE_SECRET` env var is no longer needed.
+
+### Changed
+
+- **Support page is now the Donate page.** Title changes to "Support
+  development". The headline card stays ("free, with all features
+  unlocked, donations are optional"), and the License-key card is
+  replaced with a Donate card — see below.
+- **Dashboard donation nudge no longer gates on license state.** The
+  nudge shows by default, can be dismissed for 7 days, and the button
+  now reads "Donate" (was "Learn more"). Same dismissal cookie
+  (`lskh.donationDismissedAt`).
+
+### Added
+
+- **Donate card on /support.** Slot for a NOWPayments donation widget
+  button (opens the user's NOWPayments donation page in the default
+  browser via Electron's setWindowOpenHandler), plus an expandable
+  "Or send directly to a wallet" section with one row per supported
+  chain (BTC / ETH / USDT-TRC20 by default), showing a live QR code
+  rendered with the existing `qrcode` library, the full address with
+  click-to-copy, and a chain/network label. Currently ships with
+  `TODO_` placeholder constants at the top of
+  `src/renderer/pages/Support.tsx`; wallet rows whose address still
+  matches the placeholder are hidden automatically, and if every
+  payment method is unconfigured the card shows a polite "donations
+  are being set up" placeholder instead of broken buttons. Filling
+  in the real NOWPayments URL + addresses is a one-edit change at
+  the top of that file — no other code needs to change.
+
 ## [0.2.5] — 2026-05-11
 
 ### Added

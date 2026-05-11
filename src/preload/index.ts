@@ -293,17 +293,6 @@ const api = {
     delete: (brandId: string, sku: string): Promise<boolean> =>
       ipcRenderer.invoke('sku:delete', brandId, sku),
   },
-  license: {
-    status: (): Promise<{ licensed: boolean; name?: string }> =>
-      ipcRenderer.invoke('license:status'),
-    activate: (
-      name: string,
-      key: string,
-    ): Promise<{ licensed: boolean; name?: string }> =>
-      ipcRenderer.invoke('license:activate', name, key),
-    deactivate: (): Promise<{ licensed: boolean; name?: string }> =>
-      ipcRenderer.invoke('license:deactivate'),
-  },
   settings: {
     get: (): Promise<{
       defaultSaveLocation: string;

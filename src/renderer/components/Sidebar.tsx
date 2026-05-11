@@ -11,11 +11,9 @@ import {
   IconBarcode,
   IconSettings,
   IconHeart,
-  IconCheck,
   IconSparkles,
   type Icon,
 } from '@tabler/icons-react';
-import { useLicenseStore } from '../stores/licenseStore';
 import { WhatsNewModal } from './WhatsNew';
 
 // localStorage key for tracking which version the user has already seen the
@@ -37,8 +35,6 @@ interface NavSection {
 
 export function Sidebar() {
   const { t } = useTranslation();
-  const licensed = useLicenseStore((s) => s.licensed);
-  const refreshLicense = useLicenseStore((s) => s.refresh);
   const [version, setVersion] = useState<string>('');
   const [isDev, setIsDev] = useState<boolean>(false);
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
@@ -48,7 +44,6 @@ export function Sidebar() {
   const [seenVersion, setSeenVersion] = useState<string | null>(null);
 
   useEffect(() => {
-    void refreshLicense();
     void window.api.app.getInfo().then((info) => {
       setVersion(info.version);
       setIsDev(info.isDev);
@@ -64,7 +59,7 @@ export function Sidebar() {
         }
       }
     });
-  }, [refreshLicense]);
+  }, []);
 
   const closeWhatsNew = () => {
     setWhatsNewOpen(false);
@@ -101,17 +96,8 @@ export function Sidebar() {
   ];
   return (
     <aside className="flex h-full w-60 flex-col border-r border-border-base bg-bg-surface">
-      <div className="drag-region flex h-12 items-center justify-between px-4 text-sm font-semibold tracking-wide text-fg-base">
+      <div className="drag-region flex h-12 items-center px-4 text-sm font-semibold tracking-wide text-fg-base">
         <span className="ml-16">Label Studio KH</span>
-        {licensed && (
-          <span
-            className="no-drag flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-medium text-success"
-            title="Licensed"
-          >
-            <IconCheck size={10} stroke={3} />
-            Licensed
-          </span>
-        )}
       </div>
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto px-2 py-2">

@@ -9,7 +9,6 @@ import { registerExportIpc } from './ipc/export';
 import { registerDashboardIpc } from './ipc/dashboard';
 import { registerFileIpc } from './ipc/file';
 import { registerSettingsIpc } from './ipc/settings';
-import { registerLicenseIpc } from './ipc/license';
 import { registerSkuIpc } from './ipc/sku';
 import { registerDialogIpc } from './ipc/dialog';
 import { registerBarcodeIpc } from './ipc/barcode';
@@ -88,7 +87,6 @@ app.whenReady().then(() => {
   registerDashboardIpc();
   registerFileIpc();
   registerSettingsIpc();
-  registerLicenseIpc();
   registerSkuIpc();
   registerDialogIpc();
   registerBarcodeIpc();
