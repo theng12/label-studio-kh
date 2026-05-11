@@ -1,6 +1,6 @@
 {
   "name": "label-studio-kh",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Desktop label design and bulk generation system",
   "main": "out/main/index.js",
   "author": "Label Studio KH",

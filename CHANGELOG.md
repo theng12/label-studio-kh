@@ -6,6 +6,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [SemVer](https://semver.org/spec/v2.0.0.html). Until 1.0.0,
 minor versions can introduce breaking changes; we'll call them out clearly.
 
+## [0.2.5] — 2026-05-11
+
+### Added
+
+- **What's New panel.** A small "What's new" link sits next to the version
+  in the sidebar footer. Clicking it opens a panel with the recent
+  changelog entries (this one, the one before it, etc.) parsed from
+  `CHANGELOG.md` itself — so the in-app notes always match what shipped.
+  The panel auto-opens the first time you launch a new version so you
+  don't miss what changed; closing it remembers the version and won't
+  re-prompt until the next update.
+- **Settings — bundled fonts explainer.** A small `?` button next to the
+  bundled-fonts row pops an inline explanation: what "bundled fonts"
+  actually means (12 Noto Sans files shipped inside the app), why we
+  bundle them instead of relying on system fonts (label rendering goes
+  through headless Chromium for reproducibility across machines),
+  whether you need to install anything yourself (no — they're in the
+  DMG), and how to use your own fonts on labels (the per-element Font
+  picker in the designer lists every font installed on your computer
+  alongside the bundled set).
+- **Auto-restart prompt after an update.** When the auto-updater
+  finishes downloading a new build, an in-app toast appears with a
+  "Restart now" button. One click quits the app and relaunches it on
+  the new version — no manual quit-and-reopen. If you dismiss the
+  toast, the update still installs the next time the app quits, so no
+  click is ever required. The Settings → About → "Check for updates"
+  button is now wired up too (was previously a placeholder).
+
 ## [0.2.4] — 2026-05-11
 
 ### Added

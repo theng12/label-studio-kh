@@ -356,6 +356,30 @@ const api = {
       return () => ipcRenderer.removeListener(channel, handler);
     },
   },
+  updater: {
+    /** Quit the app and install the previously-downloaded update. */
+    quitAndInstall: (): Promise<boolean> =>
+      ipcRenderer.invoke('updater:quitAndInstall'),
+    /** Manually trigger a check; resolves with the latest available version. */
+    checkNow: (): Promise<{ ok: boolean; version?: string | null; reason?: string }> =>
+      ipcRenderer.invoke('updater:checkNow'),
+    /**
+     * Subscribe to "update-downloaded" pushes from the main process. Returns
+     * an unsubscribe function. The payload carries the version that just
+     * finished downloading.
+     */
+    onUpdateDownloaded: (
+      cb: (info: { version: string; releaseDate: string | null }) => void,
+    ): (() => void) => {
+      const handler = (
+        _e: unknown,
+        info: { version: string; releaseDate: string | null },
+      ) => cb(info);
+      ipcRenderer.on('updater:update-downloaded', handler);
+      return () =>
+        ipcRenderer.removeListener('updater:update-downloaded', handler);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('api', api);

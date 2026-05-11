@@ -12,9 +12,16 @@ import {
   IconSettings,
   IconHeart,
   IconCheck,
+  IconSparkles,
   type Icon,
 } from '@tabler/icons-react';
 import { useLicenseStore } from '../stores/licenseStore';
+import { WhatsNewModal } from './WhatsNew';
+
+// localStorage key for tracking which version the user has already seen the
+// What's New panel for. When the running version differs from the stored
+// one, the modal auto-opens on launch so users don't miss new features.
+const WHATSNEW_LAST_SEEN_KEY = 'lskh.whatsnew.lastSeenVersion';
 
 interface NavItem {
   to: string;
@@ -34,14 +41,41 @@ export function Sidebar() {
   const refreshLicense = useLicenseStore((s) => s.refresh);
   const [version, setVersion] = useState<string>('');
   const [isDev, setIsDev] = useState<boolean>(false);
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  // Tracks what was already seen at the time we opened the modal so the
+  // diff-view ("only things newer than v0.2.3") is correct even after the
+  // user dismisses the modal and reopens manually within the same session.
+  const [seenVersion, setSeenVersion] = useState<string | null>(null);
 
   useEffect(() => {
     void refreshLicense();
     void window.api.app.getInfo().then((info) => {
       setVersion(info.version);
       setIsDev(info.isDev);
+
+      // Auto-open What's New on the first launch of a newer build. Skip in
+      // dev so it doesn't pop on every hot-reload. Compare exact-string —
+      // the format is "X.Y.Z" and the parser uses the same key.
+      if (!info.isDev) {
+        const last = localStorage.getItem(WHATSNEW_LAST_SEEN_KEY);
+        if (last !== info.version) {
+          setSeenVersion(last); // null on first ever run → show everything
+          setWhatsNewOpen(true);
+        }
+      }
     });
   }, [refreshLicense]);
+
+  const closeWhatsNew = () => {
+    setWhatsNewOpen(false);
+    if (version) localStorage.setItem(WHATSNEW_LAST_SEEN_KEY, version);
+  };
+  const openWhatsNew = () => {
+    // Manual open: still show entries newer than the last persisted seen
+    // version. After they close, we'll bump it to current.
+    setSeenVersion(localStorage.getItem(WHATSNEW_LAST_SEEN_KEY));
+    setWhatsNewOpen(true);
+  };
 
   const sections: NavSection[] = [
     {
@@ -99,18 +133,33 @@ export function Sidebar() {
         <SidebarLink to="/support" label={t('nav.support')} icon={IconHeart} />
         {version && (
           <div
-            className="px-3 pb-1 pt-2 text-[10px] text-fg-subtle"
+            className="flex items-center justify-between px-3 pb-1 pt-2 text-[10px] text-fg-subtle"
             title={isDev ? 'Development build' : 'Production build'}
           >
-            v{version}
-            {isDev && (
-              <span className="ml-1 rounded bg-warning/15 px-1 py-px text-[9px] font-medium text-warning">
-                dev
-              </span>
-            )}
+            <span>
+              v{version}
+              {isDev && (
+                <span className="ml-1 rounded bg-warning/15 px-1 py-px text-[9px] font-medium text-warning">
+                  dev
+                </span>
+              )}
+            </span>
+            <button
+              onClick={openWhatsNew}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-fg-muted hover:bg-bg-hover hover:text-fg-base"
+              title="See what changed in this and recent versions"
+            >
+              <IconSparkles size={10} stroke={2} /> What's new
+            </button>
           </div>
         )}
       </div>
+
+      <WhatsNewModal
+        open={whatsNewOpen}
+        onClose={closeWhatsNew}
+        sinceVersion={seenVersion}
+      />
     </aside>
   );
 }
