@@ -6,6 +6,44 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [SemVer](https://semver.org/spec/v2.0.0.html). Until 1.0.0,
 minor versions can introduce breaking changes; we'll call them out clearly.
 
+## [0.2.4] — 2026-05-11
+
+### Added
+
+- **Templates page — brand-swap hint + context banner.** The brand selector
+  at the top now sits in a panel showing the brand swatch, name, and a
+  one-line tip explaining that switching the dropdown reveals another
+  brand's templates — and that new templates created here will belong to
+  the currently selected brand.
+- **Data & Import — target-brand banner.** The brand selector on the
+  Import tab is now visually highlighted (accent-tinted background, brand
+  swatch, name) with an inline explanation that imported rows will become
+  SKUs of the currently selected brand.
+- **Import history — delete individual entries + clear all.** Each row
+  gets a trash-can action; a "Clear all history" button removes every
+  entry. Both are gated by a Confirm dialog that explains the audit-log
+  semantics: SKUs, brands, templates, and generated files are unaffected;
+  re-imports always overwrite SKUs by SKU code regardless of history. A
+  permanent inline note on the page restates this so the answer is
+  visible without having to attempt a delete to find out.
+- **Generate — folder organization preview diagram.** Below the folder
+  organization dropdown, a small monospace tree shows where files will
+  land for the current setting using the user's actual output folder,
+  brand name, template size, and filename pattern. Updates live as any
+  input changes.
+- **Generate — sample-first nudge on the scope dropdown.** When scope is
+  set to "All" and there are more than 20 SKUs, a tip points users at the
+  First-5 / First-10 sample options as a way to smoke-test fonts, layout,
+  and barcode scannability before committing to a full multi-thousand
+  render.
+- **File Manager — pagination + sortable columns.** The previous hardcoded
+  500-row cap is gone. Files are paginated (25 / 50 / 100 / 200 / 500 per
+  page) with first / prev / next / last controls and an X of N counter,
+  and every header (SKU, Brand, Size, Format, DPI, Generated, Filename)
+  is click-to-sort with direction toggle. The list call now goes through
+  a paginated IPC; the old non-paginated IPC is kept as a back-compat
+  shim for the previous DMG.
+
 ## [0.2.3] — 2026-05-11
 
 ### Changed

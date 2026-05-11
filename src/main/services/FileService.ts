@@ -31,50 +31,120 @@ export interface FileFilters {
   batchId?: string;
 }
 
+// Whitelist of columns the renderer is allowed to sort by. Anything outside
+// this list falls back to created_at. Keeps the SQL safe from injection
+// while letting the UI pick any visible column header.
+export type FileSortKey =
+  | 'created_at'
+  | 'sku'
+  | 'brand'
+  | 'size_label'
+  | 'format'
+  | 'dpi'
+  | 'file_path';
+
+const SORT_COLUMN: Record<FileSortKey, string> = {
+  created_at: 'created_at',
+  sku: 'sku',
+  brand: 'brand_id', // sort by id is stable; UI shows name but that's a JOIN
+  size_label: 'size_label',
+  format: 'format',
+  dpi: 'dpi',
+  file_path: 'file_path',
+};
+
+export interface FileListOptions {
+  filters: FileFilters;
+  sortKey?: FileSortKey;
+  sortDir?: 'asc' | 'desc';
+  /** 0-based page index. */
+  page?: number;
+  /** Rows per page (capped at 500). */
+  pageSize?: number;
+}
+
+export interface FileListResult {
+  rows: FileEntry[];
+  total: number;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
 
+function buildWhere(filters: FileFilters): {
+  sql: string;
+  params: Array<string | number>;
+} {
+  const where: string[] = ['deleted_at IS NULL'];
+  const params: Array<string | number> = [];
+  if (filters.query) {
+    where.push('(sku LIKE ? OR file_path LIKE ?)');
+    params.push(`%${filters.query}%`, `%${filters.query}%`);
+  }
+  if (filters.brandId) {
+    where.push('brand_id = ?');
+    params.push(filters.brandId);
+  }
+  if (filters.format) {
+    where.push('format = ?');
+    params.push(filters.format);
+  }
+  if (filters.sizeLabel) {
+    where.push('size_label = ?');
+    params.push(filters.sizeLabel);
+  }
+  if (filters.dateFrom) {
+    where.push('created_at >= ?');
+    params.push(filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    where.push('created_at <= ?');
+    params.push(filters.dateTo);
+  }
+  if (filters.batchId) {
+    where.push('batch_id = ?');
+    params.push(filters.batchId);
+  }
+  return { sql: where.join(' AND '), params };
+}
+
 export const FileService = {
   list(filters: FileFilters, limit = 500): FileEntry[] {
-    const db = getDb();
-    const where: string[] = ['deleted_at IS NULL'];
-    const params: Array<string | number> = [];
+    // Back-compat shim: the old call site (already-shipped 0.2.x DMGs) hits
+    // this through the listLegacy IPC. New UI uses listPaged() below.
+    return FileService.listPaged({
+      filters,
+      page: 0,
+      pageSize: limit,
+    }).rows;
+  },
 
-    if (filters.query) {
-      where.push('(sku LIKE ? OR file_path LIKE ?)');
-      params.push(`%${filters.query}%`, `%${filters.query}%`);
-    }
-    if (filters.brandId) {
-      where.push('brand_id = ?');
-      params.push(filters.brandId);
-    }
-    if (filters.format) {
-      where.push('format = ?');
-      params.push(filters.format);
-    }
-    if (filters.sizeLabel) {
-      where.push('size_label = ?');
-      params.push(filters.sizeLabel);
-    }
-    if (filters.dateFrom) {
-      where.push('created_at >= ?');
-      params.push(filters.dateFrom);
-    }
-    if (filters.dateTo) {
-      where.push('created_at <= ?');
-      params.push(filters.dateTo);
-    }
-    if (filters.batchId) {
-      where.push('batch_id = ?');
-      params.push(filters.batchId);
-    }
+  listPaged(opts: FileListOptions): FileListResult {
+    const db = getDb();
+    const { sql: whereSql, params } = buildWhere(opts.filters);
+
+    const sortKey: FileSortKey = opts.sortKey ?? 'created_at';
+    const sortCol = SORT_COLUMN[sortKey] ?? 'created_at';
+    const sortDir = opts.sortDir === 'asc' ? 'ASC' : 'DESC';
+
+    // Total count (filtered, pre-pagination) so the UI can render
+    // "showing 1–50 of 1,247".
+    const total = (
+      db
+        .prepare(`SELECT COUNT(*) AS c FROM generations WHERE ${whereSql}`)
+        .get(...params) as { c: number }
+    ).c;
+
+    const pageSize = Math.min(Math.max(1, opts.pageSize ?? 50), 500);
+    const page = Math.max(0, opts.page ?? 0);
+    const offset = page * pageSize;
 
     const sql = `SELECT id, batch_id, sku, brand_id, template_id, format, dpi, size_label, file_path, file_size, created_at
                  FROM generations
-                 WHERE ${where.join(' AND ')}
-                 ORDER BY created_at DESC
-                 LIMIT ${limit}`;
+                 WHERE ${whereSql}
+                 ORDER BY ${sortCol} ${sortDir}, id ${sortDir}
+                 LIMIT ${pageSize} OFFSET ${offset}`;
 
     const rows = db.prepare(sql).all(...params) as Array<{
       id: string;
@@ -93,11 +163,14 @@ export const FileService = {
     const brands = BrandService.list();
     const brandMap = new Map(brands.map((b) => [b.id, b]));
 
-    return rows.map((r) => ({
-      ...r,
-      brand_name: brandMap.get(r.brand_id)?.name ?? null,
-      exists: existsSync(r.file_path),
-    }));
+    return {
+      total,
+      rows: rows.map((r) => ({
+        ...r,
+        brand_name: brandMap.get(r.brand_id)?.name ?? null,
+        exists: existsSync(r.file_path),
+      })),
+    };
   },
 
   distinctSizes(): string[] {

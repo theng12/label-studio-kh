@@ -9,6 +9,8 @@ import {
   commit,
   listSkusForBrand,
   listImports,
+  deleteImport,
+  clearImports,
 } from '../services/ImportService';
 import type { CommitInput } from '@shared/types/import';
 
@@ -50,4 +52,6 @@ export function registerImportIpc(): void {
   ipcMain.handle('import:commit', (_e, input: CommitInput) => commit(input));
   ipcMain.handle('import:listSkus', (_e, brandId: string) => listSkusForBrand(brandId));
   ipcMain.handle('import:listImports', (_e, brandId?: string) => listImports(brandId));
+  ipcMain.handle('import:deleteImport', (_e, id: string) => deleteImport(id));
+  ipcMain.handle('import:clearImports', (_e, brandId?: string) => clearImports(brandId));
 }

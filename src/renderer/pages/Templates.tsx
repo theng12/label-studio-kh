@@ -143,20 +143,40 @@ export default function Templates() {
           </Button>
         }
       >
-        <div className="mb-4 flex items-center gap-2">
-          <span className="text-xs text-fg-muted">{t('templates.brandLabel')}</span>
-          <select
-            value={selectedBrandId ?? ''}
-            onChange={(e) => setSelectedBrandId(e.target.value)}
-            className="rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm text-fg-base"
-          >
-            {visibleBrands.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {(() => {
+          const activeBrand = visibleBrands.find((b) => b.id === selectedBrandId);
+          return (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-border-base bg-bg-surface px-3 py-2">
+              {activeBrand && (
+                <span
+                  className="h-3 w-3 shrink-0 rounded border border-border-base"
+                  style={{ background: activeBrand.color }}
+                  aria-hidden
+                />
+              )}
+              <span className="text-xs text-fg-muted">
+                Templates for
+              </span>
+              <select
+                value={selectedBrandId ?? ''}
+                onChange={(e) => setSelectedBrandId(e.target.value)}
+                className="rounded-md border border-border-base bg-bg-base px-2 py-1 text-sm font-medium text-fg-base"
+                title="Switch brand to see that brand's templates"
+              >
+                {visibleBrands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] text-fg-subtle">
+                Tip: change the brand above to view another brand's templates.
+                New templates you create here belong to{' '}
+                <strong className="text-fg-muted">{activeBrand?.name ?? '—'}</strong>.
+              </span>
+            </div>
+          );
+        })()}
 
         {loading ? (
           <TemplateCardSkeletonGrid />

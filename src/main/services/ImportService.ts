@@ -421,3 +421,30 @@ export function listImports(brandId?: string): Array<{
     created_at: string;
   }>;
 }
+
+/**
+ * Delete a single import-history row. This is purely audit-log: the SKUs the
+ * import inserted/updated remain untouched (they live in `skus` keyed by SKU
+ * code, not by import). `skus.last_import_id` is left dangling, which is
+ * fine — nothing reads it defensively against the imports table, and a
+ * dangling string FK in SQLite without enforcement is harmless. Returns
+ * true if the row existed.
+ */
+export function deleteImport(id: string): boolean {
+  const db = getDb();
+  const r = db.prepare('DELETE FROM imports WHERE id = ?').run(id);
+  return r.changes > 0;
+}
+
+/**
+ * Wipe every import-history row, optionally scoped to a single brand. Same
+ * audit-log-only semantics as deleteImport(). Returns the number of rows
+ * removed so the UI can show "Cleared N entries."
+ */
+export function clearImports(brandId?: string): number {
+  const db = getDb();
+  const r = brandId
+    ? db.prepare('DELETE FROM imports WHERE brand_id = ?').run(brandId)
+    : db.prepare('DELETE FROM imports').run();
+  return r.changes;
+}

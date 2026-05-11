@@ -168,6 +168,10 @@ const api = {
       ipcRenderer.invoke('import:listSkus', brandId),
     listImports: (brandId?: string): Promise<ImportListEntry[]> =>
       ipcRenderer.invoke('import:listImports', brandId),
+    deleteImport: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke('import:deleteImport', id),
+    clearImports: (brandId?: string): Promise<number> =>
+      ipcRenderer.invoke('import:clearImports', brandId),
   },
   dashboard: {
     stats: (): Promise<{
@@ -219,6 +223,45 @@ const api = {
         exists: boolean;
       }>
     > => ipcRenderer.invoke('file:list', filters),
+    listPaged: (opts: {
+      filters: {
+        query?: string;
+        brandId?: string;
+        format?: 'pdf' | 'png' | 'jpeg';
+        dateFrom?: string;
+        dateTo?: string;
+        sizeLabel?: string;
+        batchId?: string;
+      };
+      sortKey?:
+        | 'created_at'
+        | 'sku'
+        | 'brand'
+        | 'size_label'
+        | 'format'
+        | 'dpi'
+        | 'file_path';
+      sortDir?: 'asc' | 'desc';
+      page?: number;
+      pageSize?: number;
+    }): Promise<{
+      total: number;
+      rows: Array<{
+        id: string;
+        batch_id: string | null;
+        sku: string;
+        brand_id: string;
+        brand_name: string | null;
+        template_id: string;
+        format: string;
+        dpi: number;
+        size_label: string;
+        file_path: string;
+        file_size: number | null;
+        created_at: string;
+        exists: boolean;
+      }>;
+    }> => ipcRenderer.invoke('file:listPaged', opts),
     distinctSizes: (): Promise<string[]> => ipcRenderer.invoke('file:distinctSizes'),
     delete: (id: string, alsoFromDisk: boolean): Promise<boolean> =>
       ipcRenderer.invoke('file:delete', id, alsoFromDisk),

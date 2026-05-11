@@ -7,6 +7,9 @@ import {
   IconTrash,
   IconAlertCircle,
   IconX,
+  IconChevronUp,
+  IconChevronDown,
+  IconSelector,
 } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
@@ -14,11 +17,23 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { toast } from '../components/Toast';
 import { useBrandStore } from '../stores/brandStore';
 
-type FileEntry = Awaited<ReturnType<typeof window.api.files.list>>[number];
+type FileEntry = Awaited<
+  ReturnType<typeof window.api.files.listPaged>
+>['rows'][number];
+
+type SortKey =
+  | 'created_at'
+  | 'sku'
+  | 'brand'
+  | 'size_label'
+  | 'format'
+  | 'dpi'
+  | 'file_path';
 
 export default function Files() {
   const { brands, refresh } = useBrandStore();
   const [files, setFiles] = useState<FileEntry[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [brandId, setBrandId] = useState<string>('');
@@ -37,6 +52,15 @@ export default function Files() {
   } | null>(null);
   const lastClickedIdxRef = useRef<number | null>(null);
 
+  // Pagination + sort state. Page is 0-based; clamped to last page when total
+  // shrinks below the current offset (e.g. after deletes).
+  const [sortKey, setSortKey] = useState<SortKey>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+
   useEffect(() => {
     void refresh();
     void window.api.files.distinctSizes().then(setSizes);
@@ -44,37 +68,63 @@ export default function Files() {
 
   const reload = async () => {
     setLoading(true);
-    const list = await window.api.files.list({
-      query: query.trim() || undefined,
-      brandId: brandId || undefined,
-      format: format || undefined,
-      sizeLabel: size || undefined,
-      batchId: batchFilter || undefined,
+    const result = await window.api.files.listPaged({
+      filters: {
+        query: query.trim() || undefined,
+        brandId: brandId || undefined,
+        format: format || undefined,
+        sizeLabel: size || undefined,
+        batchId: batchFilter || undefined,
+      },
+      sortKey,
+      sortDir,
+      page: safePage,
+      pageSize,
     });
-    setFiles(list);
+    setFiles(result.rows);
+    setTotal(result.total);
     setLoading(false);
     // Drop selections for rows that are no longer visible.
     setSelected((prev) => {
-      const visibleIds = new Set(list.map((f) => f.id));
+      const visibleIds = new Set(result.rows.map((f) => f.id));
       const next = new Set<string>();
       for (const id of prev) if (visibleIds.has(id)) next.add(id);
       return next;
     });
   };
 
-  // Reload when filters change.
+  // Reset to page 0 whenever filters or sort change (otherwise we could be
+  // looking at an out-of-range page in the new result set).
+  useEffect(() => {
+    setPage(0);
+  }, [query, brandId, format, size, batchFilter, sortKey, sortDir, pageSize]);
+
+  // Reload whenever any input changes.
   useEffect(() => {
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, brandId, format, size, batchFilter]);
+  }, [query, brandId, format, size, batchFilter, sortKey, sortDir, page, pageSize]);
 
+  const onSortToggle = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      // Sensible default per column: dates newest first, everything else asc.
+      setSortDir(key === 'created_at' ? 'desc' : 'asc');
+    }
+  };
+
+  // Summary now describes "page N of M (X total)" rather than just "N files",
+  // so the user can tell whether 50 visible means 50 total or 50 of 1200.
   const summary = useMemo(() => {
-    const totalSize = files.reduce((s, f) => s + (f.file_size ?? 0), 0);
+    const pageSizeBytes = files.reduce((s, f) => s + (f.file_size ?? 0), 0);
     return {
-      count: files.length,
-      mb: (totalSize / (1024 * 1024)).toFixed(1),
+      shown: files.length,
+      total,
+      pageMb: (pageSizeBytes / (1024 * 1024)).toFixed(1),
     };
-  }, [files]);
+  }, [files, total]);
 
   const allVisibleSelected =
     files.length > 0 && files.every((f) => selected.has(f.id));
@@ -272,7 +322,15 @@ export default function Files() {
           </Button>
 
           <span className="ml-auto text-xs text-fg-muted">
-            {summary.count} file{summary.count === 1 ? '' : 's'} · {summary.mb} MB
+            {total === 0
+              ? 'No files match'
+              : `${total.toLocaleString()} file${total === 1 ? '' : 's'} match`}
+            {files.length > 0 && total > files.length && (
+              <span className="text-fg-subtle">
+                {' '}
+                · showing {summary.shown} · {summary.pageMb} MB on this page
+              </span>
+            )}
           </span>
         </div>
 
@@ -358,13 +416,13 @@ export default function Files() {
                       className="cursor-pointer accent-accent"
                     />
                   </th>
-                  <th className="px-2 py-2 text-left">SKU</th>
-                  <th className="px-2 py-2 text-left">Brand</th>
-                  <th className="px-2 py-2 text-left">Size</th>
-                  <th className="px-2 py-2 text-left">Format</th>
-                  <th className="px-2 py-2 text-left">DPI</th>
-                  <th className="px-2 py-2 text-left">Generated</th>
-                  <th className="px-2 py-2 text-left">Filename</th>
+                  <SortableTh label="SKU" col="sku" sortKey={sortKey} sortDir={sortDir} onToggle={onSortToggle} />
+                  <SortableTh label="Brand" col="brand" sortKey={sortKey} sortDir={sortDir} onToggle={onSortToggle} />
+                  <SortableTh label="Size" col="size_label" sortKey={sortKey} sortDir={sortDir} onToggle={onSortToggle} />
+                  <SortableTh label="Format" col="format" sortKey={sortKey} sortDir={sortDir} onToggle={onSortToggle} />
+                  <SortableTh label="DPI" col="dpi" sortKey={sortKey} sortDir={sortDir} onToggle={onSortToggle} />
+                  <SortableTh label="Generated" col="created_at" sortKey={sortKey} sortDir={sortDir} onToggle={onSortToggle} />
+                  <SortableTh label="Filename" col="file_path" sortKey={sortKey} sortDir={sortDir} onToggle={onSortToggle} />
                   <th className="px-2 py-2 text-right">Actions</th>
                 </tr>
               </thead>
@@ -471,11 +529,69 @@ export default function Files() {
                 })}
               </tbody>
             </table>
-            {files.length === 500 && (
-              <div className="bg-bg-elevated px-2 py-1 text-[10px] text-fg-subtle">
-                Showing latest 500 results. Use filters to narrow further.
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-subtle bg-bg-elevated px-3 py-2 text-xs text-fg-muted">
+              <span>
+                {total === 0
+                  ? 'No matches'
+                  : `Showing ${safePage * pageSize + 1}–${Math.min(
+                      (safePage + 1) * pageSize,
+                      total,
+                    )} of ${total.toLocaleString()}`}
+              </span>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1">
+                  <span className="text-[10px] text-fg-subtle">Per page</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+                    className="rounded-md border border-border-base bg-bg-base px-1.5 py-1 text-[11px]"
+                  >
+                    {[25, 50, 100, 200, 500].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={safePage === 0}
+                    onClick={() => setPage(0)}
+                    className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+                    title="First page"
+                  >
+                    ⟪
+                  </button>
+                  <button
+                    disabled={safePage === 0}
+                    onClick={() => setPage(safePage - 1)}
+                    className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+                    title="Previous page"
+                  >
+                    ‹ Prev
+                  </button>
+                  <span className="px-2 font-mono">
+                    {safePage + 1} / {totalPages}
+                  </span>
+                  <button
+                    disabled={safePage >= totalPages - 1}
+                    onClick={() => setPage(safePage + 1)}
+                    className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+                    title="Next page"
+                  >
+                    Next ›
+                  </button>
+                  <button
+                    disabled={safePage >= totalPages - 1}
+                    onClick={() => setPage(totalPages - 1)}
+                    className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+                    title="Last page"
+                  >
+                    ⟫
+                  </button>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         )}
       </Page>
@@ -542,4 +658,46 @@ export default function Files() {
 function filenameOf(path: string): string {
   const i = path.lastIndexOf('/');
   return i >= 0 ? path.slice(i + 1) : path;
+}
+
+function SortableTh({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onToggle,
+}: {
+  label: string;
+  col: SortKey;
+  sortKey: SortKey;
+  sortDir: 'asc' | 'desc';
+  onToggle: (k: SortKey) => void;
+}) {
+  const active = sortKey === col;
+  const Icon = !active
+    ? IconSelector
+    : sortDir === 'asc'
+      ? IconChevronUp
+      : IconChevronDown;
+  return (
+    <th className="px-2 py-2 text-left">
+      <button
+        onClick={() => onToggle(col)}
+        className={[
+          'inline-flex items-center gap-1 -mx-1 rounded px-1 py-0.5 transition-colors',
+          active
+            ? 'text-fg-base font-semibold'
+            : 'text-fg-muted hover:text-fg-base',
+        ].join(' ')}
+        title={`Sort by ${label}`}
+      >
+        {label}
+        <Icon
+          size={12}
+          stroke={2}
+          className={active ? 'text-accent' : 'text-fg-subtle'}
+        />
+      </button>
+    </th>
+  );
 }

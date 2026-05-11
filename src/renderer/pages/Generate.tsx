@@ -363,6 +363,20 @@ export default function Generate() {
                   {t('generate.output.folderOrgBrandTemplate')}
                 </option>
               </select>
+              <FolderPreview
+                outputDir={outputDir}
+                folderOrg={folderOrg}
+                brandName={brand?.name ?? 'Brand'}
+                templateName={template?.name ?? 'Template'}
+                sizeLabel={
+                  template
+                    ? `${template.width_mm}x${template.height_mm}mm`
+                    : '50x30mm'
+                }
+                filenamePattern={filenamePattern}
+                sampleRow={previewRow}
+                formats={formats}
+              />
             </Field>
 
             <label className="flex items-center gap-2 text-xs text-fg-base">
@@ -500,28 +514,44 @@ export default function Generate() {
           )}
 
           {skus.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-fg-muted">
-              <span>{t('generate.scope.label')}</span>
-              <select
-                value={String(sampleScope)}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setSampleScope(v === 'all' ? 'all' : (parseInt(v, 10) as 5 | 10 | 25 | 50));
-                }}
-                className="rounded-md border border-border-base bg-bg-surface px-2 py-1 text-xs"
-              >
-                <option value="all">
-                  {t('generate.scope.all', { count: skus.length })}
-                </option>
-                <option value="5">{t('generate.scope.first', { n: 5 })}</option>
-                <option value="10">{t('generate.scope.first', { n: 10 })}</option>
-                <option value="25">{t('generate.scope.first', { n: 25 })}</option>
-                <option value="50">{t('generate.scope.first', { n: 50 })}</option>
-              </select>
-              {sampleScope !== 'all' && (
-                <span className="text-[10px] text-fg-subtle">
-                  {t('generate.scope.sampleHint', { n: sampleScope })}
-                </span>
+            <div className="rounded-md border border-border-subtle bg-bg-surface px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+                <span>{t('generate.scope.label')}</span>
+                <select
+                  value={String(sampleScope)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSampleScope(v === 'all' ? 'all' : (parseInt(v, 10) as 5 | 10 | 25 | 50));
+                  }}
+                  className="rounded-md border border-border-base bg-bg-base px-2 py-1 text-xs font-medium text-fg-base"
+                >
+                  <option value="all">
+                    {t('generate.scope.all', { count: skus.length })}
+                  </option>
+                  <option value="5">{t('generate.scope.first', { n: 5 })}</option>
+                  <option value="10">{t('generate.scope.first', { n: 10 })}</option>
+                  <option value="25">{t('generate.scope.first', { n: 25 })}</option>
+                  <option value="50">{t('generate.scope.first', { n: 50 })}</option>
+                </select>
+                {sampleScope !== 'all' && (
+                  <span className="text-[10px] text-fg-subtle">
+                    {t('generate.scope.sampleHint', { n: sampleScope })}
+                  </span>
+                )}
+              </div>
+              {/* New-user nudge: a full run on 1000+ SKUs can take minutes
+                  and uses real disk. Steer first-timers toward a small
+                  sample so they catch font/layout/path issues before
+                  committing to a long render. */}
+              {sampleScope === 'all' && skus.length > 20 && (
+                <div className="mt-1.5 text-[10px] text-fg-subtle">
+                  Tip: not sure yet? Switch the dropdown above to{' '}
+                  <strong className="text-fg-muted">First 5</strong> or{' '}
+                  <strong className="text-fg-muted">First 10</strong> to render
+                  a quick sample batch first. Check the output folder, font
+                  rendering, and barcode scan before running all{' '}
+                  {skus.length.toLocaleString()} labels.
+                </div>
               )}
             </div>
           )}
@@ -609,6 +639,101 @@ function samplePreview(
 
 async function tempDir(): Promise<string> {
   return '/tmp/lskh-preview';
+}
+
+// Renders a small ASCII-tree preview of where files land for the current
+// folderOrg setting. The values used here mirror resolveFolder() in
+// ExportService.ts and the export's sanitize(name, 40) so what the user sees
+// is exactly what they'll get on disk.
+function FolderPreview({
+  outputDir,
+  folderOrg,
+  brandName,
+  templateName,
+  sizeLabel,
+  filenamePattern,
+  sampleRow,
+  formats,
+}: {
+  outputDir: string;
+  folderOrg: ExportSettings['folderOrganization'];
+  brandName: string;
+  templateName: string;
+  sizeLabel: string;
+  filenamePattern: string;
+  sampleRow: Record<string, string>;
+  formats: ExportFormat[];
+}) {
+  const { t } = useTranslation();
+  // sanitize-ish: mirror ExportService.sanitize for visual fidelity. The real
+  // function strips path separators and trims to 40 — close enough for a
+  // preview that's bound to update as the user types.
+  const sanit = (s: string) =>
+    s.replace(/[/\\:*?"<>|]+/g, '_').replace(/\s+/g, '_').slice(0, 40);
+
+  const rootLabel = outputDir
+    ? outputDir
+    : t('generate.output.saveLocationPlaceholder');
+
+  // Build the segments between rootLabel and the file based on org mode.
+  const segments: string[] = [];
+  if (folderOrg === 'brand' || folderOrg === 'brand_size' || folderOrg === 'brand_template') {
+    segments.push(sanit(brandName));
+  }
+  if (folderOrg === 'brand_size') segments.push(sizeLabel);
+  if (folderOrg === 'brand_template') segments.push(sanit(templateName));
+
+  // Apply the same filename pattern the export pipeline uses, with
+  // sizeLabel taken from the actual template (passed in) rather than re-
+  // parsed from a synthetic Template object. Two sample rows so the user
+  // sees the per-row variation.
+  const exampleSku = sampleRow.sku || 'DEMO-001';
+  const altSku = exampleSku.endsWith('1')
+    ? `${exampleSku.slice(0, -1)}2`
+    : `${exampleSku}-2`;
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+  const applyPattern = (sku: string, name: string) =>
+    filenamePattern
+      .replace(/\{SKU\}/g, sku)
+      .replace(/\{Brand\}/g, brandName.replace(/\s+/g, '_'))
+      .replace(/\{Size\}/g, sizeLabel)
+      .replace(/\{Date\}/g, dateStr)
+      .replace(/\{Name\}/g, name.slice(0, 40).replace(/\s+/g, '_'))
+      .replace(/\{Index\}/g, '0001');
+  const fmt = formats[0] ?? 'pdf';
+  const file1 = applyPattern(exampleSku, sampleRow.product_name ?? '');
+  const file2 = applyPattern(altSku, sampleRow.product_name ?? '');
+
+  return (
+    <div className="mt-2 rounded-md border border-border-subtle bg-bg-elevated px-3 py-2 text-[10px] leading-relaxed font-mono text-fg-muted">
+      <div className="mb-1 text-[10px] uppercase tracking-widest text-fg-subtle font-sans">
+        Where files will land
+      </div>
+      <div className="truncate" title={rootLabel}>
+        📁 {rootLabel}/
+      </div>
+      {segments.map((seg, i) => (
+        <div key={i} style={{ paddingLeft: (i + 1) * 14 }}>
+          {'└─ '}📁 {seg}/
+        </div>
+      ))}
+      <div style={{ paddingLeft: (segments.length + 1) * 14 }}>
+        {'├─ '}📄 {file1}.{fmt}
+      </div>
+      <div style={{ paddingLeft: (segments.length + 1) * 14 }}>
+        {'├─ '}📄 {file2}.{fmt}
+      </div>
+      <div style={{ paddingLeft: (segments.length + 1) * 14 }}>
+        {'└─ '}…
+      </div>
+      {formats.length > 1 && (
+        <div className="mt-1 text-[10px] text-fg-subtle font-sans">
+          + same files for each selected format ({formats.map((f) => f.toUpperCase()).join(', ')})
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Subcomponents ────────────────────────────────────────────────────────────

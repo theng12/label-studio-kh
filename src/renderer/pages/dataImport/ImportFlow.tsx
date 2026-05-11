@@ -19,6 +19,7 @@ export function ImportFlow() {
   const { t } = useTranslation();
   const im = useImportStore();
   const { visibleBrands, pickBrand } = useDefaultBrand();
+  const activeBrand = visibleBrands.find((b) => b.id === im.brandId);
 
   const stepNumber =
     im.step === 'pickFile'
@@ -31,15 +32,29 @@ export function ImportFlow() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-fg-muted">{t('dataImport.import.intoBrand')}</span>
+      {/* Target-brand banner: makes it explicit which brand will receive the
+          imported rows. Without this, "Import 1000 SKUs" is ambiguous when
+          the user has more than one brand and the default brand isn't the
+          one they meant. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2">
+        {activeBrand && (
+          <span
+            className="h-3 w-3 shrink-0 rounded border border-border-base"
+            style={{ background: activeBrand.color }}
+            aria-hidden
+          />
+        )}
+        <span className="text-xs text-fg-muted">
+          {t('dataImport.import.intoBrand')}:
+        </span>
         <select
           value={im.brandId ?? ''}
           onChange={(e) => {
             im.setBrandId(e.target.value);
             pickBrand(e.target.value);
           }}
-          className="rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm text-fg-base"
+          className="rounded-md border border-border-base bg-bg-base px-2 py-1 text-sm font-medium text-fg-base"
+          title="Switch brand to import into a different brand's SKU set"
         >
           {visibleBrands.map((b) => (
             <option key={b.id} value={b.id}>
@@ -47,6 +62,11 @@ export function ImportFlow() {
             </option>
           ))}
         </select>
+        <span className="text-[10px] text-fg-subtle">
+          Rows below will be saved as SKUs of{' '}
+          <strong className="text-fg-muted">{activeBrand?.name ?? '—'}</strong>.
+          Change the brand above to retarget.
+        </span>
         <span className="ml-auto text-xs text-fg-subtle">
           {t('dataImport.import.stepCount', { step: stepNumber, total: 4 })}
         </span>
