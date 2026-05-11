@@ -53,14 +53,14 @@ nsis:
 #
 # To go live:
 #   1. Create the public GitHub repo (any name, e.g. label-studio-kh).
-#   2. Replace TODO_GITHUB_OWNER below with your GitHub username / org.
-#   3. Replace TODO_REPO_NAME with the repo name.
+#   2. Replace theng12 below with your GitHub username / org.
+#   3. Replace label-studio-kh with the repo name.
 #   4. Run: GH_TOKEN=ghp_… npm run build:all -- --publish always
 #      (token only needed at upload time, not at user install time).
 publish:
   provider: github
-  owner: TODO_GITHUB_OWNER
-  repo: TODO_REPO_NAME
+  owner: theng12
+  repo: label-studio-kh
   # `private: false` is the default; explicit for clarity. With a public repo
   # the auto-updater reads the Releases feed anonymously — no token needed
   # on user machines.

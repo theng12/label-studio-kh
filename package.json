@@ -8,12 +8,12 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/TODO_GITHUB_OWNER/TODO_REPO_NAME.git"
+    "url": "git+https://github.com/theng12/label-studio-kh.git"
   },
   "bugs": {
-    "url": "https://github.com/TODO_GITHUB_OWNER/TODO_REPO_NAME/issues"
+    "url": "https://github.com/theng12/label-studio-kh/issues"
   },
-  "homepage": "https://github.com/TODO_GITHUB_OWNER/TODO_REPO_NAME#readme",
+  "homepage": "https://github.com/theng12/label-studio-kh#readme",
   "scripts": {
     "postinstall": "electron-rebuild",
     "dev": "electron-vite dev",

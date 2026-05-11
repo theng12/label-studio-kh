@@ -23,7 +23,7 @@ and distribution businesses managing many brands and many SKUs.
 ## Download
 
 Pre-built installers live on the
-**[Releases page](https://github.com/TODO_GITHUB_OWNER/TODO_REPO_NAME/releases/latest)**.
+**[Releases page](https://github.com/theng12/label-studio-kh/releases/latest)**.
 
 | Platform | File | Notes |
 |---|---|---|
