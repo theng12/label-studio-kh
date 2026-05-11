@@ -4,8 +4,16 @@
   "description": "Desktop label design and bulk generation system",
   "main": "out/main/index.js",
   "author": "Label Studio KH",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TODO_GITHUB_OWNER/TODO_REPO_NAME.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TODO_GITHUB_OWNER/TODO_REPO_NAME/issues"
+  },
+  "homepage": "https://github.com/TODO_GITHUB_OWNER/TODO_REPO_NAME#readme",
   "scripts": {
     "postinstall": "electron-rebuild",
     "dev": "electron-vite dev",

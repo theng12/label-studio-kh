@@ -15,10 +15,15 @@ mac:
   icon: resources/icon.png
   target:
     - target: dmg
-      arch: [arm64]
+      # Build BOTH Apple Silicon (arm64) and Intel (x64) Macs. Intel Macs
+      # (2020 and earlier) can't install an arm64-only DMG. Doubles output
+      # size — two ~200MB DMGs end up in dist/ — but covers ~25% more Mac
+      # users. To rebuild faster during local iteration, drop x64 here.
+      arch: [arm64, x64]
   hardenedRuntime: false
   gatekeeperAssess: false
-  identity: null # unsigned build
+  identity: null # unsigned build. To sign: fill in a Developer ID Application
+                 # cert (CSC_LINK env var or this field) + set notarize: true.
 dmg:
   title: Label Studio KH ${version}
   background: null
@@ -41,3 +46,25 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
+
+# Publish config for both the auto-updater AND `electron-builder --publish`
+# uploads. Provider: github → electron-updater fetches updates from the repo's
+# Releases feed, no auth needed (public repo).
+#
+# To go live:
+#   1. Create the public GitHub repo (any name, e.g. label-studio-kh).
+#   2. Replace TODO_GITHUB_OWNER below with your GitHub username / org.
+#   3. Replace TODO_REPO_NAME with the repo name.
+#   4. Run: GH_TOKEN=ghp_… npm run build:all -- --publish always
+#      (token only needed at upload time, not at user install time).
+publish:
+  provider: github
+  owner: TODO_GITHUB_OWNER
+  repo: TODO_REPO_NAME
+  # `private: false` is the default; explicit for clarity. With a public repo
+  # the auto-updater reads the Releases feed anonymously — no token needed
+  # on user machines.
+  private: false
+  # Treats every Release as a stable channel. If we ever do prereleases,
+  # add a separate "beta" channel and gate via electron-updater config.
+  releaseType: release
