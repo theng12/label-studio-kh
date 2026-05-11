@@ -18,10 +18,18 @@ export type ElementType =
  * Whether resizing should default to maintaining the current aspect ratio for
  * a given element type. Users can override per-element via the Properties
  * panel, but these defaults match what people expect for each kind of object:
- * logos / QR / cert / image keep their ratio, everything else is freeform.
+ * logos / QR / cert / image / barcode keep their ratio (a stretched barcode
+ * is still a valid encode but looks wrong on shelf), everything else is
+ * freeform.
  */
 export function defaultAspectLock(type: ElementType): boolean {
-  return type === 'qr' || type === 'logo' || type === 'cert' || type === 'image';
+  return (
+    type === 'qr' ||
+    type === 'logo' ||
+    type === 'cert' ||
+    type === 'image' ||
+    type === 'barcode'
+  );
 }
 
 export function isAspectLocked(el: BaseElement): boolean {

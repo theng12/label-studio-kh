@@ -831,10 +831,26 @@ function PreviewCanvas({
 
 import type { TemplateElement, TextElement } from '../../shared/types/template';
 
+// Mirror of the placeholder rule in StickerRenderer.ts so the Generate-page
+// preview shows the same expanded result that the export will produce.
+function expandPlaceholders(s: string, row: Record<string, string>): string {
+  return s.replace(/\{(\w+)\}/g, (_, k) =>
+    row[k] !== undefined ? String(row[k]) : `{${k}}`,
+  );
+}
+
 function resolveElement(el: TemplateElement, row: Record<string, string>): TemplateElement {
-  if ((el.type === 'text' || el.type === 'sku') && el.dataSource === 'csv_column') {
-    const v = row[el.csvColumn] ?? '';
-    return { ...(el as TextElement), staticText: v, dataSource: 'static' };
+  if (el.type === 'text' || el.type === 'sku') {
+    if (el.dataSource === 'csv_column') {
+      const v = row[el.csvColumn] ?? '';
+      return { ...(el as TextElement), staticText: v, dataSource: 'static' };
+    }
+    if (el.dataSource === 'static' && el.staticText.includes('{')) {
+      return {
+        ...(el as TextElement),
+        staticText: expandPlaceholders(el.staticText, row),
+      };
+    }
   }
   return el;
 }

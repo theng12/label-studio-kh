@@ -6,6 +6,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [SemVer](https://semver.org/spec/v2.0.0.html). Until 1.0.0,
 minor versions can introduce breaking changes; we'll call them out clearly.
 
+## [0.2.3] — 2026-05-11
+
+### Changed
+
+- **Barcode resizing defaults to locked aspect ratio.** A stretched barcode
+  is still a valid encode but looks wrong on shelf and inconsistent next to
+  the logo. Joins QR / Logo / Cert / Image in the default-locked set. Hold
+  Shift while dragging a handle to override, same as the other locked types.
+- **Text element now supports `{column_name}` placeholders in static text.**
+  Type a literal like `1 UNIT OF {product_name}` and at export time the
+  placeholder is replaced with that row's `product_name`. The prefix and the
+  column are both fully editable — pick any wording and any column. Unknown
+  columns render as-is so typos are visible on the label rather than
+  silently producing blanks. Generate-page preview shows the expanded text.
+
+### Removed
+
+- **Strip box element retired from the palette.** It rendered a hardcoded
+  `1 UNIT OF {product_name}` label and had no properties panel, so the
+  prefix and column choice were stuck. The Text element now covers the
+  same use case (see above) with full font / color / multiline / alignment
+  control. Existing strip elements in saved templates continue to load and
+  render — only the palette tile is gone, so no new ones can be added.
+
 ## [0.2.2] — 2026-05-09
 
 ### Added

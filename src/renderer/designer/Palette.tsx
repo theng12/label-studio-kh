@@ -6,7 +6,6 @@ import {
   IconLetterT,
   IconPhoto,
   IconLayoutBottombar,
-  IconBorderHorizontal,
   IconRosette,
   IconSeparator,
   IconCalendar,
@@ -60,7 +59,12 @@ const ITEMS: PaletteItem[] = [
   },
   { key: 'image', type: 'image', label: 'Image', icon: IconPhoto },
   { key: 'colorbar', type: 'colorbar', label: 'Color bar', icon: IconLayoutBottombar },
-  { key: 'strip', type: 'strip', label: 'Strip box', icon: IconBorderHorizontal },
+  // 'Strip box' was removed from the palette — it was a hardcoded
+  // '1 UNIT OF {product_name}' label with no edit UI. A Text element gets
+  // the same effect with full editing: pick any prefix, any CSV column to
+  // substitute via {column} placeholder, plus font / color / multiline.
+  // Existing strip elements in saved templates still load and render via
+  // the strip case in ElementView.tsx and StickerRenderer.ts.
   { key: 'cert', type: 'cert', label: 'Cert badge', icon: IconRosette },
   { key: 'divider', type: 'divider', label: 'Divider', icon: IconSeparator },
   { key: 'date', type: 'date', label: 'Date', icon: IconCalendar },

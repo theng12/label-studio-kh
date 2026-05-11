@@ -41,8 +41,8 @@ export function TextProperties({
           label="Static text"
           hint={
             cap
-              ? `${currentLen} / ${cap} characters${currentLen > cap ? ' — will be truncated with …' : ''}`
-              : undefined
+              ? `${currentLen} / ${cap} characters${currentLen > cap ? ' — will be truncated with …' : ''}. Tip: use {column_name} to mix in row data (e.g. "1 UNIT OF {product_name}").`
+              : 'Tip: use {column_name} to mix in row data (e.g. "1 UNIT OF {product_name}"). Unknown columns render as-is so typos are visible.'
           }
         >
           <input

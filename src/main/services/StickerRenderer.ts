@@ -47,6 +47,18 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
+// Expand {column} placeholders inside literal text against the current row.
+// Unknown placeholders fall through as-is (e.g. {xyz} stays {xyz}) so a typo
+// is obvious on the rendered label rather than producing a silent blank.
+// Same convention the strip element has always used; lets Text serve the
+// "1 UNIT OF {product_name}" use case (with any prefix and any column) that
+// the dedicated strip box used to cover.
+function expandPlaceholders(s: string, row: Record<string, string>): string {
+  return s.replace(/\{(\w+)\}/g, (_, k) =>
+    row[k] !== undefined ? String(row[k]) : `{${k}}`,
+  );
+}
+
 function resolveTextValue(
   el: Extract<TemplateElement, { type: 'text' | 'sku' }>,
   row: Record<string, string>,
@@ -73,7 +85,7 @@ function resolveTextValue(
         return brand.customerCareLabel ?? '';
     }
   }
-  return el.staticText;
+  return expandPlaceholders(el.staticText, row);
 }
 
 function truncate(s: string, max: number | null | undefined): string {
