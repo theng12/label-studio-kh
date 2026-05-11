@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [SemVer](https://semver.org/spec/v2.0.0.html). Until 1.0.0,
 minor versions can introduce breaking changes; we'll call them out clearly.
 
+## [0.2.8] — 2026-05-11
+
+### Removed
+
+- **Direct-send wallet rows on the Donate page.** NOWPayments' widget
+  already gives donors a polished coin/network picker over 200+ assets,
+  and per-coin direct-send addresses were never enabled (still placeholder
+  rows in 0.2.7). Dropped the `WALLETS` array, `WalletRow` component, QR
+  rendering, copy-button, and clipboard plumbing — about 100 lines.
+  Restore from commit `8b7be4a` if direct-send is ever wanted back.
+
+### Changed
+
+- **Support → Donate page simplified to a single button** + the headline
+  card. Cleaner code, cleaner UI. NOWPayments handles everything on the
+  donor side.
+
 ## [0.2.7] — 2026-05-11
 
 ### Added
