@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [SemVer](https://semver.org/spec/v2.0.0.html). Until 1.0.0,
 minor versions can introduce breaking changes; we'll call them out clearly.
 
+## [0.2.7] — 2026-05-11
+
+### Added
+
+- **NOWPayments donation link is now live.** The "Pay with crypto
+  (NOWPayments)" button on Support → Donate opens the real donation
+  widget in the user's default browser. Wallet rows for direct sends
+  still show the "Donations are being set up" placeholder until the
+  wallet addresses are provided — to be filled in a follow-up edit to
+  the `WALLETS` array at the top of `src/renderer/pages/Support.tsx`.
+
 ## [0.2.6] — 2026-05-11
 
 ### Removed

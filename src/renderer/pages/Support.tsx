@@ -22,7 +22,17 @@ import { toast } from '../components/Toast';
 // being set up" placeholder rather than a broken link.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const NOWPAYMENTS_DONATION_URL = 'https://nowpayments.io/donation/TODO_NOWPAYMENTS_HANDLE';
+// This is the NOWPayments donation-widget URL from the dashboard's embed
+// snippet. The `api_key` here is the *public* widget key — NOWPayments
+// designs widget keys to be embedded in HTML anyone can view-source on,
+// distinct from the private REST API key. Safe to commit.
+//
+// The URL also works as a standalone page in a browser, so we open it via
+// window.open() rather than embedding the iframe in-app. Browser flow is
+// strictly better for crypto: donors have their wallet extensions /
+// wallet apps installed in the browser, not in this Electron renderer.
+const NOWPAYMENTS_DONATION_URL =
+  'https://nowpayments.io/embeds/donation-widget?api_key=92d6495a-2be6-4996-b8ba-aabef74d232e';
 
 interface WalletAddress {
   /** Short symbol shown in the row header, e.g. "BTC". */
