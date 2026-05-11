@@ -86,15 +86,43 @@ faster during local iteration, drop `x64` from `mac.target.arch` in
 
 ### Publishing a release
 
+One command — `scripts/release.mjs` wraps the build + GitHub upload + git
+tag steps so the flow is consistent across versions:
+
 ```bash
-GH_TOKEN=ghp_… npm run build:all -- --publish always
+npm run release          # build Mac DMGs (arm64 + x64) and upload to GitHub
+npm run release:dry      # build only, skip upload (smoke test)
+npm run release:all      # mac + windows (windows needs wine; see below)
 ```
 
-The `GH_TOKEN` only needs `repo` scope. electron-builder creates a draft
-GitHub Release tagged from `package.json`'s version, uploads the artifacts,
-and the in-app auto-updater starts seeing it once you publish the draft.
+Setup once:
 
-End users **never** see this token — it's used only at upload time.
+1. Copy `.env.example` → `.env`
+2. Generate a GitHub Personal Access Token with `repo` scope at
+   https://github.com/settings/tokens (classic)
+3. Paste the `ghp_…` value into `.env` as `GH_TOKEN=`
+4. `.env` is gitignored — never committed, never bundled into the app
+
+Then any release becomes:
+
+```bash
+# 1. Update version + CHANGELOG, commit, push
+# 2. Run:
+npm run release
+# 3. ☕ wait ~5 min for build + upload
+```
+
+The script:
+- Refuses to run with a dirty working tree (the tag has to point at a
+  real, committed state)
+- Warns if local HEAD is ahead of `origin/main` (catches "forgot to push")
+- Runs electron-builder with `--publish always` — it talks to GitHub's
+  upload API directly, way faster and more reliable than drag-and-drop
+  in the web UI
+- Pushes a matching `v0.2.X` git tag
+
+End users never see the `GH_TOKEN` — it's only used at upload time on the
+machine that runs `npm run release`.
 
 ## Useful scripts
 
@@ -107,6 +135,8 @@ End users **never** see this token — it's used only at upload time.
 | `npm run lint` | ESLint over `src/` |
 | `npm run type-check` | TypeScript without emitting |
 | `npm run bench` | Generate 1000 labels and measure throughput |
+| `npm run release` | Build mac DMGs + publish to GitHub Releases (needs `GH_TOKEN` in `.env`) |
+| `npm run release:dry` | Same, but skip upload — sanity-check before a real release |
 | `npm run icon` | Re-render `resources/icon.png` from `scripts/generate-icon.mjs` |
 
 ## Project layout
