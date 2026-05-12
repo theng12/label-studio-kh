@@ -82,9 +82,19 @@ jobs:
         # the workflow's GITHUB_TOKEN, which has `contents: write` thanks
         # to the permissions block above. The .exe (and a latest.yml for
         # auto-update) is attached to the resolved release tag.
+        #
+        # EP_GH_IGNORE_TIME=true overrides electron-builder's hardcoded
+        # "refuse to modify releases older than 2 hours" safety. We need
+        # it because:
+        #   - workflow_dispatch back-fills (e.g. attaching .exe to a
+        #     release that was published yesterday)
+        #   - release.published auto-runs are technically <2h, so the
+        #     flag is a no-op for them, but defensive in case CI runs
+        #     long enough to slip past the 2h window
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EP_GH_IGNORE_TIME: 'true'
         run: npx electron-vite build && npx electron-builder --win --publish always
 
       - name: Show artifacts that were produced
