@@ -1,0 +1,95 @@
+name: Build Windows installer
+
+# When this workflow runs:
+#   1. Automatically — whenever a GitHub Release is *published* (matches our
+#      `npm run release` flow: that command publishes a Mac-only release;
+#      this workflow then attaches the Windows .exe to the same release).
+#   2. Manually — via the "Run workflow" button in the Actions tab. Used to
+#      back-fill EXEs onto older releases (e.g. v0.2.8, which was published
+#      before this workflow existed).
+#
+# Why GitHub Actions and not a local Mac build with wine:
+#   electron-builder + wine on Apple Silicon is flaky (x86 wine running
+#   through Rosetta to build Windows tools). A real Windows runner in CI
+#   skips the emulation entirely.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build for (e.g. v0.2.8). Leave blank to use the latest published release.'
+        required: false
+        type: string
+
+permissions:
+  # Required so the GITHUB_TOKEN we pass to electron-builder can upload
+  # release assets. `contents: write` covers both release uploads and the
+  # actions/checkout reading the tag.
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Resolve the tag we are building for
+        id: resolve
+        shell: bash
+        run: |
+          # Three cases to handle:
+          #   release event → tag is in github.event.release.tag_name
+          #   manual dispatch with input → use the user-supplied tag
+          #   manual dispatch without input → fall back to the latest
+          #                                   published release on the repo
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest" \
+              | python -c "import sys,json; print(json.loads(sys.stdin.read())['tag_name'])")
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Building for tag: $TAG"
+
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        # Use npm ci for a deterministic, lockfile-pinned install. Faster
+        # than npm install on CI and refuses to drift from package-lock.json.
+        run: npm ci
+
+      - name: Fetch bundled fonts
+        # Font files (~95 MB) are gitignored — the download script grabs
+        # them from Google's CDN at build time. Needed before the build
+        # step or the resulting app launches with missing-fonts warnings.
+        shell: bash
+        run: node scripts/download-fonts.mjs
+
+      - name: Build Windows installer + publish to the release
+        # electron-builder reads GH_TOKEN to know where to upload. We pass
+        # the workflow's GITHUB_TOKEN, which has `contents: write` thanks
+        # to the permissions block above. The .exe (and a latest.yml for
+        # auto-update) is attached to the resolved release tag.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-vite build && npx electron-builder --win --publish always
+
+      - name: Show artifacts that were produced
+        if: always()
+        shell: bash
+        run: |
+          echo "Files in dist/:"
+          ls -la dist/ || echo "(no dist/)"
