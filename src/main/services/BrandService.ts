@@ -56,8 +56,21 @@ export const BrandService = {
 
   create(input: NewBrandInput): Brand {
     const brands = readAll();
+    // companyId comes from the wizard's companyStore (the active company);
+    // we also fall back to the first existing company so a brand never ends
+    // up orphaned even if the renderer forgets to send one.
+    let companyId: string | undefined = input.companyId;
+    if (!companyId) {
+      // Lazy import to avoid a circular dependency (CompanyService imports
+      // the brand JSON for bootstrap → BrandService would otherwise pull
+      // in CompanyService at module-load time).
+      const { CompanyService } = require('./CompanyService') as typeof import('./CompanyService');
+      const list = CompanyService.list();
+      companyId = list[0]?.id;
+    }
     const brand: Brand = {
       ...input,
+      companyId,
       id: randomUUID(),
       createdAt: nowIso(),
       updatedAt: nowIso(),

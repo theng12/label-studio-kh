@@ -10,6 +10,7 @@ import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 import { useBrandStore } from '../stores/brandStore';
 import { useProductStore } from '../stores/productStore';
+import { useCompanyStore } from '../stores/companyStore';
 import { useDefaultBrand } from '../hooks/useDefaultBrand';
 import type { Product } from '../../shared/types/product';
 import { ProductForm } from './products/ProductForm';
@@ -23,6 +24,7 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 export default function Products() {
   const { brands, refresh: refreshBrands } = useBrandStore();
   const { defaultBrandId, pickBrand } = useDefaultBrand();
+  const activeCompanyId = useCompanyStore((s) => s.activeCompanyId);
   const products = useProductStore((s) => s.products);
   const categoriesAll = useProductStore((s) => s.categoriesAll);
   const loading = useProductStore((s) => s.loading);
@@ -30,8 +32,15 @@ export default function Products() {
   const setBrand = useProductStore((s) => s.setBrand);
   const setCategory = useProductStore((s) => s.setCategory);
   const setSearch = useProductStore((s) => s.setSearch);
+  const setCompany = useProductStore((s) => s.setCompany);
   const refreshProducts = useProductStore((s) => s.refreshProducts);
   const refreshCategories = useProductStore((s) => s.refreshCategories);
+
+  // Scope products + categories to the active company. Cross-store coupling
+  // is one-way: companyStore.setActive → here, here triggers product refresh.
+  useEffect(() => {
+    if (activeCompanyId) void setCompany(activeCompanyId);
+  }, [activeCompanyId, setCompany]);
 
   const [params] = useSearchParams();
   const [editing, setEditing] = useState<Product | null | 'new'>(null);

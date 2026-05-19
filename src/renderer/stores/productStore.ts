@@ -26,6 +26,7 @@ interface ProductState {
   setSearch: (search: string) => Promise<void>;
   setCategory: (category: string | null) => Promise<void>;
   setBrand: (brandId: string | null | undefined) => Promise<void>;
+  setCompany: (companyId: string) => Promise<void>;
   setStatus: (status: ProductFilters['status']) => Promise<void>;
 
   refreshProducts: () => Promise<void>;
@@ -56,6 +57,15 @@ export const useProductStore = create<ProductState>((set, get) => ({
   setBrand: async (brandId) => {
     set({ filters: { ...get().filters, brandId } });
     // Categories are brand-scoped: switching brand refreshes the sidebar list.
+    await Promise.all([get().refreshProducts(), get().refreshCategories()]);
+  },
+  setCompany: async (companyId) => {
+    // Switching companies invalidates the brand filter (different brand
+    // set) and the category filter. Reset both so the user lands on a
+    // clean Product Library scoped to the new company.
+    set({
+      filters: { companyId, brandId: undefined, category: null },
+    });
     await Promise.all([get().refreshProducts(), get().refreshCategories()]);
   },
   setStatus: async (status) => {

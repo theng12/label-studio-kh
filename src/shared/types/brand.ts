@@ -11,6 +11,13 @@ export interface BrandLogo {
 
 export interface Brand {
   id: string;
+  /**
+   * Parent Company. Optional in the type for backward compat with brands
+   * written before the Company layer was introduced — bootstrap on app
+   * start backfills this onto the active default company, so in practice
+   * every Brand has a companyId once the app has run once.
+   */
+  companyId?: string;
   name: string;
   color: string; // hex
   /**

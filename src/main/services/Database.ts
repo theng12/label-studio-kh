@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 let _db: Database.Database | null = null;
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -62,6 +62,11 @@ CREATE TABLE IF NOT EXISTS skus (
   custom_fields       TEXT NOT NULL DEFAULT '{}',  -- JSON map of user-defined columns
   status              TEXT NOT NULL DEFAULT 'active',  -- 'active' | 'inactive' | 'draft'
 
+  -- v5: parent Company. Denormalized from brands.json for direct
+  -- WHERE company_id = ? filtering. Populated by the v4→v5 bootstrap
+  -- and on every new product insert via the brand → company mapping.
+  company_id          TEXT,
+
   PRIMARY KEY (sku, brand_id)
 );
 
@@ -69,6 +74,7 @@ CREATE INDEX IF NOT EXISTS idx_skus_brand    ON skus(brand_id);
 CREATE INDEX IF NOT EXISTS idx_skus_sku      ON skus(sku);
 CREATE INDEX IF NOT EXISTS idx_skus_id       ON skus(id);
 CREATE INDEX IF NOT EXISTS idx_skus_category ON skus(brand_id, category);
+CREATE INDEX IF NOT EXISTS idx_skus_company  ON skus(company_id);
 
 CREATE TABLE IF NOT EXISTS batches (
   id            TEXT PRIMARY KEY,
@@ -198,6 +204,25 @@ export function getDb(): Database.Database {
     _db
       .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
       .run('4', 'version');
+    if (row) row.value = '4';
+  }
+  if (row?.value === '4') {
+    // v4 → v5: introduce Company as the parent of Brand. company_id is
+    // denormalized onto skus for direct WHERE filtering. The actual
+    // backfill (creating the default company + populating company_id on
+    // both brands.json and existing sku rows) happens in
+    // CompanyService.ensureBootstrap() at app start, because it needs
+    // to read/write the brands JSON file alongside the DB.
+    try {
+      _db.exec('ALTER TABLE skus ADD COLUMN company_id TEXT');
+    } catch (e) {
+      if (!String(e).includes('duplicate column name')) throw e;
+    }
+    _db.exec('CREATE INDEX IF NOT EXISTS idx_skus_company ON skus(company_id)');
+
+    _db
+      .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
+      .run('5', 'version');
   }
 
   return _db;

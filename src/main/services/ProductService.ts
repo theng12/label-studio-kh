@@ -11,6 +11,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { getDb } from './Database';
+import { BrandService } from './BrandService';
 import type {
   Product,
   ProductInput,
@@ -20,6 +21,16 @@ import type {
   ProductStatus,
 } from '@shared/types/product';
 import { MAX_IMAGES_PER_PRODUCT } from '@shared/types/product';
+
+// Resolve a brand's parent company. Cached per-call to avoid repeated
+// disk reads when bulk-upserting many rows. The bootstrap step in
+// CompanyService.ensureBootstrap guarantees every brand has a companyId,
+// so this should always return a string in practice; null is the
+// defensive fallback.
+function getCompanyIdForBrand(brandId: string): string | null {
+  const brand = BrandService.get(brandId);
+  return brand?.companyId ?? null;
+}
 
 // ── JSON + row mapping ──────────────────────────────────────────────────────
 
@@ -51,6 +62,9 @@ interface SkuRowFromDb {
   tags: string;
   custom_fields: string;
   status: string;
+  // v5 — denormalized parent company. Always populated for new rows;
+  // older rows backfilled by CompanyService.ensureBootstrap.
+  company_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -90,7 +104,7 @@ const PRODUCT_COLUMNS = `
   id, sku, brand_id, product_name, barcode, description,
   secondary_code, category, subcategory, color_finish, unit,
   images, prices, tags, custom_fields, status,
-  created_at, updated_at
+  company_id, created_at, updated_at
 `;
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -101,6 +115,10 @@ export const ProductService = {
     const where: string[] = [];
     const params: Array<string> = [];
 
+    if (filters.companyId) {
+      where.push('company_id = ?');
+      params.push(filters.companyId);
+    }
     if (filters.brandId !== undefined && filters.brandId !== null) {
       where.push('brand_id = ?');
       params.push(filters.brandId);
@@ -165,17 +183,18 @@ export const ProductService = {
 
     const ts = nowIso();
     const id = randomUUID();
+    const companyId = getCompanyIdForBrand(input.brandId);
     db.prepare(
       `INSERT INTO skus (
          id, sku, brand_id, product_name, barcode, description,
          secondary_code, category, subcategory, color_finish, unit,
          images, prices, tags, custom_fields, status,
-         created_at, updated_at
+         company_id, created_at, updated_at
        ) VALUES (
          @id, @sku, @brand_id, @product_name, @barcode, @description,
          @secondary_code, @category, @subcategory, @color_finish, @unit,
          @images, @prices, @tags, @custom_fields, @status,
-         @created_at, @updated_at
+         @company_id, @created_at, @updated_at
        )`,
     ).run({
       id,
@@ -194,6 +213,7 @@ export const ProductService = {
       tags: JSON.stringify(input.tags ?? []),
       custom_fields: JSON.stringify(input.customFields ?? {}),
       status: input.status ?? 'active',
+      company_id: companyId,
       created_at: ts,
       updated_at: ts,
     });
@@ -317,17 +337,18 @@ export const ProductService = {
           row.tags && row.tags.length > 0 ? row.tags : existing?.tags ?? [];
 
         const id = existing?.id ?? randomUUID();
+        const companyId = getCompanyIdForBrand(row.brandId);
         db.prepare(
           `INSERT INTO skus (
              id, sku, brand_id, product_name, barcode, description,
              secondary_code, category, subcategory, color_finish, unit,
              images, prices, tags, custom_fields, status,
-             created_at, updated_at
+             company_id, created_at, updated_at
            ) VALUES (
              @id, @sku, @brand_id, @product_name, @barcode, @description,
              @secondary_code, @category, @subcategory, @color_finish, @unit,
              @images, @prices, @tags, @custom_fields, @status,
-             @created_at, @updated_at
+             @company_id, @created_at, @updated_at
            )
            ON CONFLICT(sku, brand_id) DO UPDATE SET
              product_name   = excluded.product_name,
@@ -342,6 +363,7 @@ export const ProductService = {
              tags           = excluded.tags,
              custom_fields  = excluded.custom_fields,
              status         = excluded.status,
+             company_id     = excluded.company_id,
              updated_at     = excluded.updated_at`,
         ).run({
           id,
@@ -362,6 +384,7 @@ export const ProductService = {
           tags: JSON.stringify(nextTags),
           custom_fields: JSON.stringify(mergedCustom),
           status: row.status ?? existing?.status ?? 'active',
+          company_id: companyId,
           created_at: existing?.createdAt ?? ts,
           updated_at: ts,
         });

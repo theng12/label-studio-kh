@@ -18,6 +18,9 @@ export interface AppSettings {
    *  Used as the default selection on next launch so brand-scoped pages don't
    *  reset to the alphabetically-first brand (which is usually "Demo brand"). */
   lastUsedBrandId: string | null;
+  /** Currently-active Company. All brand / product / template lists scope to
+   *  this company. Defaulted on first run by CompanyService.ensureBootstrap. */
+  activeCompanyId: string | null;
 }
 
 let cache: AppSettings | null = null;
@@ -38,6 +41,7 @@ function defaults(): AppSettings {
     hideDemoBrand: false,
     uiLanguage: 'en',
     lastUsedBrandId: null,
+    activeCompanyId: null,
   };
 }
 

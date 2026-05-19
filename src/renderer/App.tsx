@@ -8,6 +8,7 @@ import Brands from './pages/Brands';
 import Templates from './pages/Templates';
 import Designer from './pages/Designer';
 import Products from './pages/Products';
+import CompanyPage from './pages/Company';
 import DataImport from './pages/DataImport';
 import Generate from './pages/Generate';
 import Barcodes from './pages/Barcodes';
@@ -50,6 +51,7 @@ export default function App() {
       <main className="min-w-0 flex-1">
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/company" element={<CompanyPage />} />
           <Route path="/brands" element={<Brands />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/designer/:brandId/:templateId" element={<Designer />} />

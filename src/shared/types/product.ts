@@ -74,6 +74,9 @@ export interface ProductInput {
 /** List filters applied in ProductService.list. All optional. */
 export interface ProductFilters {
   search?: string; // matches sku, name, color_finish, tags, barcode, secondary_code
+  /** Scope to a single Company. The Product Library page sets this to the
+   *  active companyId so cross-company products never leak in. */
+  companyId?: string;
   brandId?: string | null; // string = exact brand. null/undefined = no brand filter.
   category?: string | null; // null/undefined = no category filter.
   status?: ProductStatus;

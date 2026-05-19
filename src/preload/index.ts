@@ -14,6 +14,7 @@ import type {
   ProductFilters,
   ProductInput,
 } from '../shared/types/product';
+import type { Company, CompanyInput } from '../shared/types/company';
 
 interface ImportListEntry {
   id: string;
@@ -278,6 +279,20 @@ const api = {
     ): Promise<{ files: string[]; errors: string[] } | null> =>
       ipcRenderer.invoke('file:reprint', id),
   },
+  company: {
+    list: (): Promise<Company[]> => ipcRenderer.invoke('company:list'),
+    get: (id: string): Promise<Company | null> =>
+      ipcRenderer.invoke('company:get', id),
+    create: (input: CompanyInput): Promise<Company> =>
+      ipcRenderer.invoke('company:create', input),
+    update: (
+      id: string,
+      patch: Partial<CompanyInput>,
+    ): Promise<Company | null> =>
+      ipcRenderer.invoke('company:update', id, patch),
+    remove: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke('company:remove', id),
+  },
   products: {
     list: (filters?: ProductFilters): Promise<Product[]> =>
       ipcRenderer.invoke('products:list', filters),
@@ -365,6 +380,7 @@ const api = {
       hideDemoBrand: boolean;
       uiLanguage: string;
       lastUsedBrandId: string | null;
+      activeCompanyId: string | null;
     }> => ipcRenderer.invoke('settings:get'),
     set: (patch: Record<string, unknown>): Promise<unknown> =>
       ipcRenderer.invoke('settings:set', patch),

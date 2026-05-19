@@ -6,6 +6,7 @@ import { registerBrandIpc } from './ipc/brand';
 import { registerTemplateIpc } from './ipc/template';
 import { registerImportIpc } from './ipc/import';
 import { registerProductIpc } from './ipc/product';
+import { registerCompanyIpc } from './ipc/company';
 import { registerExportIpc } from './ipc/export';
 import { registerDashboardIpc } from './ipc/dashboard';
 import { registerFileIpc } from './ipc/file';
@@ -17,8 +18,10 @@ import { shutdownBarcodeBrowser } from './services/BarcodeService';
 import { shutdownBrowser } from './services/ExportService';
 import { closeDb } from './services/Database';
 import { BrandService } from './services/BrandService';
+import { CompanyService } from './services/CompanyService';
 import { FileService } from './services/FileService';
 import { DemoSeed } from './services/DemoSeed';
+import { SettingsService } from './services/SettingsService';
 import { initUpdater } from './services/Updater';
 import { loadEnv } from './services/EnvLoader';
 
@@ -85,6 +88,7 @@ app.whenReady().then(() => {
   registerTemplateIpc();
   registerImportIpc();
   registerProductIpc();
+  registerCompanyIpc();
   registerExportIpc();
   registerDashboardIpc();
   registerFileIpc();
@@ -97,6 +101,22 @@ app.whenReady().then(() => {
   } catch (err) {
     console.error('Demo seed failed:', err);
   }
+
+  // Company bootstrap: ensures at least one Company exists, backfills
+  // companyId onto every Brand, and populates skus.company_id from the
+  // brand → company chain. Idempotent on repeat boots.
+  try {
+    CompanyService.ensureBootstrap();
+    // Default the active company to the first one if the user hasn't picked.
+    const settings = SettingsService.get();
+    if (!settings.activeCompanyId) {
+      const first = CompanyService.list()[0];
+      if (first) SettingsService.set({ activeCompanyId: first.id });
+    }
+  } catch (err) {
+    console.error('Company bootstrap failed:', err);
+  }
+
   // Purge anything tombstoned by the previous session — undo is session-scoped.
   try {
     BrandService.purgeDeleted();

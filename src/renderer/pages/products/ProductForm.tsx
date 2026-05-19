@@ -14,14 +14,15 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { toast } from '../../components/Toast';
 import { useBrandStore } from '../../stores/brandStore';
 import { useProductStore } from '../../stores/productStore';
+import { useCompanyStore } from '../../stores/companyStore';
 import { useAssetsDir, productImageUrl } from '../../hooks/useAssetsDir';
 import {
-  DEFAULT_PRICE_GROUPS,
   MAX_IMAGES_PER_PRODUCT,
   type Product,
   type ProductInput,
   type ProductStatus,
 } from '../../../shared/types/product';
+import { DEFAULT_PRICE_GROUPS } from '../../../shared/types/company';
 
 // Mirrors spec §17 — the add/edit modal. Phase 2 covers all scalar fields
 // (SKU + identifiers + classification + status + tags + description + prices).
@@ -62,6 +63,16 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
   const createProduct = useProductStore((s) => s.createProduct);
   const updateProduct = useProductStore((s) => s.updateProduct);
   const removeProduct = useProductStore((s) => s.removeProduct);
+  const activeCompany = useCompanyStore(
+    (s) => s.companies.find((c) => c.id === s.activeCompanyId) ?? null,
+  );
+  // Resolve price groups: active company's list when configured, otherwise
+  // the seeded default. Empty array is a legit "this company has no price
+  // tiers" state — the Prices section just won't render.
+  const priceGroups =
+    activeCompany?.priceGroups && activeCompany.priceGroups.length >= 0
+      ? activeCompany.priceGroups
+      : [...DEFAULT_PRICE_GROUPS];
 
   const [form, setForm] = useState(() => {
     if (product) {
@@ -442,13 +453,16 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
               </Field>
             </div>
 
-            {/* Prices */}
+            {/* Prices — pulled from active company.priceGroups so users can
+                customize their tiers per company (Retail, Wholesale, VIP, …).
+                Hidden entirely when the company has zero price groups. */}
+            {priceGroups.length > 0 && (
             <div className="mt-4">
               <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-fg-subtle">
                 Prices
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {DEFAULT_PRICE_GROUPS.map((group) => (
+                {priceGroups.map((group) => (
                   <Field key={group} label={group}>
                     <TextInput
                       value={
@@ -467,6 +481,7 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
                 ))}
               </div>
             </div>
+            )}
 
             {/* Images section */}
             <div className="mt-6">

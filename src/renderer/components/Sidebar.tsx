@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   IconLayoutDashboard,
   IconBuildingStore,
+  IconBuilding,
   IconTemplate,
   IconPackage,
   IconDatabaseImport,
@@ -16,6 +17,7 @@ import {
   type Icon,
 } from '@tabler/icons-react';
 import { WhatsNewModal } from './WhatsNew';
+import { CompanySwitcher } from './CompanySwitcher';
 
 // localStorage key for tracking which version the user has already seen the
 // What's New panel for. When the running version differs from the stored
@@ -77,14 +79,15 @@ export function Sidebar() {
     {
       items: [
         { to: '/', label: t('nav.dashboard'), icon: IconLayoutDashboard },
+        { to: '/company', label: 'Company', icon: IconBuilding },
         { to: '/brands', label: t('nav.brands'), icon: IconBuildingStore },
-        { to: '/products', label: 'Product Library', icon: IconPackage },
-        { to: '/templates', label: t('nav.templates'), icon: IconTemplate },
       ],
     },
     {
       heading: t('nav.production'),
       items: [
+        { to: '/products', label: 'Product Library', icon: IconPackage },
+        { to: '/templates', label: t('nav.templates'), icon: IconTemplate },
         { to: '/data', label: t('nav.data'), icon: IconDatabaseImport },
         { to: '/generate', label: t('nav.generate'), icon: IconWand },
         { to: '/barcodes', label: 'Barcode generator', icon: IconBarcode },
@@ -101,6 +104,11 @@ export function Sidebar() {
       <div className="drag-region flex h-12 items-center px-4 text-sm font-semibold tracking-wide text-fg-base">
         <span className="ml-16">Label Studio KH</span>
       </div>
+
+      {/* Workspace switcher — sits between title and nav, like Slack's
+          workspace chip. Reads activeCompanyId and triggers downstream
+          refreshes when the user picks a different company. */}
+      <CompanySwitcher />
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto px-2 py-2">
         {sections.map((section, i) => (

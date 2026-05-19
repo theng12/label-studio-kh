@@ -15,6 +15,9 @@ export const paths = {
   brandsFile(): string {
     return join(userData(), 'brands.json');
   },
+  companiesFile(): string {
+    return join(userData(), 'companies.json');
+  },
   templatesDir(brandId?: string): string {
     return brandId
       ? join(userData(), 'templates', brandId)
