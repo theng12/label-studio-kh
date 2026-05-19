@@ -7,7 +7,6 @@ import {
   IconBuilding,
   IconTemplate,
   IconPackage,
-  IconDatabaseImport,
   IconWand,
   IconFiles,
   IconBarcode,
@@ -86,9 +85,11 @@ export function Sidebar() {
     {
       heading: t('nav.production'),
       items: [
+        // Product Library houses Import + History as tabs now, so the
+        // standalone "Data & Import" nav item is gone. The /data route
+        // still works for old bookmarks.
         { to: '/products', label: 'Product Library', icon: IconPackage },
         { to: '/templates', label: t('nav.templates'), icon: IconTemplate },
-        { to: '/data', label: t('nav.data'), icon: IconDatabaseImport },
         { to: '/generate', label: t('nav.generate'), icon: IconWand },
         { to: '/barcodes', label: 'Barcode generator', icon: IconBarcode },
         { to: '/files', label: t('nav.files'), icon: IconFiles },

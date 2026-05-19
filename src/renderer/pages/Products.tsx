@@ -5,6 +5,9 @@ import {
   IconSearch,
   IconBuildingStore,
   IconFolders,
+  IconPackage,
+  IconUpload,
+  IconHistory,
 } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
@@ -14,6 +17,10 @@ import { useCompanyStore } from '../stores/companyStore';
 import { useDefaultBrand } from '../hooks/useDefaultBrand';
 import type { Product } from '../../shared/types/product';
 import { ProductForm } from './products/ProductForm';
+import { ImportFlow } from './dataImport/ImportFlow';
+import { ImportHistory } from './dataImport/ImportHistory';
+
+type ProductsTab = 'library' | 'import' | 'history';
 
 // Mirrors spec §16 layout — sidebar (brand + category) + toolbar (search +
 // new) + table + pagination footer. Phase 2 ships table view only; grid view,
@@ -42,10 +49,26 @@ export default function Products() {
     if (activeCompanyId) void setCompany(activeCompanyId);
   }, [activeCompanyId, setCompany]);
 
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const [editing, setEditing] = useState<Product | null | 'new'>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
+
+  // Tab state, mirrored to ?tab= so links can deep-link to a specific tab
+  // (e.g. the deprecated /data route can redirect into /products?tab=import).
+  const urlTab = params.get('tab') as ProductsTab | null;
+  const [tab, setTabState] = useState<ProductsTab>(
+    urlTab && ['library', 'import', 'history'].includes(urlTab)
+      ? urlTab
+      : 'library',
+  );
+  const setTab = (t: ProductsTab) => {
+    setTabState(t);
+    const next = new URLSearchParams(params);
+    if (t === 'library') next.delete('tab');
+    else next.set('tab', t);
+    setParams(next, { replace: true });
+  };
 
   // First mount: load brands, default the brand filter to the user's last-
   // used (or first) brand, fetch categories + products. Spec §16 default
@@ -94,21 +117,44 @@ export default function Products() {
       <Page
         title="Product Library"
         actions={
-          <Button
-            variant="primary"
-            onClick={() => setEditing('new')}
-            disabled={!activeBrand}
-            title={
-              activeBrand
-                ? `Add a new product to ${activeBrand.name}`
-                : 'Pick a brand first'
-            }
-          >
-            <IconPlus size={14} /> New product
-          </Button>
+          tab === 'library' ? (
+            <Button
+              variant="primary"
+              onClick={() => setEditing('new')}
+              disabled={!activeBrand}
+              title={
+                activeBrand
+                  ? `Add a new product to ${activeBrand.name}`
+                  : 'Pick a brand first'
+              }
+            >
+              <IconPlus size={14} /> New product
+            </Button>
+          ) : undefined
         }
       >
-        {brands.length === 0 ? (
+        {/* Tab bar. Three top-level views on the products page: the
+            library itself, the CSV/Excel import flow (previously at
+            /data → Import), and the import history (previously at
+            /data → History). Manual entry and SKU Lookup from /data
+            are superseded by the Library tab itself. */}
+        <div className="mb-4 flex gap-1 border-b border-border-base">
+          <TabBtn active={tab === 'library'} onClick={() => setTab('library')}>
+            <IconPackage size={13} /> Library
+          </TabBtn>
+          <TabBtn active={tab === 'import'} onClick={() => setTab('import')}>
+            <IconUpload size={13} /> Import
+          </TabBtn>
+          <TabBtn active={tab === 'history'} onClick={() => setTab('history')}>
+            <IconHistory size={13} /> History
+          </TabBtn>
+        </div>
+
+        {tab === 'import' ? (
+          <ImportFlow />
+        ) : tab === 'history' ? (
+          <ImportHistory />
+        ) : brands.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border-base p-12 text-center">
             <h3 className="text-sm font-semibold text-fg-base">
               Create a brand first
@@ -342,6 +388,30 @@ export default function Products() {
 }
 
 // ── Small subcomponents ─────────────────────────────────────────────────────
+
+function TabBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        '-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition-colors',
+        active
+          ? 'border-accent text-fg-base'
+          : 'border-transparent text-fg-muted hover:text-fg-base',
+      ].join(' ')}
+    >
+      {children}
+    </button>
+  );
+}
 
 function SidebarList({ children }: { children: React.ReactNode }) {
   return (
