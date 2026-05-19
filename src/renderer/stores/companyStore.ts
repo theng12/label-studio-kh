@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { toast } from '../components/Toast';
 import type { Company, CompanyInput } from '../../shared/types/company';
+import { useBrandStore } from './brandStore';
 
 // Companies + active-company selection.
 //
@@ -54,9 +55,14 @@ export const useCompanyStore = create<CompanyState>((set, get) => ({
     }
     set({ activeCompanyId: id });
     await window.api.settings.set({ activeCompanyId: id });
-    // Downstream stores listen via subscribe() in App.tsx — see Phase 4
-    // wiring there. We don't reach into brandStore/productStore here to
-    // keep the dependency graph one-way (companyStore → others).
+    // Re-fetch brands scoped to the new company. The cross-store edge is
+    // deliberately one-way (companyStore → brandStore) and runs through
+    // getState() so neither store binds to the other at module-load time
+    // (avoids surprises from circular import resolution in the bundler).
+    void useBrandStore.getState().refresh();
+    // Other stores (productStore, etc.) already subscribe to
+    // activeCompanyId via useEffect in their consumer pages — no need
+    // to fan out from here.
   },
 
   create: async (input) => {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { IconDatabaseImport, IconWand, IconHeart, IconX } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
+import { useCompanyStore } from '../stores/companyStore';
 
 type Stats = Awaited<ReturnType<typeof window.api.dashboard.stats>>;
 type RecentBrand = Awaited<ReturnType<typeof window.api.dashboard.recentBrands>>[number];
@@ -12,24 +13,29 @@ const DONATION_DISMISS_KEY = 'lskh.donationDismissedAt';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const activeCompanyId = useCompanyStore((s) => s.activeCompanyId);
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentBrands, setRecentBrands] = useState<RecentBrand[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [showDonate, setShowDonate] = useState(false);
 
+  // Re-fetch whenever the active company changes — the user expects the
+  // Dashboard numbers to reflect their current workspace, not the union
+  // of every company they've ever created.
   useEffect(() => {
     const load = async () => {
+      const cid = activeCompanyId ?? undefined;
       const [s, b, a] = await Promise.all([
-        window.api.dashboard.stats(),
-        window.api.dashboard.recentBrands(5),
-        window.api.dashboard.recentActivity(10),
+        window.api.dashboard.stats(cid),
+        window.api.dashboard.recentBrands(5, cid),
+        window.api.dashboard.recentActivity(10, cid),
       ]);
       setStats(s);
       setRecentBrands(b);
       setActivity(a);
     };
     void load();
-  }, []);
+  }, [activeCompanyId]);
 
   // Donation nudge: shows on first launch and again 7 days after the user
   // dismisses it. No license gating (the app is free; donations are the only

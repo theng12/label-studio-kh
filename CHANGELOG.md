@@ -6,6 +6,75 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [SemVer](https://semver.org/spec/v2.0.0.html). Until 1.0.0,
 minor versions can introduce breaking changes; we'll call them out clearly.
 
+## [0.3.0] — 2026-05-19
+
+A major release covering the Product Library, the Company → Brand →
+Product hierarchy, a rewritten File Manager, and a round of audit-
+driven fixes. Schema migrates from v3 to v6 on first launch (additive
+ALTER TABLE only; existing data is preserved and backfilled).
+
+### Added
+
+- **Product Library** at `/products` — full CRUD over your SKU
+  catalogue with table + grid views, brand + category sidebar
+  filters, search across SKU / name / colour / tags / barcode /
+  secondary code, pagination (25 / 50 / 100 / 200 per page), and an
+  edit modal covering the canonical fields plus per-company price
+  groups. Integrated tabs: **Library** (the table/grid) ·
+  **Import** (the 3-step CSV/Excel flow, moved from /data) ·
+  **History** (past imports).
+- **Multi-image gallery per product.** Up to 20 images per product
+  with set-as-main, reorder, remove, paste-from-clipboard (⌘V),
+  and a content-hash dedup pipeline. Same file imported twice
+  collapses on disk and in the product's image array.
+- **Auto-match images from a folder.** Drop a folder of product
+  photos named by SKU (or with `-1`/`-2` suffixes, or in per-SKU
+  subfolders) and the app attaches them to matching products with
+  one click. Recursive 5-level scan, case-insensitive matching,
+  20-image cap enforced, full stats panel on completion.
+- **Company entity** as the parent of Brand. Workspace switcher
+  chip at the top of the sidebar lets you flip between companies;
+  brands, products, templates, and files all scope to the active
+  company. Manage at the new `/company` page — edit name, contact
+  info, colour swatch, and the per-company **price groups** list
+  (e.g. `Retail`, `Wholesale`, `VIP`). Product form's prices
+  section reads from this list dynamically.
+- **File Manager overhaul.** Now matches the Product Library
+  layout: sidebar filters (Brand · Format · Size), storage stats
+  card at the top (totals + per-format breakdown), Table / Grid
+  view toggle, and an "Open product" action on every row that
+  jumps to the product that generated the file.
+- **Click-through from file → product.** SKU column in the file
+  table and the package-icon action in both views deep-link to
+  `/products?edit=<productId>` and open the edit modal directly.
+
+### Changed
+
+- **Sidebar restructured.** SETUP now lists Dashboard · Company ·
+  Brands. PRODUCTION lists Product Library · Templates · Generate
+  · Barcode generator · Files. (Templates and Product Library
+  moved from SETUP into PRODUCTION.)
+- **Dashboard, Brands, Templates, Generate, Barcodes, File
+  Manager** are all now scoped to the active company. Brand
+  pickers no longer leak across workspaces. Dashboard stats
+  (brand count, SKU count, generated total) reflect only the
+  active company.
+
+### Fixed
+
+- Edit modal on `/products` now opens even when no specific brand
+  is selected as the sidebar filter (previously the modal silently
+  refused to render unless a brand was active).
+- DB migration ordering bug: v4+ indexes (`idx_skus_id`,
+  `idx_skus_category`, `idx_skus_company`, `idx_generations_company`)
+  previously lived in the SCHEMA constant and failed on upgraded
+  databases because the columns hadn't been created yet. Moved to
+  a post-migration block that runs after all `ALTER TABLE` steps
+  settle.
+- `CompanyService.ensureBootstrap` no longer rewrites
+  soft-deleted brands when backfilling `companyId` — they're left
+  alone for the next purge cycle.
+
 ## [0.2.8] — 2026-05-11
 
 ### Removed

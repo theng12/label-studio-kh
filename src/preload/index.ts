@@ -86,7 +86,8 @@ const api = {
     getAssetsDir: (): Promise<string> => ipcRenderer.invoke('app:getAssetsDir'),
   },
   brand: {
-    list: (): Promise<Brand[]> => ipcRenderer.invoke('brand:list'),
+    list: (companyId?: string): Promise<Brand[]> =>
+      ipcRenderer.invoke('brand:list', companyId),
     get: (id: string): Promise<Brand | null> => ipcRenderer.invoke('brand:get', id),
     create: (input: NewBrandInput): Promise<Brand> =>
       ipcRenderer.invoke('brand:create', input),
@@ -181,14 +182,17 @@ const api = {
       ipcRenderer.invoke('import:clearImports', brandId),
   },
   dashboard: {
-    stats: (): Promise<{
+    stats: (
+      companyId?: string,
+    ): Promise<{
       brandCount: number;
       skuCount: number;
       totalGenerated: number;
       timeSavedMinutes: number;
-    }> => ipcRenderer.invoke('dashboard:stats'),
+    }> => ipcRenderer.invoke('dashboard:stats', companyId),
     recentBrands: (
       limit?: number,
+      companyId?: string,
     ): Promise<
       Array<{
         id: string;
@@ -197,12 +201,13 @@ const api = {
         templateCount: number;
         updatedAt: string;
       }>
-    > => ipcRenderer.invoke('dashboard:recentBrands', limit),
+    > => ipcRenderer.invoke('dashboard:recentBrands', limit, companyId),
     recentActivity: (
       limit?: number,
+      companyId?: string,
     ): Promise<
       Array<{ type: 'import' | 'export'; at: string; summary: string; detail: string }>
-    > => ipcRenderer.invoke('dashboard:recentActivity', limit),
+    > => ipcRenderer.invoke('dashboard:recentActivity', limit, companyId),
   },
   files: {
     list: (filters: {

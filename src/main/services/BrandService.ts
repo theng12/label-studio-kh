@@ -45,8 +45,15 @@ function writeAll(brands: Brand[]): void {
 }
 
 export const BrandService = {
-  list(): Brand[] {
-    return readAll().filter((b) => !b.deletedAt);
+  /** List active (non-deleted) brands. When `companyId` is provided, scopes
+   *  to that company only — used by the Product Library, Templates,
+   *  Generate, and File Manager pages so users only see brands from their
+   *  active workspace. Pass undefined / no argument to get every brand
+   *  across every company (legacy callers + tests). */
+  list(companyId?: string): Brand[] {
+    const all = readAll().filter((b) => !b.deletedAt);
+    if (!companyId) return all;
+    return all.filter((b) => b.companyId === companyId);
   },
 
   get(id: string): Brand | null {

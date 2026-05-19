@@ -142,6 +142,12 @@ export const CompanyService = {
         const brands = (Array.isArray(parsed) ? parsed : (parsed.brands ?? [])) as Brand[];
         let dirty = false;
         const next = brands.map((b) => {
+          // Skip soft-deleted brands. A delete-then-purge cycle (which
+          // runs on the next app launch) cleans them up — backfilling
+          // their companyId would just be noise and could resurrect
+          // them in places that filter on companyId without checking
+          // deletedAt.
+          if (b.deletedAt) return b;
           if (!b.companyId) {
             dirty = true;
             return { ...b, companyId: defaultCompanyId };

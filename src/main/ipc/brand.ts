@@ -4,7 +4,9 @@ import { AssetService } from '../services/AssetService';
 import type { NewBrandInput } from '@shared/types/brand';
 
 export function registerBrandIpc(): void {
-  ipcMain.handle('brand:list', () => BrandService.list());
+  ipcMain.handle('brand:list', (_e, companyId?: string) =>
+    BrandService.list(companyId),
+  );
   ipcMain.handle('brand:get', (_e, id: string) => BrandService.get(id));
   ipcMain.handle('brand:create', (_e, input: NewBrandInput) => BrandService.create(input));
   ipcMain.handle('brand:update', (_e, id: string, patch: Partial<NewBrandInput>) =>

@@ -13,6 +13,7 @@ import { Button } from './Button';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Field, TextInput, TextArea, ColorInput } from './FormField';
 import { useBrandStore } from '../stores/brandStore';
+import { useCompanyStore } from '../stores/companyStore';
 import type { Brand, BrandLogo, NewBrandInput } from '../../shared/types/brand';
 
 // Convert an absolute filesystem path to the lskh-file:// URL the renderer
@@ -106,6 +107,7 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
   const { t } = useTranslation();
   const create = useBrandStore((s) => s.create);
   const update = useBrandStore((s) => s.update);
+  const activeCompanyId = useCompanyStore((s) => s.activeCompanyId);
   const isEdit = !!existing;
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -222,9 +224,13 @@ export function NewBrandWizard({ onClose, onCreated, existing }: Props) {
       } else {
         // Create mode: persist the brand first (we need its id to scope the
         // asset folder), then import files, then patch the brand with the
-        // final permanent paths.
+        // final permanent paths. Stamp the active company so the brand
+        // shows up under the right workspace immediately (otherwise it
+        // falls back to "first company in the list" on the backend,
+        // which can land it in the wrong place).
         const brand = await create({
           ...draft,
+          companyId: activeCompanyId ?? undefined,
           logoPath: null,
           logos: [],
           certBadges: [],

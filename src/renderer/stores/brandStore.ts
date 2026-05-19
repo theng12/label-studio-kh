@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Brand, NewBrandInput } from '../../shared/types/brand';
 import { toast } from '../components/Toast';
+import { useCompanyStore } from './companyStore';
 
 interface BrandState {
   brands: Brand[];
@@ -19,9 +20,16 @@ export const useBrandStore = create<BrandState>((set, get) => ({
   error: null,
 
   refresh: async () => {
+    // Scope the brand list to the active company so brand pickers
+    // everywhere (Templates, Generate, Barcodes, File Manager sidebar)
+    // only show brands from the workspace the user is in. Pass undefined
+    // if no company is set yet — backend returns all brands as a
+    // graceful fallback for first-launch / bootstrap.
+    const activeCompanyId =
+      useCompanyStore.getState().activeCompanyId ?? undefined;
     set({ loading: true, error: null });
     try {
-      const brands = await window.api.brand.list();
+      const brands = await window.api.brand.list(activeCompanyId);
       set({ brands, loading: false });
     } catch (err) {
       set({ error: String(err), loading: false });
