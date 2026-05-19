@@ -127,4 +127,23 @@ export function registerProductIpc(): void {
       return ProductService.addImageToProduct(productId, relativePath);
     },
   );
+
+  // Auto-match: user picks a folder of images; backend scans recursively,
+  // figures out which SKU each file belongs to, and attaches it.
+  // Separate channel from export:pickFolder so the dialog title makes
+  // sense in context.
+  ipcMain.handle('products:pickImageFolder', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Pick a folder of product images',
+      properties: ['openDirectory'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+
+  ipcMain.handle(
+    'products:autoMatchImages',
+    async (_e, companyId: string, folderPath: string) =>
+      ProductService.autoMatchImagesBySku(companyId, folderPath),
+  );
 }

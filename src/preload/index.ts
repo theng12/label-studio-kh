@@ -346,6 +346,27 @@ const api = {
       ext: string,
     ): Promise<Product | null> =>
       ipcRenderer.invoke('products:importImageFromBytes', productId, bytes, ext),
+    /** Opens the OS folder picker for the auto-match flow. */
+    pickImageFolder: (): Promise<string | null> =>
+      ipcRenderer.invoke('products:pickImageFolder'),
+    /** Recursively scans the folder, matches files to SKUs in this company,
+     *  copies them into the asset store, and updates product image arrays.
+     *  Returns rich stats for the results screen. */
+    autoMatchImages: (
+      companyId: string,
+      folderPath: string,
+    ): Promise<{
+      scannedFiles: number;
+      matchedSkus: number;
+      totalProducts: number;
+      imagesImported: number;
+      imagesSkippedDup: number;
+      imagesSkippedCap: number;
+      unmatchedFiles: number;
+      productsTouched: number;
+      maxImagesPerProduct: number;
+    }> =>
+      ipcRenderer.invoke('products:autoMatchImages', companyId, folderPath),
   },
   sku: {
     get: (brandId: string, sku: string): Promise<SkuRow | null> =>

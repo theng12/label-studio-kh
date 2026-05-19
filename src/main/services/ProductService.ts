@@ -12,6 +12,11 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from './Database';
 import { BrandService } from './BrandService';
+import {
+  importProductImageFromPath,
+  scanImagesRecursive,
+  groupAndSortMatches,
+} from './ProductImageManager';
 import type {
   Product,
   ProductInput,
@@ -21,6 +26,30 @@ import type {
   ProductStatus,
 } from '@shared/types/product';
 import { MAX_IMAGES_PER_PRODUCT } from '@shared/types/product';
+
+export interface AutoMatchStats {
+  /** Image files seen during the folder scan. */
+  scannedFiles: number;
+  /** Distinct SKUs that had at least one image candidate matched. */
+  matchedSkus: number;
+  /** Products in this company that exist in the DB (denominator for
+   *  "X of N SKUs matched" display). */
+  totalProducts: number;
+  /** Image files copied into the assets folder this run. */
+  imagesImported: number;
+  /** Files that matched but already existed on disk (content-hash hit)
+   *  OR were already in the product's image array. */
+  imagesSkippedDup: number;
+  /** Files dropped because they would have pushed the product past the
+   *  per-product image cap. */
+  imagesSkippedCap: number;
+  /** Files that didn't match any SKU under the chosen folder. */
+  unmatchedFiles: number;
+  /** Products that received at least one new image this run. */
+  productsTouched: number;
+  /** Mirror of MAX_IMAGES_PER_PRODUCT for the UI's results display. */
+  maxImagesPerProduct: number;
+}
 
 // Resolve a brand's parent company. Cached per-call to avoid repeated
 // disk reads when bulk-upserting many rows. The bootstrap step in
@@ -430,6 +459,110 @@ export const ProductService = {
       ...current.images.filter((p) => p !== relativePath),
     ];
     return ProductService.update(id, { images: next });
+  },
+
+  /** Drop a folder of images on the company → app figures out which SKU
+   *  each file belongs to (by filename or parent-folder name), copies it
+   *  into the assets store with content-hash dedup, and attaches it to
+   *  the right product. Spec §11.
+   *
+   *  Returns rich stats so the AutoMatchModal can show scanned / matched
+   *  / imported / dup-skipped / cap-skipped / unmatched. */
+  async autoMatchImagesBySku(
+    companyId: string,
+    folderPath: string,
+  ): Promise<AutoMatchStats> {
+    // List products in this company. Lowercase the sku for case-insensitive
+    // matching against filenames; keep a back-map to the canonical Product
+    // so we update the right row.
+    const products = ProductService.list({ companyId });
+    const skuToProduct = new Map<string, Product>();
+    for (const p of products) skuToProduct.set(p.sku.toLowerCase(), p);
+    const skuSet = new Set(skuToProduct.keys());
+
+    const allImages = scanImagesRecursive(folderPath);
+    const { groups, unmatched } = groupAndSortMatches(
+      allImages,
+      folderPath,
+      skuSet,
+    );
+
+    let productsTouched = 0;
+    let imagesImported = 0;
+    let imagesSkippedDup = 0;
+    let imagesSkippedCap = 0;
+
+    for (const [skuLower, candidates] of groups) {
+      const product = skuToProduct.get(skuLower);
+      if (!product) continue;
+
+      // Cap each SKU's incoming candidate list up front so per-SKU file
+      // overflows are counted accurately. The remaining cap is checked
+      // again below against the existing image array.
+      const capped = candidates.slice(0, MAX_IMAGES_PER_PRODUCT);
+      imagesSkippedCap += candidates.length - capped.length;
+
+      // Copy each candidate file into assets. Same-content files dedupe
+      // to the same on-disk filename, which is also what we add to the
+      // product's image array — so importing the same file twice is a
+      // no-op at both layers.
+      const matchedRelPaths: string[] = [];
+      let touched = false;
+      for (const c of capped) {
+        try {
+          const { relativePath, skipped } = await importProductImageFromPath(
+            c.sourcePath,
+            product.sku,
+          );
+          if (matchedRelPaths.includes(relativePath)) {
+            // Same file matched twice in the same run (e.g. duplicate
+            // copy in a different subfolder). Don't add the relative
+            // path twice.
+            imagesSkippedDup += 1;
+            continue;
+          }
+          matchedRelPaths.push(relativePath);
+          const wasAlreadyOnProduct = product.images.includes(relativePath);
+          if (skipped || wasAlreadyOnProduct) imagesSkippedDup += 1;
+          else {
+            imagesImported += 1;
+            touched = true;
+          }
+        } catch (err) {
+          // One bad file (unsupported extension, permissions, etc.)
+          // shouldn't kill the whole import. Count it as unmatched so
+          // the user notices.
+          console.error(`Auto-match import failed for ${c.sourcePath}:`, err);
+        }
+      }
+
+      // Rebuild the product's image array: matched files first (their
+      // indexHint sorting puts the main candidate at position 0), then
+      // any pre-existing images that weren't part of this match. Truncate
+      // to the global cap if the union exceeds it.
+      const existing = product.images;
+      const keep = existing.filter((p) => !matchedRelPaths.includes(p));
+      const combined = [...matchedRelPaths, ...keep];
+      const truncated = combined.slice(0, MAX_IMAGES_PER_PRODUCT);
+      imagesSkippedCap += combined.length - truncated.length;
+
+      if (JSON.stringify(truncated) !== JSON.stringify(existing)) {
+        ProductService.update(product.id, { images: truncated });
+        if (touched) productsTouched += 1;
+      }
+    }
+
+    return {
+      scannedFiles: allImages.length,
+      matchedSkus: groups.size,
+      totalProducts: products.length,
+      imagesImported,
+      imagesSkippedDup,
+      imagesSkippedCap,
+      unmatchedFiles: unmatched.length,
+      productsTouched,
+      maxImagesPerProduct: MAX_IMAGES_PER_PRODUCT,
+    };
   },
 
   /** Reorder validates `newOrder` is a permutation of the existing images —

@@ -8,6 +8,9 @@ import {
   IconPackage,
   IconUpload,
   IconHistory,
+  IconTable,
+  IconLayoutGrid,
+  IconPhotoSearch,
 } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
@@ -15,18 +18,23 @@ import { useBrandStore } from '../stores/brandStore';
 import { useProductStore } from '../stores/productStore';
 import { useCompanyStore } from '../stores/companyStore';
 import { useDefaultBrand } from '../hooks/useDefaultBrand';
+import { useAssetsDir, productImageUrl } from '../hooks/useAssetsDir';
 import type { Product } from '../../shared/types/product';
 import { ProductForm } from './products/ProductForm';
+import { AutoMatchModal } from './products/AutoMatchModal';
 import { ImportFlow } from './dataImport/ImportFlow';
 import { ImportHistory } from './dataImport/ImportHistory';
 
 type ProductsTab = 'library' | 'import' | 'history';
+type ProductsView = 'table' | 'grid';
+
+// (Page-size options live inline in PaginationFooter — defined locally there
+// since both the table and grid views render the same footer.)
 
 // Mirrors spec §16 layout — sidebar (brand + category) + toolbar (search +
 // new) + table + pagination footer. Phase 2 ships table view only; grid view,
 // auto-match, import-modal, and download-sample come in later phases.
 
-const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 
 export default function Products() {
   const { brands, refresh: refreshBrands } = useBrandStore();
@@ -53,6 +61,12 @@ export default function Products() {
   const [editing, setEditing] = useState<Product | null | 'new'>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
+  const [view, setView] = useState<ProductsView>('table');
+  const [autoMatchOpen, setAutoMatchOpen] = useState(false);
+  const activeCompany = useCompanyStore(
+    (s) => s.companies.find((c) => c.id === s.activeCompanyId) ?? null,
+  );
+  const assetsDir = useAssetsDir();
 
   // Tab state, mirrored to ?tab= so links can deep-link to a specific tab
   // (e.g. the deprecated /data route can redirect into /products?tab=import).
@@ -220,7 +234,7 @@ export default function Products() {
 
             {/* Main — toolbar + table + pagination */}
             <main className="min-w-0">
-              <div className="mb-3 flex items-center gap-2">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
                 <div className="relative max-w-sm flex-1">
                   <IconSearch
                     size={14}
@@ -233,6 +247,39 @@ export default function Products() {
                     className="h-9 w-full rounded-md border border-border-base bg-bg-surface pl-8 pr-3 text-sm text-fg-base focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
                   />
                 </div>
+
+                {/* Table / Grid toggle */}
+                <div className="flex rounded-md border border-border-base bg-bg-surface p-0.5">
+                  <ViewToggleBtn
+                    active={view === 'table'}
+                    onClick={() => setView('table')}
+                    title="Table view"
+                  >
+                    <IconTable size={13} /> Table
+                  </ViewToggleBtn>
+                  <ViewToggleBtn
+                    active={view === 'grid'}
+                    onClick={() => setView('grid')}
+                    title="Grid view"
+                  >
+                    <IconLayoutGrid size={13} /> Grid
+                  </ViewToggleBtn>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setAutoMatchOpen(true)}
+                  disabled={!activeCompany}
+                  title={
+                    activeCompany
+                      ? 'Pick a folder of images named by SKU; the app auto-attaches them to matching products'
+                      : 'Pick a company first'
+                  }
+                >
+                  <IconPhotoSearch size={13} /> Auto-match images…
+                </Button>
+
                 <Button
                   size="sm"
                   variant="ghost"
@@ -243,6 +290,7 @@ export default function Products() {
                 >
                   Refresh
                 </Button>
+
                 <span className="ml-auto text-xs text-fg-muted">
                   {products.length === 0
                     ? 'No products match'
@@ -263,6 +311,30 @@ export default function Products() {
                     Click "New product" to add one, or use the Data & Import
                     tab to bulk-import from a CSV.
                   </p>
+                </div>
+              ) : view === 'grid' ? (
+                <div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    {visible.map((p) => (
+                      <GridCard
+                        key={p.id}
+                        product={p}
+                        brand={brands.find((b) => b.id === p.brandId) ?? null}
+                        assetsDir={assetsDir}
+                        onClick={() => setEditing(p)}
+                      />
+                    ))}
+                  </div>
+                  {/* Same pagination footer as the table view. */}
+                  <PaginationFooter
+                    start={start}
+                    pageSize={pageSize}
+                    total={products.length}
+                    safePage={safePage}
+                    totalPages={totalPages}
+                    setPage={setPage}
+                    setPageSize={setPageSize}
+                  />
                 </div>
               ) : (
                 <div className="rounded-lg border border-border-base">
@@ -310,65 +382,15 @@ export default function Products() {
                       ))}
                     </tbody>
                   </table>
-                  {/* Pagination footer */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-subtle bg-bg-elevated px-3 py-2 text-xs text-fg-muted">
-                    <span>
-                      Showing {start + 1}–
-                      {Math.min(start + pageSize, products.length)} of{' '}
-                      {products.length.toLocaleString()}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-1">
-                        <span className="text-[10px] text-fg-subtle">Per page</span>
-                        <select
-                          value={pageSize}
-                          onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
-                          className="rounded-md border border-border-base bg-bg-base px-1.5 py-1 text-[11px]"
-                        >
-                          {PAGE_SIZE_OPTIONS.map((n) => (
-                            <option key={n} value={n}>
-                              {n}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="flex items-center gap-1">
-                        <button
-                          disabled={safePage === 0}
-                          onClick={() => setPage(0)}
-                          className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
-                          title="First page"
-                        >
-                          ⟪
-                        </button>
-                        <button
-                          disabled={safePage === 0}
-                          onClick={() => setPage(safePage - 1)}
-                          className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
-                        >
-                          ‹ Prev
-                        </button>
-                        <span className="px-2 font-mono">
-                          {safePage + 1} / {totalPages}
-                        </span>
-                        <button
-                          disabled={safePage >= totalPages - 1}
-                          onClick={() => setPage(safePage + 1)}
-                          className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
-                        >
-                          Next ›
-                        </button>
-                        <button
-                          disabled={safePage >= totalPages - 1}
-                          onClick={() => setPage(totalPages - 1)}
-                          className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
-                          title="Last page"
-                        >
-                          ⟫
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <PaginationFooter
+                    start={start}
+                    pageSize={pageSize}
+                    total={products.length}
+                    safePage={safePage}
+                    totalPages={totalPages}
+                    setPage={setPage}
+                    setPageSize={setPageSize}
+                  />
                 </div>
               )}
             </main>
@@ -381,6 +403,13 @@ export default function Products() {
           product={editing === 'new' ? null : editing}
           defaultBrandId={activeBrand.id}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {autoMatchOpen && activeCompany && (
+        <AutoMatchModal
+          companyId={activeCompany.id}
+          onClose={() => setAutoMatchOpen(false)}
         />
       )}
     </>
@@ -478,5 +507,190 @@ function StatusPill({ status }: { status: 'active' | 'inactive' | 'draft' }) {
     >
       {status}
     </span>
+  );
+}
+
+// ── View toggle (Table | Grid) ───────────────────────────────────────────────
+
+function ViewToggleBtn({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={[
+        'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
+        active
+          ? 'bg-accent text-accent-fg'
+          : 'text-fg-muted hover:bg-bg-hover hover:text-fg-base',
+      ].join(' ')}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ── Grid card ───────────────────────────────────────────────────────────────
+
+function GridCard({
+  product,
+  brand,
+  assetsDir,
+  onClick,
+}: {
+  product: Product;
+  brand: { id: string; name: string; color: string } | null;
+  assetsDir: string | null;
+  onClick: () => void;
+}) {
+  const mainImage = product.images[0];
+  const url = mainImage ? productImageUrl(assetsDir, mainImage) : null;
+
+  return (
+    <button
+      onClick={onClick}
+      className="group flex flex-col overflow-hidden rounded-md border border-border-base bg-bg-surface text-left transition-colors hover:bg-bg-hover"
+    >
+      <div className="relative aspect-square w-full overflow-hidden bg-bg-elevated">
+        {url ? (
+          <img
+            src={url}
+            alt={product.sku}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[10px] text-fg-subtle">
+            no image
+          </div>
+        )}
+        {brand && (
+          <span
+            className="absolute right-1 top-1 inline-flex items-center gap-1 rounded bg-black/55 px-1.5 py-0.5 text-[9px] font-medium text-white backdrop-blur-sm"
+            title={brand.name}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: brand.color }}
+            />
+            {brand.name}
+          </span>
+        )}
+        {product.status !== 'active' && (
+          <span
+            className={[
+              'absolute left-1 top-1 rounded px-1.5 py-0.5 text-[9px] font-medium',
+              product.status === 'draft'
+                ? 'bg-warning/80 text-white'
+                : 'bg-fg-subtle/70 text-white',
+            ].join(' ')}
+          >
+            {product.status}
+          </span>
+        )}
+      </div>
+      <div className="px-2 py-1.5">
+        <div className="truncate font-mono text-xs font-semibold text-fg-base">
+          {product.sku}
+        </div>
+        <div className="truncate text-[11px] text-fg-muted">
+          {product.name ?? '—'}
+        </div>
+        {product.colorFinish && (
+          <div className="truncate text-[10px] text-fg-subtle">
+            {product.colorFinish}
+          </div>
+        )}
+      </div>
+    </button>
+  );
+}
+
+// ── Pagination footer (shared by table + grid) ──────────────────────────────
+
+function PaginationFooter({
+  start,
+  pageSize,
+  total,
+  safePage,
+  totalPages,
+  setPage,
+  setPageSize,
+}: {
+  start: number;
+  pageSize: number;
+  total: number;
+  safePage: number;
+  totalPages: number;
+  setPage: (n: number) => void;
+  setPageSize: (n: number) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-subtle bg-bg-elevated px-3 py-2 text-xs text-fg-muted">
+      <span>
+        Showing {start + 1}–{Math.min(start + pageSize, total)} of{' '}
+        {total.toLocaleString()}
+      </span>
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-1">
+          <span className="text-[10px] text-fg-subtle">Per page</span>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+            className="rounded-md border border-border-base bg-bg-base px-1.5 py-1 text-[11px]"
+          >
+            {[25, 50, 100, 200].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="flex items-center gap-1">
+          <button
+            disabled={safePage === 0}
+            onClick={() => setPage(0)}
+            className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+            title="First page"
+          >
+            ⟪
+          </button>
+          <button
+            disabled={safePage === 0}
+            onClick={() => setPage(safePage - 1)}
+            className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+          >
+            ‹ Prev
+          </button>
+          <span className="px-2 font-mono">
+            {safePage + 1} / {totalPages}
+          </span>
+          <button
+            disabled={safePage >= totalPages - 1}
+            onClick={() => setPage(safePage + 1)}
+            className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+          >
+            Next ›
+          </button>
+          <button
+            disabled={safePage >= totalPages - 1}
+            onClick={() => setPage(totalPages - 1)}
+            className="rounded px-2 py-1 hover:bg-bg-hover disabled:opacity-30"
+            title="Last page"
+          >
+            ⟫
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
