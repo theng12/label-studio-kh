@@ -9,6 +9,11 @@ import type {
   SkuConflict,
   ValidationResult,
 } from '../shared/types/import';
+import type {
+  Product,
+  ProductFilters,
+  ProductInput,
+} from '../shared/types/product';
 
 interface ImportListEntry {
   id: string;
@@ -271,6 +276,43 @@ const api = {
       id: string,
     ): Promise<{ files: string[]; errors: string[] } | null> =>
       ipcRenderer.invoke('file:reprint', id),
+  },
+  products: {
+    list: (filters?: ProductFilters): Promise<Product[]> =>
+      ipcRenderer.invoke('products:list', filters),
+    get: (id: string): Promise<Product | null> =>
+      ipcRenderer.invoke('products:get', id),
+    getBySku: (brandId: string, sku: string): Promise<Product | null> =>
+      ipcRenderer.invoke('products:getBySku', brandId, sku),
+    create: (input: ProductInput): Promise<Product> =>
+      ipcRenderer.invoke('products:create', input),
+    update: (
+      id: string,
+      patch: Partial<ProductInput>,
+    ): Promise<Product | null> =>
+      ipcRenderer.invoke('products:update', id, patch),
+    remove: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke('products:remove', id),
+    bulkUpsert: (
+      rows: ProductInput[],
+    ): Promise<{ inserted: number; updated: number }> =>
+      ipcRenderer.invoke('products:bulkUpsert', rows),
+    categories: (brandId?: string): Promise<string[]> =>
+      ipcRenderer.invoke('products:categories', brandId),
+    addImage: (id: string, relativePath: string): Promise<Product | null> =>
+      ipcRenderer.invoke('products:addImage', id, relativePath),
+    removeImage: (id: string, relativePath: string): Promise<Product | null> =>
+      ipcRenderer.invoke('products:removeImage', id, relativePath),
+    setMainImage: (
+      id: string,
+      relativePath: string,
+    ): Promise<Product | null> =>
+      ipcRenderer.invoke('products:setMainImage', id, relativePath),
+    reorderImages: (
+      id: string,
+      newOrder: string[],
+    ): Promise<Product | null> =>
+      ipcRenderer.invoke('products:reorderImages', id, newOrder),
   },
   sku: {
     get: (brandId: string, sku: string): Promise<SkuRow | null> =>

@@ -5,6 +5,7 @@ import { registerAppIpc } from './ipc/app';
 import { registerBrandIpc } from './ipc/brand';
 import { registerTemplateIpc } from './ipc/template';
 import { registerImportIpc } from './ipc/import';
+import { registerProductIpc } from './ipc/product';
 import { registerExportIpc } from './ipc/export';
 import { registerDashboardIpc } from './ipc/dashboard';
 import { registerFileIpc } from './ipc/file';
@@ -83,6 +84,7 @@ app.whenReady().then(() => {
   registerBrandIpc();
   registerTemplateIpc();
   registerImportIpc();
+  registerProductIpc();
   registerExportIpc();
   registerDashboardIpc();
   registerFileIpc();
