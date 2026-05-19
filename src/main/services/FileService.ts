@@ -23,12 +23,23 @@ export interface FileEntry {
 
 export interface FileFilters {
   query?: string; // matches sku, file_path
+  /** Scope to a single Company. The File Manager defaults to the active
+   *  company so the user only sees files for the workspace they're in. */
+  companyId?: string;
   brandId?: string;
   format?: 'pdf' | 'png' | 'jpeg';
   dateFrom?: string;
   dateTo?: string;
   sizeLabel?: string;
   batchId?: string;
+}
+
+/** Stats for the File Manager's storage panel. Per-format breakdown lets
+ *  the user see at a glance "I'm mostly carrying PDF bytes" or similar. */
+export interface FileStorageStats {
+  totalFiles: number;
+  totalBytes: number;
+  byFormat: Record<string, { count: number; bytes: number }>;
 }
 
 // Whitelist of columns the renderer is allowed to sort by. Anything outside
@@ -81,6 +92,10 @@ function buildWhere(filters: FileFilters): {
   if (filters.query) {
     where.push('(sku LIKE ? OR file_path LIKE ?)');
     params.push(`%${filters.query}%`, `%${filters.query}%`);
+  }
+  if (filters.companyId) {
+    where.push('company_id = ?');
+    params.push(filters.companyId);
   }
   if (filters.brandId) {
     where.push('brand_id = ?');
@@ -173,14 +188,58 @@ export const FileService = {
     };
   },
 
-  distinctSizes(): string[] {
+  /** Distinct size labels currently in use. Optionally scoped to a company
+   *  so the File Manager sidebar only shows sizes that exist for the
+   *  currently-active workspace. */
+  distinctSizes(companyId?: string): string[] {
     const db = getDb();
+    const rows = companyId
+      ? (db
+          .prepare(
+            `SELECT DISTINCT size_label FROM generations
+             WHERE deleted_at IS NULL AND company_id = ?
+             ORDER BY size_label`,
+          )
+          .all(companyId) as Array<{ size_label: string }>)
+      : (db
+          .prepare(
+            `SELECT DISTINCT size_label FROM generations
+             WHERE deleted_at IS NULL
+             ORDER BY size_label`,
+          )
+          .all() as Array<{ size_label: string }>);
+    return rows.map((r) => r.size_label);
+  },
+
+  /** Aggregate file count + byte total, optionally scoped to a company.
+   *  Used by the storage stats card at the top of the File Manager. */
+  storageStats(companyId?: string): FileStorageStats {
+    const db = getDb();
+    const where: string[] = ['deleted_at IS NULL'];
+    const params: string[] = [];
+    if (companyId) {
+      where.push('company_id = ?');
+      params.push(companyId);
+    }
     const rows = db
       .prepare(
-        `SELECT DISTINCT size_label FROM generations WHERE deleted_at IS NULL ORDER BY size_label`,
+        `SELECT format,
+                COUNT(*)             AS c,
+                COALESCE(SUM(file_size), 0) AS b
+         FROM generations
+         WHERE ${where.join(' AND ')}
+         GROUP BY format`,
       )
-      .all() as Array<{ size_label: string }>;
-    return rows.map((r) => r.size_label);
+      .all(...params) as Array<{ format: string; c: number; b: number }>;
+    const byFormat: FileStorageStats['byFormat'] = {};
+    let totalFiles = 0;
+    let totalBytes = 0;
+    for (const r of rows) {
+      byFormat[r.format] = { count: r.c, bytes: r.b };
+      totalFiles += r.c;
+      totalBytes += r.b;
+    }
+    return { totalFiles, totalBytes, byFormat };
   },
 
   /**

@@ -183,16 +183,21 @@ export async function exportSingle(input: SingleExportInput): Promise<ExportResu
         // Persist generation record so File Manager can find it later.
         try {
           const stats = statSync(filePath);
+          // v6+ denormalizes the parent company onto each generation
+          // row for direct File Manager filtering. brand.companyId
+          // comes through from the brand snapshot the caller passes in.
+          const companyId = brand?.companyId ?? null;
           getDb()
             .prepare(
-              `INSERT INTO generations (id, batch_id, sku, brand_id, template_id, format, dpi, size_label, file_path, file_size, template_snapshot, data_snapshot, brand_snapshot, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              `INSERT INTO generations (id, batch_id, sku, brand_id, company_id, template_id, format, dpi, size_label, file_path, file_size, template_snapshot, data_snapshot, brand_snapshot, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             )
             .run(
               randomUUID(),
               batchId,
               sku,
               brand?.id ?? '',
+              companyId,
               template.id,
               format,
               settings.dpi,

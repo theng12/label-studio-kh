@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 let _db: Database.Database | null = null;
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -91,6 +91,11 @@ CREATE TABLE IF NOT EXISTS generations (
   batch_id     TEXT,
   sku          TEXT NOT NULL,
   brand_id     TEXT NOT NULL,
+  -- v6: denormalized parent company for direct WHERE company_id = ?
+  -- filtering in File Manager. Populated by the v5→v6 backfill
+  -- (CompanyService.ensureBootstrap) and on every new generation
+  -- insert via ExportService.
+  company_id   TEXT,
   template_id  TEXT NOT NULL,
   format       TEXT NOT NULL,
   dpi          INTEGER NOT NULL,
@@ -107,6 +112,9 @@ CREATE TABLE IF NOT EXISTS generations (
 CREATE INDEX IF NOT EXISTS idx_generations_sku ON generations(sku);
 CREATE INDEX IF NOT EXISTS idx_generations_brand ON generations(brand_id);
 CREATE INDEX IF NOT EXISTS idx_generations_created ON generations(created_at);
+-- idx_generations_company is created in the post-migration block at the
+-- bottom of getDb() so it also applies to upgraded DBs whose ALTER TABLE
+-- adds the column at boot.
 `;
 
 export function getDb(): Database.Database {
@@ -219,6 +227,21 @@ export function getDb(): Database.Database {
     _db
       .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
       .run('5', 'version');
+    if (row) row.value = '5';
+  }
+  if (row?.value === '5') {
+    // v5 → v6: denormalize company_id onto generations so File Manager
+    // can WHERE company_id = ? directly instead of two-hop joining
+    // through brands.json. Backfill happens in
+    // CompanyService.ensureBootstrap (same place we filled skus).
+    try {
+      _db.exec('ALTER TABLE generations ADD COLUMN company_id TEXT');
+    } catch (e) {
+      if (!String(e).includes('duplicate column name')) throw e;
+    }
+    _db
+      .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
+      .run('6', 'version');
   }
 
   // Indexes that reference v4+ columns. Created here, after all migrations
@@ -231,6 +254,7 @@ export function getDb(): Database.Database {
   _db.exec('CREATE INDEX IF NOT EXISTS idx_skus_id ON skus(id)');
   _db.exec('CREATE INDEX IF NOT EXISTS idx_skus_category ON skus(brand_id, category)');
   _db.exec('CREATE INDEX IF NOT EXISTS idx_skus_company ON skus(company_id)');
+  _db.exec('CREATE INDEX IF NOT EXISTS idx_generations_company ON generations(company_id)');
 
   return _db;
 }

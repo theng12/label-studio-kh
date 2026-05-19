@@ -207,6 +207,7 @@ const api = {
   files: {
     list: (filters: {
       query?: string;
+      companyId?: string;
       brandId?: string;
       format?: 'pdf' | 'png' | 'jpeg';
       dateFrom?: string;
@@ -233,6 +234,7 @@ const api = {
     listPaged: (opts: {
       filters: {
         query?: string;
+        companyId?: string;
         brandId?: string;
         format?: 'pdf' | 'png' | 'jpeg';
         dateFrom?: string;
@@ -269,7 +271,15 @@ const api = {
         exists: boolean;
       }>;
     }> => ipcRenderer.invoke('file:listPaged', opts),
-    distinctSizes: (): Promise<string[]> => ipcRenderer.invoke('file:distinctSizes'),
+    distinctSizes: (companyId?: string): Promise<string[]> =>
+      ipcRenderer.invoke('file:distinctSizes', companyId),
+    storageStats: (
+      companyId?: string,
+    ): Promise<{
+      totalFiles: number;
+      totalBytes: number;
+      byFormat: Record<string, { count: number; bytes: number }>;
+    }> => ipcRenderer.invoke('file:storageStats', companyId),
     delete: (id: string, alsoFromDisk: boolean): Promise<boolean> =>
       ipcRenderer.invoke('file:delete', id, alsoFromDisk),
     restore: (id: string): Promise<boolean> =>

@@ -102,6 +102,22 @@ export default function Products() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultBrandId, params]);
 
+  // Deep-link: /products?edit=<productId> opens the edit modal for that
+  // product on mount. Used by the File Manager's "View product" action so
+  // a file row can jump to the product that generated it. We strip the
+  // param after consuming it so back/forward doesn't keep re-opening.
+  useEffect(() => {
+    const editId = params.get('edit');
+    if (!editId || editing !== null) return;
+    void window.api.products.get(editId).then((p) => {
+      if (p) setEditing(p);
+      const next = new URLSearchParams(params);
+      next.delete('edit');
+      setParams(next, { replace: true });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+
   // Reset to page 0 whenever filters change (spec §16: "page resets on filter
   // change"). Effect intentionally depends on filter fields, not the object,
   // so a reference swap with same values doesn't churn.

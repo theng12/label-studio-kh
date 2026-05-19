@@ -161,9 +161,9 @@ export const CompanyService = {
       }
     }
 
-    // 3. skus.company_id backfill via the brand→company map we just
-    //    confirmed above. Only update rows where company_id IS NULL so
-    //    this is cheap on repeat boots.
+    // 3. skus.company_id AND generations.company_id backfill via the
+    //    brand→company map we just confirmed above. Only update rows
+    //    where company_id IS NULL so this is cheap on repeat boots.
     try {
       const db = getDb();
       const brandsCurrent = readBrandsFromDisk();
@@ -171,21 +171,51 @@ export const CompanyService = {
       for (const b of brandsCurrent) {
         if (b.companyId) brandToCompany.set(b.id, b.companyId);
       }
-      const rows = db
+
+      // SKUs
+      const skuRows = db
         .prepare('SELECT DISTINCT brand_id FROM skus WHERE company_id IS NULL')
         .all() as Array<{ brand_id: string }>;
-      const upd = db.prepare(
+      const skuUpd = db.prepare(
         'UPDATE skus SET company_id = ? WHERE brand_id = ? AND company_id IS NULL',
       );
+
+      // Generations (v6+). Tolerate the column not existing on a
+      // freshly-skipped migration (e.g. someone running against an old
+      // DB shape from a downgraded binary) — try/catch the whole block.
+      // Reuse the inferred type of skuUpd so .run(cid, brandId) is fully
+      // typed; `ReturnType<typeof db.prepare>` widens to `Statement<unknown[]>`
+      // and loses the variadic param signature.
+      let genRows: Array<{ brand_id: string }> = [];
+      let genUpd: typeof skuUpd | null = null;
+      try {
+        genRows = db
+          .prepare(
+            'SELECT DISTINCT brand_id FROM generations WHERE company_id IS NULL',
+          )
+          .all() as Array<{ brand_id: string }>;
+        genUpd = db.prepare(
+          'UPDATE generations SET company_id = ? WHERE brand_id = ? AND company_id IS NULL',
+        );
+      } catch (err) {
+        if (!String(err).includes('no such column')) throw err;
+      }
+
       const tx = db.transaction(() => {
-        for (const r of rows) {
+        for (const r of skuRows) {
           const cid = brandToCompany.get(r.brand_id) ?? defaultCompanyId;
-          upd.run(cid, r.brand_id);
+          skuUpd.run(cid, r.brand_id);
+        }
+        if (genUpd) {
+          for (const r of genRows) {
+            const cid = brandToCompany.get(r.brand_id) ?? defaultCompanyId;
+            genUpd.run(cid, r.brand_id);
+          }
         }
       });
       tx();
     } catch (err) {
-      console.error('SKU company_id backfill failed:', err);
+      console.error('company_id backfill failed:', err);
     }
   },
 };
