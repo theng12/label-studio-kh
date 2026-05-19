@@ -70,11 +70,12 @@ CREATE TABLE IF NOT EXISTS skus (
   PRIMARY KEY (sku, brand_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_skus_brand    ON skus(brand_id);
-CREATE INDEX IF NOT EXISTS idx_skus_sku      ON skus(sku);
-CREATE INDEX IF NOT EXISTS idx_skus_id       ON skus(id);
-CREATE INDEX IF NOT EXISTS idx_skus_category ON skus(brand_id, category);
-CREATE INDEX IF NOT EXISTS idx_skus_company  ON skus(company_id);
+-- Only indexes that reference v3 columns can live here, because this
+-- SCHEMA block runs BEFORE the v3→v4 migration on upgraded DBs (the
+-- migration is what adds id / category / company_id). Indexes on those
+-- columns are created at the bottom of getDb() after migrations settle.
+CREATE INDEX IF NOT EXISTS idx_skus_brand ON skus(brand_id);
+CREATE INDEX IF NOT EXISTS idx_skus_sku   ON skus(sku);
 
 CREATE TABLE IF NOT EXISTS batches (
   id            TEXT PRIMARY KEY,
@@ -197,10 +198,6 @@ export function getDb(): Database.Database {
     });
     backfill();
 
-    // Indexes added in v4 (CREATE INDEX IF NOT EXISTS is itself idempotent).
-    _db.exec('CREATE INDEX IF NOT EXISTS idx_skus_id ON skus(id)');
-    _db.exec('CREATE INDEX IF NOT EXISTS idx_skus_category ON skus(brand_id, category)');
-
     _db
       .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
       .run('4', 'version');
@@ -218,12 +215,22 @@ export function getDb(): Database.Database {
     } catch (e) {
       if (!String(e).includes('duplicate column name')) throw e;
     }
-    _db.exec('CREATE INDEX IF NOT EXISTS idx_skus_company ON skus(company_id)');
 
     _db
       .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
       .run('5', 'version');
   }
+
+  // Indexes that reference v4+ columns. Created here, after all migrations
+  // have settled, so they apply to both fresh installs (columns just got
+  // created by CREATE TABLE) and upgrades (columns just got created by
+  // ALTER TABLE in the migration blocks above). Putting these in the
+  // initial SCHEMA block was the bug that pinned an upgraded DB at v3:
+  // CREATE INDEX on a not-yet-existing column threw before the migration
+  // could even start. CREATE INDEX IF NOT EXISTS is itself idempotent.
+  _db.exec('CREATE INDEX IF NOT EXISTS idx_skus_id ON skus(id)');
+  _db.exec('CREATE INDEX IF NOT EXISTS idx_skus_category ON skus(brand_id, category)');
+  _db.exec('CREATE INDEX IF NOT EXISTS idx_skus_company ON skus(company_id)');
 
   return _db;
 }
