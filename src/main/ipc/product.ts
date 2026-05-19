@@ -5,8 +5,12 @@
 // separate brand-image flow in BrandService — keeping these alongside
 // products avoids ambiguity about which entity is being mutated.
 
-import { ipcMain } from 'electron';
+import { ipcMain, dialog } from 'electron';
 import { ProductService } from '../services/ProductService';
+import {
+  importProductImageFromPath,
+  importProductImageFromBytes,
+} from '../services/ProductImageManager';
 import type {
   ProductInput,
   ProductFilters,
@@ -71,5 +75,56 @@ export function registerProductIpc(): void {
     'products:reorderImages',
     (_e, id: string, newOrder: string[]) =>
       ProductService.reorderImages(id, newOrder),
+  );
+
+  // Image-import IPC. Two entry points: file picker (path-based) and
+  // clipboard paste (bytes-based). Both end up in the same dedup pipeline
+  // in ProductImageManager.
+
+  ipcMain.handle('products:pickImageFile', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Add image to product',
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'Images',
+          extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'],
+        },
+      ],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+
+  ipcMain.handle(
+    'products:importImage',
+    async (_e, productId: string, sourcePath: string) => {
+      const product = ProductService.get(productId);
+      if (!product) throw new Error('Product not found');
+      const { relativePath } = await importProductImageFromPath(
+        sourcePath,
+        product.sku,
+      );
+      return ProductService.addImageToProduct(productId, relativePath);
+    },
+  );
+
+  ipcMain.handle(
+    'products:importImageFromBytes',
+    async (
+      _e,
+      productId: string,
+      bytes: ArrayBuffer,
+      ext: string,
+    ) => {
+      const product = ProductService.get(productId);
+      if (!product) throw new Error('Product not found');
+      const { relativePath } = await importProductImageFromBytes(
+        bytes,
+        ext,
+        product.sku,
+      );
+      return ProductService.addImageToProduct(productId, relativePath);
+    },
   );
 }

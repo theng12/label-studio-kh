@@ -82,6 +82,7 @@ const api = {
       missing: string[];
       total: number;
     }> => ipcRenderer.invoke('app:getFontStatus'),
+    getAssetsDir: (): Promise<string> => ipcRenderer.invoke('app:getAssetsDir'),
   },
   brand: {
     list: (): Promise<Brand[]> => ipcRenderer.invoke('brand:list'),
@@ -313,6 +314,23 @@ const api = {
       newOrder: string[],
     ): Promise<Product | null> =>
       ipcRenderer.invoke('products:reorderImages', id, newOrder),
+    /** Opens the OS file picker. Returns the absolute path or null. */
+    pickImageFile: (): Promise<string | null> =>
+      ipcRenderer.invoke('products:pickImageFile'),
+    /** Copy a file from disk into the product's image library. Returns the
+     *  updated product (with the new image appended) or null if not found. */
+    importImage: (
+      productId: string,
+      sourcePath: string,
+    ): Promise<Product | null> =>
+      ipcRenderer.invoke('products:importImage', productId, sourcePath),
+    /** Clipboard-paste path: send the raw bytes + an extension hint. */
+    importImageFromBytes: (
+      productId: string,
+      bytes: ArrayBuffer,
+      ext: string,
+    ): Promise<Product | null> =>
+      ipcRenderer.invoke('products:importImageFromBytes', productId, bytes, ext),
   },
   sku: {
     get: (brandId: string, sku: string): Promise<SkuRow | null> =>

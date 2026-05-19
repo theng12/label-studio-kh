@@ -1,12 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { IconX, IconTrash } from '@tabler/icons-react';
+import {
+  IconX,
+  IconTrash,
+  IconPlus,
+  IconChevronLeft,
+  IconChevronRight,
+  IconStar,
+  IconStarFilled,
+} from '@tabler/icons-react';
 import { Button } from '../../components/Button';
 import { Field, TextInput, TextArea } from '../../components/FormField';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { toast } from '../../components/Toast';
 import { useBrandStore } from '../../stores/brandStore';
 import { useProductStore } from '../../stores/productStore';
+import { useAssetsDir, productImageUrl } from '../../hooks/useAssetsDir';
 import {
   DEFAULT_PRICE_GROUPS,
+  MAX_IMAGES_PER_PRODUCT,
   type Product,
   type ProductInput,
   type ProductStatus,
@@ -78,6 +89,16 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const skuRef = useRef<HTMLInputElement>(null);
+  const assetsDir = useAssetsDir();
+
+  // The form binds to the product passed in, but images can change behind
+  // its back (Add / Paste / Reorder / Remove all call IPC that returns the
+  // updated product). Mirror the canonical list locally so the UI reflects
+  // the latest state without a parent re-render.
+  const [images, setImages] = useState<string[]>(product?.images ?? []);
+  useEffect(() => {
+    setImages(product?.images ?? []);
+  }, [product]);
 
   // Esc to close (matches every other modal in the app).
   useEffect(() => {
@@ -167,6 +188,101 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
     if (ok) onClose();
   };
 
+  // ── Image management handlers ─────────────────────────────────────────────
+  // All four operations end up calling ProductService and getting back the
+  // updated product; we mirror its images into local state so the grid
+  // re-renders immediately and the parent store also picks up via the
+  // updateProduct fast-path used by addImage.
+
+  // Helper: most IPC handlers return Promise<Product | null>. Map that into
+  // a local images update + push to the store so the table row reflects too.
+  const applyUpdated = (updated: Product | null) => {
+    if (!updated) return;
+    setImages(updated.images);
+    // Keep the products-table list fresh without a full refresh — the store's
+    // updateProduct fast-path already handles this via the IPC the caller
+    // used, but only for the products array; do a soft set here as well so
+    // the parent table row reflects new thumbnails without a list reload.
+    void useProductStore.setState((s) => ({
+      products: s.products.map((p) => (p.id === updated.id ? updated : p)),
+    }));
+  };
+
+  const onAddImage = async () => {
+    if (!product) {
+      toast.info('Save the product first, then add images.');
+      return;
+    }
+    if (images.length >= MAX_IMAGES_PER_PRODUCT) {
+      toast.error(
+        `This product already has the maximum of ${MAX_IMAGES_PER_PRODUCT} images.`,
+      );
+      return;
+    }
+    const path = await window.api.products.pickImageFile();
+    if (!path) return; // user cancelled
+    try {
+      const updated = await window.api.products.importImage(product.id, path);
+      applyUpdated(updated);
+    } catch (err) {
+      toast.error(`Couldn't import image: ${String(err)}`);
+    }
+  };
+
+  const onPaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (!product) return; // silent — user needs to save first; paste is keyboard, hard to surface a hint
+    const item = Array.from(e.clipboardData?.items ?? []).find((it) =>
+      it.type.startsWith('image/'),
+    );
+    if (!item) return; // not an image — let default paste happen (e.g. into the description box)
+    e.preventDefault();
+    if (images.length >= MAX_IMAGES_PER_PRODUCT) {
+      toast.error(
+        `This product already has the maximum of ${MAX_IMAGES_PER_PRODUCT} images.`,
+      );
+      return;
+    }
+    const blob = item.getAsFile();
+    if (!blob) return;
+    try {
+      const buf = await blob.arrayBuffer();
+      const subtype = (blob.type.split('/')[1] ?? 'png').toLowerCase();
+      const ext = subtype === 'jpeg' ? '.jpg' : `.${subtype}`;
+      const updated = await window.api.products.importImageFromBytes(
+        product.id,
+        buf,
+        ext,
+      );
+      applyUpdated(updated);
+      toast.success('Image pasted.');
+    } catch (err) {
+      toast.error(`Couldn't paste image: ${String(err)}`);
+    }
+  };
+
+  const onRemoveImage = async (relPath: string) => {
+    if (!product) return;
+    const updated = await window.api.products.removeImage(product.id, relPath);
+    applyUpdated(updated);
+  };
+
+  const onSetMain = async (relPath: string) => {
+    if (!product) return;
+    const updated = await window.api.products.setMainImage(product.id, relPath);
+    applyUpdated(updated);
+  };
+
+  const onMoveImage = async (relPath: string, dir: -1 | 1) => {
+    if (!product) return;
+    const idx = images.indexOf(relPath);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= images.length) return;
+    const next = [...images];
+    [next[idx], next[target]] = [next[target]!, next[idx]!];
+    const updated = await window.api.products.reorderImages(product.id, next);
+    applyUpdated(updated);
+  };
+
   return (
     <>
       <div
@@ -197,8 +313,13 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
             </button>
           </div>
 
-          {/* Scrollable body */}
-          <div className="scrollbar-thin max-h-[70vh] overflow-y-auto px-5 py-4">
+          {/* Scrollable body. onPaste lives here so ⌘V anywhere inside the
+              modal funnels images through the importer; non-image paste
+              (e.g. into the description) keeps its default behavior. */}
+          <div
+            className="scrollbar-thin max-h-[70vh] overflow-y-auto px-5 py-4"
+            onPaste={(e) => void onPaste(e)}
+          >
             {error && (
               <div className="mb-3 rounded-md border border-danger/40 bg-danger/10 p-2 text-xs text-danger">
                 {error}
@@ -347,12 +468,66 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
               </div>
             </div>
 
-            {/* Images placeholder — Phase 3 wires this up properly. */}
-            <div className="mt-6 rounded-md border border-dashed border-border-base bg-bg-elevated/40 px-3 py-4 text-center text-xs text-fg-subtle">
-              Images and clipboard-paste support land in the next update.
-              <br />
-              For now, the existing single-image flow on the import side
-              still works.
+            {/* Images section */}
+            <div className="mt-6">
+              <div className="mb-2 flex items-baseline justify-between">
+                <div className="text-xs font-semibold uppercase tracking-widest text-fg-subtle">
+                  Images {images.length} / {MAX_IMAGES_PER_PRODUCT}
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void onAddImage()}
+                  disabled={
+                    !product || images.length >= MAX_IMAGES_PER_PRODUCT
+                  }
+                  title={
+                    !product
+                      ? 'Save the product first, then add images.'
+                      : images.length >= MAX_IMAGES_PER_PRODUCT
+                        ? `Maximum ${MAX_IMAGES_PER_PRODUCT} images per product`
+                        : 'Pick an image file to add'
+                  }
+                >
+                  <IconPlus size={12} /> Add image
+                </Button>
+              </div>
+
+              {!product ? (
+                <div className="rounded-md border border-dashed border-border-base bg-bg-elevated/40 px-3 py-4 text-center text-xs text-fg-subtle">
+                  Save the product first, then come back here to add images.
+                </div>
+              ) : images.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border-base bg-bg-elevated/40 px-3 py-4 text-center text-xs text-fg-subtle">
+                  No images yet. Click <strong>Add image</strong>, or paste
+                  one with <kbd className="rounded bg-bg-elevated px-1">⌘V</kbd>.
+                  Same file imported twice is detected and skipped.
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6">
+                  {images.map((relPath, idx) => (
+                    <ImageTile
+                      key={relPath}
+                      relPath={relPath}
+                      assetsDir={assetsDir}
+                      isMain={idx === 0}
+                      canMoveLeft={idx > 0}
+                      canMoveRight={idx < images.length - 1}
+                      onSetMain={() => void onSetMain(relPath)}
+                      onMoveLeft={() => void onMoveImage(relPath, -1)}
+                      onMoveRight={() => void onMoveImage(relPath, 1)}
+                      onRemove={() => void onRemoveImage(relPath)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {product && (
+                <div className="mt-2 text-[10px] text-fg-subtle">
+                  Tip: paste an image directly with <kbd>⌘V</kbd>. The same
+                  file is recognised by content and won't duplicate on disk.
+                </div>
+              )}
             </div>
           </div>
 
@@ -408,5 +583,95 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
         />
       )}
     </>
+  );
+}
+
+// ── Image tile ──────────────────────────────────────────────────────────────
+
+function ImageTile({
+  relPath,
+  assetsDir,
+  isMain,
+  canMoveLeft,
+  canMoveRight,
+  onSetMain,
+  onMoveLeft,
+  onMoveRight,
+  onRemove,
+}: {
+  relPath: string;
+  assetsDir: string | null;
+  isMain: boolean;
+  canMoveLeft: boolean;
+  canMoveRight: boolean;
+  onSetMain: () => void;
+  onMoveLeft: () => void;
+  onMoveRight: () => void;
+  onRemove: () => void;
+}) {
+  const url = productImageUrl(assetsDir, relPath);
+  return (
+    <div className="group relative aspect-square overflow-hidden rounded-md border border-border-base bg-bg-elevated">
+      {url ? (
+        <img
+          src={url}
+          alt={relPath}
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-[10px] text-fg-subtle">
+          loading…
+        </div>
+      )}
+
+      {/* Main badge / set-as-main toggle */}
+      {isMain ? (
+        <span
+          title="Main image (position 0)"
+          className="absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-success px-1.5 py-0.5 text-[9px] font-semibold text-white"
+        >
+          <IconStarFilled size={9} /> Main
+        </span>
+      ) : (
+        <button
+          onClick={onSetMain}
+          title="Set as main image"
+          className="absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-black/50 px-1.5 py-0.5 text-[9px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
+        >
+          <IconStar size={9} /> Set main
+        </button>
+      )}
+
+      {/* Remove (top-right) */}
+      <button
+        onClick={onRemove}
+        aria-label="Remove image"
+        title="Remove image"
+        className="absolute right-1 top-1 rounded bg-black/50 p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-danger"
+      >
+        <IconX size={11} />
+      </button>
+
+      {/* Reorder controls (bottom row) */}
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent px-1 py-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          onClick={onMoveLeft}
+          disabled={!canMoveLeft}
+          aria-label="Move left"
+          className="rounded p-0.5 text-white disabled:opacity-30 hover:bg-white/20"
+        >
+          <IconChevronLeft size={11} />
+        </button>
+        <button
+          onClick={onMoveRight}
+          disabled={!canMoveRight}
+          aria-label="Move right"
+          className="rounded p-0.5 text-white disabled:opacity-30 hover:bg-white/20"
+        >
+          <IconChevronRight size={11} />
+        </button>
+      </div>
+    </div>
   );
 }
