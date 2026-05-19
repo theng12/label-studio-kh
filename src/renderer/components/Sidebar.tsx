@@ -5,6 +5,7 @@ import {
   IconLayoutDashboard,
   IconBuildingStore,
   IconTemplate,
+  IconPackage,
   IconDatabaseImport,
   IconWand,
   IconFiles,
@@ -77,6 +78,7 @@ export function Sidebar() {
       items: [
         { to: '/', label: t('nav.dashboard'), icon: IconLayoutDashboard },
         { to: '/brands', label: t('nav.brands'), icon: IconBuildingStore },
+        { to: '/products', label: 'Product Library', icon: IconPackage },
         { to: '/templates', label: t('nav.templates'), icon: IconTemplate },
       ],
     },

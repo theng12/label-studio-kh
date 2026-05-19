@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Brands from './pages/Brands';
 import Templates from './pages/Templates';
 import Designer from './pages/Designer';
+import Products from './pages/Products';
 import DataImport from './pages/DataImport';
 import Generate from './pages/Generate';
 import Barcodes from './pages/Barcodes';
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/brands" element={<Brands />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/designer/:brandId/:templateId" element={<Designer />} />
+          <Route path="/products" element={<Products />} />
           <Route path="/data" element={<DataImport />} />
           <Route path="/generate" element={<Generate />} />
           <Route path="/barcodes" element={<Barcodes />} />
