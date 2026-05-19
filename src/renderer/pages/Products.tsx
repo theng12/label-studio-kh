@@ -398,13 +398,24 @@ export default function Products() {
         )}
       </Page>
 
-      {editing !== null && activeBrand && (
-        <ProductForm
-          product={editing === 'new' ? null : editing}
-          defaultBrandId={activeBrand.id}
-          onClose={() => setEditing(null)}
-        />
-      )}
+      {editing !== null && (() => {
+        // Editing an existing product: it already has its own brandId,
+        // so we don't need a sidebar-active brand. Pass the product's
+        // own brand as the form default. Creating a new product still
+        // requires the sidebar's active brand (the "+ New product"
+        // button is also disabled when activeBrand is undefined, so
+        // this path is just defensive).
+        const isNew = editing === 'new';
+        const defaultBrand = isNew ? activeBrand?.id : editing.brandId;
+        if (!defaultBrand) return null;
+        return (
+          <ProductForm
+            product={isNew ? null : editing}
+            defaultBrandId={defaultBrand}
+            onClose={() => setEditing(null)}
+          />
+        );
+      })()}
 
       {autoMatchOpen && activeCompany && (
         <AutoMatchModal
