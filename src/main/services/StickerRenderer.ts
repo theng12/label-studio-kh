@@ -14,6 +14,10 @@ import {
   type UiBarcodeFormat,
 } from '@shared/format';
 import { fontFaceCss } from './FontService';
+import {
+  computeSheetGrid,
+  type SheetLayout,
+} from '@shared/sheetLayout';
 
 // Read a local image and return it as a base64 data: URL. Used for <img src>
 // values in the export pipeline because page.setContent() leaves the document
@@ -198,7 +202,7 @@ interface RenderContext {
 }
 
 function styleForElement(el: TemplateElement): string {
-  return [
+  const parts = [
     `position:absolute`,
     `left:${el.x_mm}mm`,
     `top:${el.y_mm}mm`,
@@ -207,7 +211,16 @@ function styleForElement(el: TemplateElement): string {
     `z-index:${el.zIndex}`,
     `box-sizing:border-box`,
     `overflow:hidden`,
-  ].join(';');
+  ];
+  // Rotation: match the designer canvas — rotate around centre. Skip the
+  // transform entirely at 0° so the generated HTML stays diff-clean for
+  // legacy templates with no rotation.
+  const rot = el.rotation ?? 0;
+  if (rot !== 0) {
+    parts.push(`transform:rotate(${rot}deg)`);
+    parts.push(`transform-origin:center center`);
+  }
+  return parts.join(';');
 }
 
 async function renderElement(
@@ -394,6 +407,10 @@ async function renderElement(
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
+const LABEL_FONT_STACK =
+  "'NotoSans', 'NotoSansKhmer', 'NotoSansThai', 'NotoSansKR', " +
+  "'NotoSansSC', 'NotoSansJP', system-ui, sans-serif";
+
 export async function renderStickerHtml(
   template: Template,
   brand: Brand | null,
@@ -415,8 +432,7 @@ export async function renderStickerHtml(
   html, body { margin: 0; padding: 0; background: ${template.background}; }
   body {
     width: ${w}mm; height: ${h}mm; position: relative; overflow: hidden;
-    font-family: 'NotoSans', 'NotoSansKhmer', 'NotoSansThai', 'NotoSansKR',
-                 'NotoSansSC', 'NotoSansJP', system-ui, sans-serif;
+    font-family: ${LABEL_FONT_STACK};
   }
   * { box-sizing: border-box; }
 </style>
@@ -425,4 +441,140 @@ export async function renderStickerHtml(
 ${elements.join('\n')}
 </body>
 </html>`;
+}
+
+/**
+ * Multi-label print document — one label per page, each sized to the
+ * template (W×H mm) with a CSS page break between them. Used by
+ * PrintService for direct-to-printer output: roll/thermal printers get
+ * one label per page (perfect for continuous stock), and the same doc
+ * works for a sheet printer (one label per sheet) until N-up lands.
+ *
+ * Reuses the exact same `renderElement` + `fontFaceCss` internals as the
+ * file-export path, so printed output is pixel-identical to PDF/PNG export.
+ */
+export async function renderLabelsForPrint(
+  template: Template,
+  brand: Brand | null,
+  rows: Record<string, string>[],
+): Promise<string> {
+  const w = template.width_mm;
+  const h = template.height_mm;
+
+  const pages = await Promise.all(
+    rows.map(async (row) => {
+      const ctx: RenderContext = { template, brand, row };
+      const elements = await Promise.all(
+        template.elements.map((el) => renderElement(el, ctx)),
+      );
+      return `<div class="lbl">${elements.join('\n')}</div>`;
+    }),
+  );
+
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  ${fontFaceCss()}
+  @page { size: ${w}mm ${h}mm; margin: 0; }
+  html, body { margin: 0; padding: 0; }
+  .lbl {
+    width: ${w}mm; height: ${h}mm; position: relative; overflow: hidden;
+    background: ${template.background};
+    font-family: ${LABEL_FONT_STACK};
+    page-break-after: always;
+    break-after: page;
+  }
+  /* Last page must not emit a trailing blank page on some drivers. */
+  .lbl:last-child { page-break-after: auto; break-after: auto; }
+  * { box-sizing: border-box; }
+</style>
+</head>
+<body>
+${pages.join('\n')}
+</body>
+</html>`;
+}
+
+/**
+ * N-up sheet document — tiles labels into a grid across A4/Letter pages
+ * for office sheet printers. Same per-label rendering as everything else;
+ * the difference is the page is a full sheet with a CSS grid of label
+ * cells and the page breaks happen per SHEET, not per label.
+ *
+ * Returns both the HTML and the resolved page dimensions (mm) so the
+ * caller (print / PDF export) can set the physical page size to match.
+ */
+export async function renderSheet(
+  template: Template,
+  brand: Brand | null,
+  rows: Record<string, string>[],
+  layout: SheetLayout,
+): Promise<{ html: string; pageWmm: number; pageHmm: number }> {
+  const w = template.width_mm;
+  const h = template.height_mm;
+  const grid = computeSheetGrid(w, h, layout);
+
+  // Render every label cell once.
+  const cells = await Promise.all(
+    rows.map(async (row) => {
+      const ctx: RenderContext = { template, brand, row };
+      const elements = await Promise.all(
+        template.elements.map((el) => renderElement(el, ctx)),
+      );
+      return `<div class="lbl">${elements.join('\n')}</div>`;
+    }),
+  );
+
+  // Chunk into pages of perPage cells; each page is a CSS grid.
+  const perPage = Math.max(1, grid.perPage);
+  const pageChunks: string[][] = [];
+  for (let i = 0; i < cells.length; i += perPage) {
+    pageChunks.push(cells.slice(i, i + perPage));
+  }
+  if (pageChunks.length === 0) pageChunks.push([]);
+
+  const pagesHtml = pageChunks
+    .map((chunk) => `<div class="sheet">${chunk.join('\n')}</div>`)
+    .join('\n');
+
+  return {
+    pageWmm: grid.pageW,
+    pageHmm: grid.pageH,
+    html: `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  ${fontFaceCss()}
+  @page { size: ${grid.pageW}mm ${grid.pageH}mm; margin: 0; }
+  html, body { margin: 0; padding: 0; }
+  .sheet {
+    width: ${grid.pageW}mm; height: ${grid.pageH}mm;
+    box-sizing: border-box;
+    padding: ${layout.marginMm}mm;
+    display: grid;
+    grid-template-columns: repeat(${grid.columns}, ${w}mm);
+    grid-auto-rows: ${h}mm;
+    gap: ${layout.gapMm}mm;
+    align-content: start;
+    justify-content: start;
+    page-break-after: always;
+    break-after: page;
+  }
+  .sheet:last-child { page-break-after: auto; break-after: auto; }
+  .lbl {
+    width: ${w}mm; height: ${h}mm; position: relative; overflow: hidden;
+    background: ${template.background};
+    font-family: ${LABEL_FONT_STACK};
+  }
+  * { box-sizing: border-box; }
+</style>
+</head>
+<body>
+${pagesHtml}
+</body>
+</html>`,
+  };
 }

@@ -113,13 +113,17 @@ function BulletText({ text }: { text: string }) {
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** Only show entries newer than this version. If null, show all parsed. */
+  /** Only show entries newer than this version. If null, show all parsed —
+   *  the manual "What's new" footer button uses this so the user can scroll
+   *  back through the whole history any time. */
   sinceVersion?: string | null;
-  /** Max entries to render (default 6). */
+  /** Max entries to render. Defaults high enough to effectively mean
+   *  "show everything"; callers can pass a smaller number for the
+   *  new-version-on-launch diff view if they want to keep it brief. */
   limit?: number;
 }
 
-export function WhatsNewModal({ open, onClose, sinceVersion, limit = 6 }: Props) {
+export function WhatsNewModal({ open, onClose, sinceVersion, limit = 50 }: Props) {
   const allEntries = useMemo(() => parseChangelog(changelogRaw), []);
   const entries = useMemo(() => {
     let list = allEntries;

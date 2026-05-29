@@ -873,6 +873,11 @@ function ElementBox({
     window.addEventListener('mouseup', onUp);
   }
 
+  // Rotate the whole box (content + selection outline + handles travel as one
+  // unit). For v1 the resize/drag math still operates in the AABB frame —
+  // good enough for typical "stamp this text at 45°" use cases.
+  const rotation = element.rotation ?? 0;
+
   return (
     <div
       onMouseDown={startMove}
@@ -890,6 +895,8 @@ function ElementBox({
         outlineOffset: 1,
         cursor: element.locked ? 'not-allowed' : 'move',
         boxSizing: 'border-box',
+        transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+        transformOrigin: 'center center',
       }}
     >
       <div style={{ pointerEvents: 'none', width: '100%', height: '100%' }}>

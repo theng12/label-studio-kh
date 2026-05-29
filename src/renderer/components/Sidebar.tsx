@@ -11,12 +11,15 @@ import {
   IconFiles,
   IconBarcode,
   IconSettings,
+  IconHistory,
   IconHeart,
   IconSparkles,
+  IconListCheck,
   type Icon,
 } from '@tabler/icons-react';
 import { WhatsNewModal } from './WhatsNew';
 import { CompanySwitcher } from './CompanySwitcher';
+import { useJobsStore } from '../stores/jobsStore';
 
 // localStorage key for tracking which version the user has already seen the
 // What's New panel for. When the running version differs from the stored
@@ -40,6 +43,11 @@ export function Sidebar() {
   const [version, setVersion] = useState<string>('');
   const [isDev, setIsDev] = useState<boolean>(false);
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  // Subscribe to the in-memory jobs store so the "Jobs" nav row shows a
+  // live count badge and the footer chip pulses while anything is running.
+  const runningCount = useJobsStore((s) =>
+    Object.values(s.jobs).filter((j) => j.status === 'running').length,
+  );
   // Tracks what was already seen at the time we opened the modal so the
   // diff-view ("only things newer than v0.2.3") is correct even after the
   // user dismisses the modal and reopens manually within the same session.
@@ -68,17 +76,23 @@ export function Sidebar() {
     if (version) localStorage.setItem(WHATSNEW_LAST_SEEN_KEY, version);
   };
   const openWhatsNew = () => {
-    // Manual open: still show entries newer than the last persisted seen
-    // version. After they close, we'll bump it to current.
-    setSeenVersion(localStorage.getItem(WHATSNEW_LAST_SEEN_KEY));
+    // Manual open: show the FULL history. The user is explicitly asking
+    // to see what changed, so we don't gate by last-seen — that gating is
+    // only useful for the auto-open path (which surfaces just the new
+    // entries on a fresh launch after an update).
+    setSeenVersion(null);
     setWhatsNewOpen(true);
   };
 
   const sections: NavSection[] = [
     {
       items: [
-        { to: '/', label: t('nav.dashboard'), icon: IconLayoutDashboard },
+        // Company first — it's the broadest scope (the workspace itself),
+        // and the user thinks "which workspace am I in?" before "what's
+        // happening in it?". Dashboard sits one rung down as the in-
+        // workspace overview. Brands rounds out the SETUP group.
         { to: '/company', label: 'Company', icon: IconBuilding },
+        { to: '/', label: t('nav.dashboard'), icon: IconLayoutDashboard },
         { to: '/brands', label: t('nav.brands'), icon: IconBuildingStore },
       ],
     },
@@ -91,19 +105,41 @@ export function Sidebar() {
         { to: '/products', label: 'Product Library', icon: IconPackage },
         { to: '/templates', label: t('nav.templates'), icon: IconTemplate },
         { to: '/generate', label: t('nav.generate'), icon: IconWand },
+        {
+          to: '/jobs',
+          label: 'Jobs',
+          icon: IconListCheck,
+          // Live running-count badge — only visible while something's
+          // actually running, otherwise the row stays clean.
+          badge: runningCount > 0 ? String(runningCount) : undefined,
+        },
         { to: '/barcodes', label: 'Barcode generator', icon: IconBarcode },
         { to: '/files', label: t('nav.files'), icon: IconFiles },
       ],
     },
     {
       heading: t('nav.system'),
-      items: [{ to: '/settings', label: t('nav.settings'), icon: IconSettings }],
+      items: [
+        { to: '/history', label: 'History', icon: IconHistory },
+        { to: '/settings', label: t('nav.settings'), icon: IconSettings },
+      ],
     },
   ];
   return (
     <aside className="flex h-full w-60 flex-col border-r border-border-base bg-bg-surface">
-      <div className="drag-region flex h-12 items-center px-4 text-sm font-semibold tracking-wide text-fg-base">
-        <span className="ml-16">Label Studio KH</span>
+      {/* Stoplight strip — empty drag region so window can be moved by
+          dragging the area where macOS draws the close/min/zoom buttons.
+          Sized to the buttons + a little breathing room. */}
+      <div className="drag-region h-7 w-full" />
+
+      {/* App identity — small dark-rounded "LS" mark + name, sits BELOW
+          the stoplight (mirroring Image Studio KH's reference layout).
+          Inline SVG so we don't pull an icon dep / image asset. */}
+      <div className="drag-region flex items-center gap-2.5 px-4 pb-3 pt-1">
+        <AppLogoMark />
+        <span className="truncate text-sm font-semibold tracking-tight text-fg-base">
+          Label Studio KH
+        </span>
       </div>
 
       {/* Workspace switcher — sits between title and nav, like Slack's
@@ -126,28 +162,32 @@ export function Sidebar() {
         ))}
       </nav>
 
+      {/* Sidebar footer — mirrors the Catalog Studio KH reference layout:
+          two full-width rows ("What's new", "Support this app") followed
+          by a tiny version line. What's new is a button (opens a modal),
+          not a route — it gets styled to match SidebarLink so the two
+          rows feel like siblings. */}
       <div className="border-t border-border-subtle p-2">
+        <button
+          onClick={openWhatsNew}
+          className="no-drag mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-md px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-bg-hover hover:text-fg-base"
+          title="See what changed in this and recent versions"
+        >
+          <IconSparkles size={18} stroke={1.75} />
+          <span className="flex-1 text-left">What's new</span>
+        </button>
         <SidebarLink to="/support" label={t('nav.support')} icon={IconHeart} />
         {version && (
           <div
-            className="flex items-center justify-between px-3 pb-1 pt-2 text-[10px] text-fg-subtle"
+            className="px-3 pt-2 text-[10px] text-fg-subtle"
             title={isDev ? 'Development build' : 'Production build'}
           >
-            <span>
-              v{version}
-              {isDev && (
-                <span className="ml-1 rounded bg-warning/15 px-1 py-px text-[9px] font-medium text-warning">
-                  dev
-                </span>
-              )}
-            </span>
-            <button
-              onClick={openWhatsNew}
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-fg-muted hover:bg-bg-hover hover:text-fg-base"
-              title="See what changed in this and recent versions"
-            >
-              <IconSparkles size={10} stroke={2} /> What's new
-            </button>
+            v{version}
+            {isDev && (
+              <span className="ml-1 rounded bg-warning/15 px-1 py-px text-[9px] font-medium text-warning">
+                dev
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -183,5 +223,21 @@ function SidebarLink({ to, label, icon: Icon, badge }: NavItem) {
         </span>
       )}
     </NavLink>
+  );
+}
+
+// Small "LS" wordmark used at the top of the sidebar. Built with theme
+// tokens (bg-fg-base / text-bg-base) so the mark inverts cleanly between
+// light + dark mode — light theme: dark square + light letters; dark
+// theme: light square + dark letters. Matches the Image Studio KH
+// reference's compact rounded-rectangle treatment.
+function AppLogoMark() {
+  return (
+    <div
+      aria-hidden
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-fg-base text-[10px] font-bold tracking-tight text-bg-surface"
+    >
+      LS
+    </div>
   );
 }

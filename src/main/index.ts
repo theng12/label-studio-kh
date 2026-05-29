@@ -14,13 +14,15 @@ import { registerSettingsIpc } from './ipc/settings';
 import { registerSkuIpc } from './ipc/sku';
 import { registerDialogIpc } from './ipc/dialog';
 import { registerBarcodeIpc } from './ipc/barcode';
+import { registerGenerationsIpc } from './ipc/generations';
+import { registerAuditIpc } from './ipc/audit';
+import { registerPrintIpc } from './ipc/print';
 import { shutdownBarcodeBrowser } from './services/BarcodeService';
 import { shutdownBrowser } from './services/ExportService';
 import { closeDb } from './services/Database';
 import { BrandService } from './services/BrandService';
 import { CompanyService } from './services/CompanyService';
 import { FileService } from './services/FileService';
-import { DemoSeed } from './services/DemoSeed';
 import { SettingsService } from './services/SettingsService';
 import { initUpdater } from './services/Updater';
 import { loadEnv } from './services/EnvLoader';
@@ -96,10 +98,17 @@ app.whenReady().then(() => {
   registerSkuIpc();
   registerDialogIpc();
   registerBarcodeIpc();
+  registerGenerationsIpc();
+  registerAuditIpc();
+  registerPrintIpc();
+  // One-time cleanup: rip the legacy seeded "Demo brand" (and its
+  // templates / SKUs / generations / sample CSV) from any workspace that
+  // still has it. The demo concept was removed in 0.4.0; this migration is
+  // a no-op on fresh installs or after the first successful pass.
   try {
-    DemoSeed.ensure();
+    BrandService.purgeDemoData();
   } catch (err) {
-    console.error('Demo seed failed:', err);
+    console.error('Demo data purge failed:', err);
   }
 
   // Company bootstrap: ensures at least one Company exists, backfills

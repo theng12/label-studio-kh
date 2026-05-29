@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Template } from '@shared/types/template';
 import type { Brand } from '@shared/types/brand';
-import { renderStickerHtml } from './StickerRenderer';
+import { renderStickerHtml, renderSheet } from './StickerRenderer';
+import type { SheetLayout } from '@shared/sheetLayout';
 import { getDb } from './Database';
 
 let _browser: Browser | null = null;
@@ -222,6 +223,60 @@ export async function exportSingle(input: SingleExportInput): Promise<ExportResu
   }
 
   return result;
+}
+
+// Sheet PDF export — one combined N-up PDF (multiple labels per A4/Letter
+// page) written to a single file, vs the per-label files of exportBulk.
+// Useful for "send to print shop" or printing later on an office printer.
+export interface SheetPdfInput {
+  template: Template;
+  brand: Brand | null;
+  rows: Record<string, string>[];
+  sheet: SheetLayout;
+  outputDir: string;
+  /** Filename without extension. Defaults to a template+date stamp. */
+  filename?: string;
+  overwrite?: boolean;
+}
+
+export async function exportSheetPdf(
+  input: SheetPdfInput,
+): Promise<{ file: string }> {
+  const { template, brand, rows, sheet, outputDir } = input;
+  if (rows.length === 0) throw new Error('No rows to export.');
+
+  const { html, pageWmm, pageHmm } = await renderSheet(
+    template,
+    brand,
+    rows,
+    sheet,
+  );
+
+  if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
+  const base =
+    input.filename?.trim() ||
+    `${sanitize(template.name, 40)}_sheet_${todayYYYYMMDD()}`;
+  const file = join(outputDir, `${base}.pdf`);
+  if (existsSync(file) && !input.overwrite) {
+    throw new Error(`File already exists: ${file}`);
+  }
+
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const pdfBuf = await page.pdf({
+      width: `${pageWmm}mm`,
+      height: `${pageHmm}mm`,
+      printBackground: true,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      preferCSSPageSize: true,
+    });
+    writeFileSync(file, pdfBuf);
+    return { file };
+  } finally {
+    await page.close();
+  }
 }
 
 // Bulk export — orchestrated from outside (so the UI can show progress per item).

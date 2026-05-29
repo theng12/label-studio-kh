@@ -46,8 +46,7 @@ export interface Brand {
   establishedYear: string;
   category?: string;
   customerCareLabel?: string;
-  hidden?: boolean; // demo brand can be hidden but not deleted
-  isDemo?: boolean;
+  hidden?: boolean;
   /**
    * Soft-delete tombstone. When set, the brand is hidden from `list()` but the
    * record (and on-disk assets) remain so a delete can be undone within the

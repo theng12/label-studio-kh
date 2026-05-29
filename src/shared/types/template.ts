@@ -54,12 +54,29 @@ export interface BaseElement {
    */
   aspectLocked?: boolean;
   /**
+   * Rotation in degrees, clockwise, around the element's center. Range is
+   * normalised to (-180, 180]. Undefined / 0 means "no rotation" — leave
+   * undefined for axis-aligned elements so older templates keep the cleanest
+   * possible shape on disk. Resize handles and selection bbox are still
+   * computed against the AABB (un-rotated) — good enough for v1.
+   */
+  rotation?: number;
+  /**
    * When set, this element belongs to a logical group. Selecting any group
    * member selects all of them; drag/resize applies the same delta to every
    * sibling. Cleared by ungroup. Cross-template paste mints a fresh id so the
    * source group isn't affected.
    */
   groupId?: string;
+}
+
+/** Normalised rotation in degrees, (-180, 180], with 0 for "no rotation". */
+export function normalizeRotation(deg: number | undefined): number {
+  if (!deg || !Number.isFinite(deg)) return 0;
+  let r = deg % 360;
+  if (r > 180) r -= 360;
+  if (r <= -180) r += 360;
+  return Math.round(r * 100) / 100; // 2-decimal precision keeps JSON tidy
 }
 
 export interface LogoElement extends BaseElement {

@@ -7,8 +7,11 @@ import { Field, TextInput, TextArea } from '../components/FormField';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { toast } from '../components/Toast';
 import { useCompanyStore } from '../stores/companyStore';
-import type { Company } from '../../shared/types/company';
-import { DEFAULT_PRICE_GROUPS } from '../../shared/types/company';
+import type { Company, CustomField } from '../../shared/types/company';
+import {
+  DEFAULT_PRICE_GROUPS,
+  MAX_CUSTOM_FIELDS,
+} from '../../shared/types/company';
 
 // /company — manage the company list, edit fields, set the active one.
 // Single page (no separate edit-modal) because companies are few and the
@@ -174,6 +177,9 @@ function CompanyEditor({
   const [priceGroups, setPriceGroups] = useState<string[]>(
     company?.priceGroups ?? [...DEFAULT_PRICE_GROUPS],
   );
+  const [customFields, setCustomFields] = useState<CustomField[]>(
+    company?.customFields ?? [],
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -189,6 +195,19 @@ function CompanyEditor({
         .map((g) => g.trim())
         .filter(Boolean)
         .filter((g, i, a) => a.indexOf(g) === i);
+      // Same treatment for custom fields — trim, drop blanks, dedup by
+      // name (case-insensitive). A duplicate would otherwise collapse to
+      // a single input in ProductForm and be a confusing UX.
+      const fields = customFields
+        .map((f) => ({ name: f.name.trim() }))
+        .filter((f) => f.name)
+        .filter(
+          (f, i, a) =>
+            a.findIndex(
+              (x) => x.name.toLowerCase() === f.name.toLowerCase(),
+            ) === i,
+        )
+        .slice(0, MAX_CUSTOM_FIELDS);
       const payload = {
         name: name.trim(),
         color,
@@ -197,6 +216,7 @@ function CompanyEditor({
         email,
         website,
         priceGroups: groups,
+        customFields: fields,
       };
       if (company) {
         const updated = await onUpdate(company.id, payload);
@@ -335,6 +355,70 @@ function CompanyEditor({
               <div className="rounded-md border border-dashed border-border-base px-3 py-2 text-xs text-fg-subtle">
                 No price groups — products won't show a Prices section until
                 you add at least one.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Custom product fields — definitions live on the Company so the
+            same field names appear on every product in this workspace.
+            ProductForm reads `activeCompany.customFields` and renders one
+            free-text input per definition. Capped at MAX_CUSTOM_FIELDS so
+            the form doesn't sprawl. */}
+        <div className="mt-5">
+          <div className="mb-1 flex items-baseline justify-between">
+            <div className="text-xs font-semibold uppercase tracking-widest text-fg-subtle">
+              Custom product fields
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                setCustomFields([...customFields, { name: '' }])
+              }
+              disabled={customFields.length >= MAX_CUSTOM_FIELDS}
+              title={
+                customFields.length >= MAX_CUSTOM_FIELDS
+                  ? `Maximum of ${MAX_CUSTOM_FIELDS} fields per company`
+                  : 'Add a custom field'
+              }
+            >
+              <IconPlus size={11} /> Add field
+            </Button>
+          </div>
+          <div className="text-[10px] text-fg-subtle">
+            Up to {MAX_CUSTOM_FIELDS} free-text fields available on every
+            product. {customFields.length} / {MAX_CUSTOM_FIELDS}.
+          </div>
+          <div className="mt-2 space-y-1.5">
+            {customFields.map((f, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  value={f.name}
+                  onChange={(e) => {
+                    const next = [...customFields];
+                    next[i] = { ...next[i]!, name: e.target.value };
+                    setCustomFields(next);
+                  }}
+                  placeholder="Field name (e.g. Material, Origin, Warranty)"
+                  className="flex-1 rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                />
+                <button
+                  onClick={() =>
+                    setCustomFields(
+                      customFields.filter((_, idx) => idx !== i),
+                    )
+                  }
+                  title="Remove this field"
+                  className="rounded p-1.5 text-fg-muted hover:bg-bg-hover hover:text-danger"
+                >
+                  <IconX size={13} />
+                </button>
+              </div>
+            ))}
+            {customFields.length === 0 && (
+              <div className="rounded-md border border-dashed border-border-base px-3 py-2 text-xs text-fg-subtle">
+                No custom fields yet. Add one to extend the product form.
               </div>
             )}
           </div>

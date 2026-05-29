@@ -1,4 +1,12 @@
 import { useId } from 'react';
+import {
+  IconAlignLeft,
+  IconAlignCenter,
+  IconAlignRight,
+  IconLayoutAlignTop,
+  IconLayoutAlignMiddle,
+  IconLayoutAlignBottom,
+} from '@tabler/icons-react';
 import { formatDate, type DateFormatStyle } from '../../../shared/format';
 
 export function formatPreviewSample(
@@ -53,6 +61,100 @@ export const PRODUCT_ROW_COLUMNS = [
   'date',
   'notes',
 ] as const;
+
+// ── Alignment segmented controls ────────────────────────────────────────────
+// Three-button toggle group used by every property panel that exposes
+// `align` (horizontal) or `verticalAlign` (vertical). Mirrors the visual
+// language of the designer's AlignmentToolbar so the user sees a consistent
+// set of icons across "align this single element's content" (here) and
+// "align these selected elements to each other" (toolbar).
+
+export type HorizontalAlign = 'left' | 'center' | 'right';
+export type VerticalAlign = 'top' | 'center' | 'bottom';
+
+export function AlignmentSegmented({
+  value,
+  onChange,
+}: {
+  value: HorizontalAlign;
+  onChange: (next: HorizontalAlign) => void;
+}) {
+  const opts: Array<{ value: HorizontalAlign; Icon: typeof IconAlignLeft; title: string }> = [
+    { value: 'left', Icon: IconAlignLeft, title: 'Align left' },
+    { value: 'center', Icon: IconAlignCenter, title: 'Align center' },
+    { value: 'right', Icon: IconAlignRight, title: 'Align right' },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="Horizontal alignment"
+      className="inline-flex rounded-md border border-border-base bg-bg-surface p-0.5"
+    >
+      {opts.map(({ value: v, Icon, title }) => {
+        const active = value === v;
+        return (
+          <button
+            key={v}
+            type="button"
+            title={title}
+            aria-pressed={active}
+            onClick={() => onChange(v)}
+            className={[
+              'flex h-7 w-9 items-center justify-center rounded transition-colors',
+              active
+                ? 'bg-accent text-accent-fg'
+                : 'text-fg-muted hover:bg-bg-hover hover:text-fg-base',
+            ].join(' ')}
+          >
+            <Icon size={14} stroke={1.75} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function VerticalAlignmentSegmented({
+  value,
+  onChange,
+}: {
+  value: VerticalAlign;
+  onChange: (next: VerticalAlign) => void;
+}) {
+  const opts: Array<{ value: VerticalAlign; Icon: typeof IconLayoutAlignTop; title: string }> = [
+    { value: 'top', Icon: IconLayoutAlignTop, title: 'Align top' },
+    { value: 'center', Icon: IconLayoutAlignMiddle, title: 'Align middle' },
+    { value: 'bottom', Icon: IconLayoutAlignBottom, title: 'Align bottom' },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="Vertical alignment"
+      className="inline-flex rounded-md border border-border-base bg-bg-surface p-0.5"
+    >
+      {opts.map(({ value: v, Icon, title }) => {
+        const active = value === v;
+        return (
+          <button
+            key={v}
+            type="button"
+            title={title}
+            aria-pressed={active}
+            onClick={() => onChange(v)}
+            className={[
+              'flex h-7 w-9 items-center justify-center rounded transition-colors',
+              active
+                ? 'bg-accent text-accent-fg'
+                : 'text-fg-muted hover:bg-bg-hover hover:text-fg-base',
+            ].join(' ')}
+          >
+            <Icon size={14} stroke={1.75} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function CsvColumnInput({
   value,

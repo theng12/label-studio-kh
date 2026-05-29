@@ -1,6 +1,6 @@
 {
   "name": "label-studio-kh",
-  "version": "0.3.0",
+  "version": "0.11.0",
   "description": "Desktop label design and bulk generation system",
   "main": "out/main/index.js",
   "author": "Label Studio KH",
@@ -19,6 +19,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build && electron-builder",
     "build:mac": "electron-vite build && electron-builder --mac",
+    "build:mac:arm64": "electron-vite build && electron-builder --mac dmg:arm64",
     "build:win": "electron-vite build && electron-builder --win",
     "build:all": "electron-vite build && electron-builder -mw",
     "release": "node scripts/release.mjs",

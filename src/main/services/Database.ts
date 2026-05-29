@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 let _db: Database.Database | null = null;
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS skus (
   -- and on every new product insert via the brand → company mapping.
   company_id          TEXT,
 
+  -- v7: Inventory & lifecycle columns. Added so the CSV column set
+  -- matches the user's external inventory/POS system. Label Studio
+  -- itself doesn't act on these — they're round-trip data.
+  expiry_date         TEXT,
+  tax_rate            TEXT,
+  reorder_point       TEXT,
+  reorder_quantity    TEXT,
+  track_inventory     INTEGER NOT NULL DEFAULT 0,  -- SQLite boolean (0/1)
+  variant_attributes  TEXT,
+
   PRIMARY KEY (sku, brand_id)
 );
 
@@ -115,6 +125,28 @@ CREATE INDEX IF NOT EXISTS idx_generations_created ON generations(created_at);
 -- idx_generations_company is created in the post-migration block at the
 -- bottom of getDb() so it also applies to upgraded DBs whose ALTER TABLE
 -- adds the column at boot.
+
+-- Audit log — immutable, queryable history of every mutation (product
+-- create/update/delete, image add/remove/set-main/reorder, …). Mirrors
+-- the Image Studio KH model but single-user (no user_id) and company-
+-- scoped. before_json / after_json carry ONLY the changed keys on an
+-- update (tiny payloads), or a full snapshot on create/delete. CREATE
+-- TABLE IF NOT EXISTS means upgraded DBs pick this up on next boot with
+-- no schema-version bump needed.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  entity_type TEXT NOT NULL,   -- 'product' | 'image' | 'brand' | 'company' | …
+  entity_id   TEXT,            -- product/brand id; product_id for image events
+  company_id  TEXT,            -- workspace scope for the global History page
+  action      TEXT NOT NULL,   -- 'create' | 'update' | 'delete' | 'image:add' | …
+  summary     TEXT,            -- human-readable one-liner for the feed
+  before_json TEXT,            -- changed keys' old values (update) / snapshot (delete)
+  after_json  TEXT,            -- changed keys' new values (update) / snapshot (create)
+  created_at  TEXT NOT NULL    -- ISO 8601
+);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_company ON audit_log(company_id);
 `;
 
 export function getDb(): Database.Database {
@@ -242,6 +274,33 @@ export function getDb(): Database.Database {
     _db
       .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
       .run('6', 'version');
+    if (row) row.value = '6';
+  }
+  if (row?.value === '6') {
+    // v6 → v7: add inventory / lifecycle columns to skus. The CSV column
+    // set the user wants to round-trip includes Expiry Date, Tax Rate,
+    // Reorder Point/Quantity, Track Inventory, Variant Attributes. We
+    // store them as free text (booleans as 0/1) and don't act on them
+    // ourselves — Label Studio is a label-design app, not an inventory
+    // system. All columns added idempotently so a re-run is a no-op.
+    const v7Columns: Array<[string, string]> = [
+      ['expiry_date', 'TEXT'],
+      ['tax_rate', 'TEXT'],
+      ['reorder_point', 'TEXT'],
+      ['reorder_quantity', 'TEXT'],
+      ['track_inventory', 'INTEGER NOT NULL DEFAULT 0'],
+      ['variant_attributes', 'TEXT'],
+    ];
+    for (const [col, type] of v7Columns) {
+      try {
+        _db.exec(`ALTER TABLE skus ADD COLUMN ${col} ${type}`);
+      } catch (e) {
+        if (!String(e).includes('duplicate column name')) throw e;
+      }
+    }
+    _db
+      .prepare('UPDATE schema_meta SET value = ? WHERE key = ?')
+      .run('7', 'version');
   }
 
   // Indexes that reference v4+ columns. Created here, after all migrations

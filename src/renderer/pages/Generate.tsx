@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,21 +10,28 @@ import {
   IconCheck,
   IconX,
   IconAlertCircle,
+  IconListCheck,
+  IconPrinter,
 } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
+import { toast } from '../components/Toast';
 import { useBrandStore } from '../stores/brandStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useDefaultBrand } from '../hooks/useDefaultBrand';
+import { useJobsStore } from '../stores/jobsStore';
 import { ElementView } from '../designer/ElementView';
 import { FilenamePatternInput } from '../components/FilenamePatternInput';
 import type { Template } from '../../shared/types/template';
 import type {
   ExportFormat,
   ExportSettings,
-  ExportProgressInfo,
-  BulkExportSummary,
 } from '../../preload/index';
+import {
+  computeSheetGrid,
+  DEFAULT_SHEET_LAYOUT,
+  type SheetLayout,
+} from '../../shared/sheetLayout';
 
 type SkuRow = Awaited<ReturnType<typeof window.api.import.listSkus>>[number];
 
@@ -54,14 +61,30 @@ export default function Generate() {
   const [folderOrg, setFolderOrg] = useState<ExportSettings['folderOrganization']>('none');
   const [overwrite, setOverwrite] = useState(true);
 
-  const [running, setRunning] = useState(false);
-  const [runId, setRunId] = useState<string | null>(null);
-  const [progress, setProgress] = useState<ExportProgressInfo | null>(null);
-  const [summary, setSummary] = useState<BulkExportSummary | null>(null);
-  const startTimeRef = useRef<number>(0);
+  // Currently-tracked runId — populated when the user kicks off a bulk
+  // generation. We don't block the UI on it any more; the jobs store owns
+  // the lifecycle and a small in-page banner reflects status. Setting to
+  // null dismisses the banner.
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const startJob = useJobsStore((s) => s.start);
+  const activeJob = useJobsStore((s) =>
+    activeRunId ? (s.jobs[activeRunId] ?? null) : null,
+  );
 
   // Scope of the bulk run: 'all' (default) or first-N for sample testing.
   const [sampleScope, setSampleScope] = useState<'all' | 5 | 10 | 25 | 50>('all');
+
+  // Direct printing — printer list + selection + copies + in-flight flag.
+  type PrinterInfo = Awaited<ReturnType<typeof window.api.print.listPrinters>>[number];
+  const [printers, setPrinters] = useState<PrinterInfo[]>([]);
+  const [selectedPrinter, setSelectedPrinter] = useState<string>('');
+  const [copies, setCopies] = useState(1);
+  const [printing, setPrinting] = useState(false);
+  // Print layout: 'roll' = one label per page (thermal); 'sheet' = N-up on
+  // A4/Letter (office printers). The sheet config drives both N-up printing
+  // and the "Export sheet PDF" button.
+  const [printLayout, setPrintLayout] = useState<'roll' | 'sheet'>('roll');
+  const [sheet, setSheet] = useState<SheetLayout>(DEFAULT_SHEET_LAYOUT);
 
   // After a single-row "Generate this one" run, show a small inline result.
   const [singleResult, setSingleResult] = useState<{
@@ -134,7 +157,14 @@ export default function Generate() {
     ? skuToRow(skus[previewIdx]!)
     : { sku: 'DEMO-001', product_name: 'Sample Product', barcode: '8851234567890' };
 
-  const canGenerate = !!template && !!brand && skus.length > 0 && formats.length > 0 && !!outputDir;
+  const isRunning = activeJob?.status === 'running';
+  const canGenerate =
+    !!template &&
+    !!brand &&
+    skus.length > 0 &&
+    formats.length > 0 &&
+    !!outputDir &&
+    !isRunning;
 
   const settings: ExportSettings = useMemo(
     () => ({
@@ -199,35 +229,90 @@ export default function Generate() {
 
   const onGenerate = async () => {
     if (!template || !brand || skus.length === 0) return;
-    const id = crypto.randomUUID();
-    setRunId(id);
-    setRunning(true);
-    setProgress(null);
-    setSummary(null);
-    startTimeRef.current = Date.now();
-
-    const off = window.api.export.onProgress(id, (info) => setProgress(info));
-
-    try {
-      const allRows = skus.map(skuToRow);
-      const rows =
-        sampleScope === 'all' ? allRows : allRows.slice(0, sampleScope);
-      const result = await window.api.export.bulk({
-        runId: id,
-        template,
-        brand,
-        rows,
-        settings,
-      });
-      setSummary(result);
-    } finally {
-      off();
-      setRunning(false);
-    }
+    const allRows = skus.map(skuToRow);
+    const rows =
+      sampleScope === 'all' ? allRows : allRows.slice(0, sampleScope);
+    // Fire-and-forget — the jobs store handles progress, completion toast,
+    // and OS notification. The local banner is driven by the same store via
+    // `activeJob`, so the user sees status here and can also leave.
+    const id = await startJob({ template, brand, rows, settings });
+    setActiveRunId(id);
   };
 
   const onCancel = async () => {
-    if (runId) await window.api.export.cancel(runId);
+    if (activeRunId) await useJobsStore.getState().cancel(activeRunId);
+  };
+
+  // Load installed printers once on mount; default to the OS default.
+  useEffect(() => {
+    void window.api.print.listPrinters().then((list) => {
+      setPrinters(list);
+      const def = list.find((p) => p.isDefault) ?? list[0];
+      if (def) setSelectedPrinter(def.name);
+    });
+  }, []);
+
+  // Direct print. `silent` true → straight to the selected printer with
+  // no dialog ("press print"); false → native print dialog. Uses the same
+  // brand/template/rows/scope as Generate so what prints matches the
+  // preview + the file export.
+  const onPrint = async (silent: boolean) => {
+    if (!template || !brand || skus.length === 0) return;
+    const allRows = skus.map(skuToRow);
+    const rows =
+      sampleScope === 'all' ? allRows : allRows.slice(0, sampleScope);
+    setPrinting(true);
+    try {
+      const res = await window.api.print.labels({
+        template,
+        brand,
+        rows,
+        deviceName: selectedPrinter || undefined,
+        copies,
+        silent,
+        sheet: printLayout === 'sheet' ? sheet : null,
+      });
+      toast.success(
+        `Sent ${res.printed} label${res.printed === 1 ? '' : 's'}${res.copies > 1 ? ` × ${res.copies} copies` : ''} to print.`,
+      );
+    } catch (err) {
+      // "Print cancelled." comes back when the user dismisses the dialog —
+      // show it as info, real failures as error.
+      const msg = String(err instanceof Error ? err.message : err);
+      if (/cancel/i.test(msg)) toast.info('Print cancelled.');
+      else toast.error(msg);
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // Export one combined N-up PDF (sheet layout) to the output folder.
+  const onExportSheetPdf = async () => {
+    if (!template || !brand || skus.length === 0 || !outputDir) return;
+    const allRows = skus.map(skuToRow);
+    const rows =
+      sampleScope === 'all' ? allRows : allRows.slice(0, sampleScope);
+    setPrinting(true);
+    try {
+      const res = await window.api.export.sheetPdf({
+        template,
+        brand,
+        rows,
+        sheet,
+        outputDir,
+        overwrite,
+      });
+      toast.success(`Sheet PDF saved.`, {
+        action: {
+          label: 'Reveal',
+          onClick: () => void window.api.export.revealInFinder(res.file),
+        },
+      });
+    } catch (err) {
+      toast.error(String(err instanceof Error ? err.message : err));
+    } finally {
+      setPrinting(false);
+    }
   };
 
   if (brands.length === 0) {
@@ -556,38 +641,279 @@ export default function Generate() {
             </div>
           )}
 
+          {/* Inline non-blocking banner reflecting the live status of the
+              job we just kicked off. Sits above the Generate button so the
+              user gets immediate feedback. Dismissing it doesn't cancel —
+              the job keeps running, visible on /jobs and the sidebar. */}
+          {activeJob && (
+            <InlineJobStatus
+              job={activeJob}
+              onCancel={onCancel}
+              onDismiss={() => setActiveRunId(null)}
+              onOpenJobs={() => navigate('/jobs')}
+            />
+          )}
+
           <Button
             variant="primary"
-            disabled={!canGenerate || running}
+            disabled={!canGenerate}
             onClick={onGenerate}
             className="w-full"
             title={canGenerate ? '' : t('generate.generateButtonBlockedTitle')}
           >
             <IconWand size={14} />{' '}
-            {t('generate.generateButton', {
-              count: labelCount,
-              formats: formats.map((f) => f.toUpperCase()).join('+') || '—',
-            })}
+            {isRunning
+              ? `Generating in background — ${activeJob?.progress?.index ?? 0}/${activeJob?.total ?? 0}`
+              : t('generate.generateButton', {
+                  count: labelCount,
+                  formats: formats.map((f) => f.toUpperCase()).join('+') || '—',
+                })}
           </Button>
+
+          {/* Direct printing — send labels straight to a printer (incl.
+              thermal/roll printers with OS drivers) instead of, or in
+              addition to, exporting files. Prints the same scope (all or
+              First-N) using the same template + data as Generate. */}
+          <div className="rounded-lg border border-border-base bg-bg-surface p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg-base">
+              <IconPrinter size={15} /> Print directly
+            </div>
+            {printers.length === 0 ? (
+              <div className="rounded-md border border-warning/30 bg-warning/10 p-2 text-xs text-fg-muted">
+                No printers found. Connect a printer (or install its driver)
+                and reopen this page. You can still export files above.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Layout toggle — roll (one per page) vs sheet (N-up). */}
+                <Field label="Layout">
+                  <div className="flex gap-1 rounded-md border border-border-base bg-bg-surface p-0.5">
+                    <button
+                      onClick={() => setPrintLayout('roll')}
+                      className={[
+                        'flex-1 rounded px-3 py-1 text-xs',
+                        printLayout === 'roll'
+                          ? 'bg-accent text-accent-fg'
+                          : 'text-fg-muted hover:text-fg-base',
+                      ].join(' ')}
+                    >
+                      One per page (roll)
+                    </button>
+                    <button
+                      onClick={() => setPrintLayout('sheet')}
+                      className={[
+                        'flex-1 rounded px-3 py-1 text-xs',
+                        printLayout === 'sheet'
+                          ? 'bg-accent text-accent-fg'
+                          : 'text-fg-muted hover:text-fg-base',
+                      ].join(' ')}
+                    >
+                      Sheet (N-up)
+                    </button>
+                  </div>
+                </Field>
+
+                {/* Sheet controls — only in sheet mode. */}
+                {printLayout === 'sheet' && template && (
+                  <SheetControls
+                    sheet={sheet}
+                    onChange={setSheet}
+                    labelW={template.width_mm}
+                    labelH={template.height_mm}
+                  />
+                )}
+
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                  <Field label="Printer">
+                    <select
+                      value={selectedPrinter}
+                      onChange={(e) => setSelectedPrinter(e.target.value)}
+                      className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                    >
+                      {printers.map((p) => (
+                        <option key={p.name} value={p.name}>
+                          {p.displayName}
+                          {p.isDefault ? ' (default)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Copies">
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      value={copies}
+                      onChange={(e) =>
+                        setCopies(
+                          Math.min(
+                            999,
+                            Math.max(1, parseInt(e.target.value, 10) || 1),
+                          ),
+                        )
+                      }
+                      className="w-20 rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+                    />
+                  </Field>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="primary"
+                    disabled={!canGenerate || printing}
+                    onClick={() => void onPrint(true)}
+                    className="flex-1"
+                    title="Send straight to the selected printer"
+                  >
+                    <IconPrinter size={14} />{' '}
+                    {printing
+                      ? 'Printing…'
+                      : `Print ${labelCount} label${labelCount === 1 ? '' : 's'}`}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={!canGenerate || printing}
+                    onClick={() => void onPrint(false)}
+                    title="Open the system print dialog to pick printer + options"
+                  >
+                    Print dialog…
+                  </Button>
+                  {printLayout === 'sheet' && (
+                    <Button
+                      variant="secondary"
+                      disabled={!canGenerate || printing}
+                      onClick={() => void onExportSheetPdf()}
+                      title="Save the N-up layout as a single PDF to your output folder"
+                    >
+                      <IconFolder size={14} /> Export sheet PDF
+                    </Button>
+                  )}
+                </div>
+                <div className="text-[10px] text-fg-subtle">
+                  {printLayout === 'roll'
+                    ? `One label per page at ${template?.width_mm ?? '—'}×${template?.height_mm ?? '—'}mm — ideal for thermal / roll printers.`
+                    : 'Tiles labels across A4/Letter pages for office sheet printers. Adjust margin/gap so they line up with your sticker sheet.'}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      {(running || summary) && (
-        <ProgressOverlay
-          running={running}
-          progress={progress}
-          summary={summary}
-          startTime={startTimeRef.current}
-          onCancel={onCancel}
-          onClose={() => {
-            setSummary(null);
-            setProgress(null);
-            setRunId(null);
-          }}
-          outputDir={outputDir}
-        />
-      )}
     </Page>
+  );
+}
+
+// ── Inline status banner (non-blocking) ─────────────────────────────────────
+// Replaces the old full-screen ProgressOverlay modal. Shows live progress
+// for a running job + a result summary when it finishes. Critically, the
+// rest of the UI stays interactive throughout — the user can navigate to
+// Templates / Products / Files while a generation runs.
+
+function InlineJobStatus({
+  job,
+  onCancel,
+  onDismiss,
+  onOpenJobs,
+}: {
+  job: import('../stores/jobsStore').Job;
+  onCancel: () => void;
+  onDismiss: () => void;
+  onOpenJobs: () => void;
+}) {
+  const { t } = useTranslation();
+  const done = job.progress?.index ?? job.summary?.generated ?? 0;
+  const pct = job.total > 0 ? Math.round((done / job.total) * 100) : 0;
+  const isRunning = job.status === 'running';
+
+  return (
+    <div className="rounded-md border border-border-base bg-bg-surface p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 text-sm">
+          {isRunning ? (
+            <span className="font-medium text-fg-base">
+              {t('generate.progress.title')}
+            </span>
+          ) : job.status === 'completed' ? (
+            <span className="inline-flex items-center gap-1.5 font-medium text-success">
+              <IconCheck size={14} /> {t('generate.progress.complete')}
+            </span>
+          ) : job.status === 'cancelled' ? (
+            <span className="font-medium text-warning">Cancelled</span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 font-medium text-danger">
+              <IconAlertCircle size={14} /> Failed
+            </span>
+          )}
+          <span className="ml-2 text-xs text-fg-muted">
+            {done}/{job.total} {job.total === 1 ? 'label' : 'labels'}
+            {job.progress?.sku && isRunning ? ` · ${job.progress.sku}` : ''}
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={onOpenJobs}
+            className="rounded px-2 py-1 text-[11px] font-medium text-fg-muted hover:bg-bg-hover hover:text-fg-base"
+            title="See all jobs"
+          >
+            <IconListCheck size={12} className="-mt-0.5 mr-1 inline" />
+            Open Jobs
+          </button>
+          {isRunning && (
+            <Button size="sm" variant="ghost" onClick={onCancel}>
+              <IconX size={12} /> {t('generate.progress.cancel')}
+            </Button>
+          )}
+          {!isRunning && job.summary?.outputDir && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                window.api.export.revealInFinder(job.summary!.outputDir)
+              }
+            >
+              <IconFolder size={12} /> {t('generate.progress.openFolder')}
+            </Button>
+          )}
+          {!isRunning && (
+            <button
+              onClick={onDismiss}
+              title="Dismiss"
+              className="rounded p-1 text-fg-muted hover:text-fg-base"
+            >
+              <IconX size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg-elevated">
+        <div
+          className={[
+            'h-full transition-[width] duration-200',
+            isRunning
+              ? 'bg-accent'
+              : job.status === 'completed'
+                ? 'bg-success'
+                : job.status === 'failed'
+                  ? 'bg-danger'
+                  : 'bg-warning',
+          ].join(' ')}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {job.summary?.errors && job.summary.errors.length > 0 && (
+        <details className="mt-2 text-xs text-fg-muted">
+          <summary className="cursor-pointer text-warning">
+            {t('generate.progress.warnings', { count: job.summary.errors.length })}
+          </summary>
+          <ul className="mt-1.5 max-h-32 overflow-y-auto rounded border border-border-subtle p-2 font-mono text-[10px]">
+            {job.summary.errors.slice(0, 50).map((e, i) => (
+              <li key={i} className="truncate">
+                {e}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -737,6 +1063,93 @@ function FolderPreview({
 }
 
 // ── Subcomponents ────────────────────────────────────────────────────────────
+
+// Sheet (N-up) controls — page size / orientation / margin / gap, with a
+// live "X per page (C×R)" readout computed from the same shared grid math
+// the renderer uses. Warns when the label is too big to fit even once.
+function SheetControls({
+  sheet,
+  onChange,
+  labelW,
+  labelH,
+}: {
+  sheet: SheetLayout;
+  onChange: (s: SheetLayout) => void;
+  labelW: number;
+  labelH: number;
+}) {
+  const grid = computeSheetGrid(labelW, labelH, sheet);
+  const set = (patch: Partial<SheetLayout>) => onChange({ ...sheet, ...patch });
+  return (
+    <div className="rounded-md border border-border-subtle bg-bg-elevated/40 p-3">
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Page size">
+          <select
+            value={sheet.pageSize}
+            onChange={(e) =>
+              set({ pageSize: e.target.value as SheetLayout['pageSize'] })
+            }
+            className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+          >
+            <option value="A4">A4 (210×297mm)</option>
+            <option value="Letter">Letter (216×279mm)</option>
+          </select>
+        </Field>
+        <Field label="Orientation">
+          <select
+            value={sheet.orientation}
+            onChange={(e) =>
+              set({
+                orientation: e.target.value as SheetLayout['orientation'],
+              })
+            }
+            className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+          >
+            <option value="portrait">Portrait</option>
+            <option value="landscape">Landscape</option>
+          </select>
+        </Field>
+        <Field label="Margin (mm)">
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            value={sheet.marginMm}
+            onChange={(e) =>
+              set({ marginMm: Math.max(0, parseFloat(e.target.value) || 0) })
+            }
+            className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+          />
+        </Field>
+        <Field label="Gap (mm)">
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            value={sheet.gapMm}
+            onChange={(e) =>
+              set({ gapMm: Math.max(0, parseFloat(e.target.value) || 0) })
+            }
+            className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
+          />
+        </Field>
+      </div>
+      <div className="mt-2 text-[11px]">
+        {grid.tooBig ? (
+          <span className="text-danger">
+            Label is too big to fit on this page at this margin. Reduce the
+            margin, switch orientation, or pick a larger page.
+          </span>
+        ) : (
+          <span className="text-fg-muted">
+            <strong className="text-fg-base">{grid.perPage}</strong> labels per
+            page ({grid.columns} × {grid.rows})
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -980,127 +1393,6 @@ function resolveElement(el: TemplateElement, row: Record<string, string>): Templ
   return el;
 }
 
-// ── Progress overlay ─────────────────────────────────────────────────────────
-
-function ProgressOverlay({
-  running,
-  progress,
-  summary,
-  startTime,
-  onCancel,
-  onClose,
-  outputDir,
-}: {
-  running: boolean;
-  progress: ExportProgressInfo | null;
-  summary: BulkExportSummary | null;
-  startTime: number;
-  onCancel: () => void;
-  onClose: () => void;
-  outputDir: string;
-}) {
-  const { t } = useTranslation();
-  const elapsed = Date.now() - startTime;
-  const pct = progress ? Math.round((progress.index / progress.total) * 100) : summary ? 100 : 0;
-  const rate =
-    progress && elapsed > 0 ? progress.index / (elapsed / 1000) : 0; // labels/sec
-  const remaining =
-    progress && rate > 0 && running
-      ? Math.round((progress.total - progress.index) / rate)
-      : 0;
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-lg border border-border-base bg-bg-surface p-5 shadow-2xl">
-        {summary ? (
-          <>
-            <div className="flex items-center gap-2 text-sm font-semibold text-success">
-              <IconCheck size={18} /> {t('generate.progress.complete')}
-            </div>
-            <div className="mt-3 text-sm text-fg-base">
-              {t('generate.progress.generated', {
-                generated: summary.generated,
-                total: summary.total,
-                count: summary.total,
-              })}
-            </div>
-            {summary.errors.length > 0 && (
-              <details className="mt-2 text-xs text-fg-muted">
-                <summary className="cursor-pointer text-warning">
-                  {t('generate.progress.warnings', { count: summary.errors.length })}
-                </summary>
-                <ul className="mt-2 max-h-40 overflow-y-auto rounded border border-border-subtle p-2 font-mono">
-                  {summary.errors.slice(0, 50).map((e, i) => (
-                    <li key={i} className="truncate">
-                      {e}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => window.api.export.revealInFinder(outputDir)}
-                disabled={!outputDir}
-              >
-                <IconFolder size={14} /> {t('generate.progress.openFolder')}
-              </Button>
-              <Button variant="primary" onClick={onClose}>
-                {t('generate.progress.done')}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="text-sm font-semibold text-fg-base">
-              {t('generate.progress.title')}
-            </div>
-            <div className="mt-1 text-xs text-fg-muted">
-              {progress
-                ? t('generate.progress.indexOfTotal', {
-                    index: progress.index,
-                    total: progress.total,
-                    sku: progress.sku,
-                  })
-                : t('generate.progress.starting')}
-            </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-bg-elevated">
-              <div
-                className="h-full bg-accent transition-[width] duration-200"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <div className="mt-2 flex justify-between text-[10px] text-fg-subtle">
-              <span>
-                {t('generate.progress.elapsed', { duration: formatDuration(elapsed) })}
-              </span>
-              <span>
-                {rate ? t('generate.progress.rate', { rate: rate.toFixed(1) }) : ''}
-              </span>
-              <span>
-                {remaining
-                  ? t('generate.progress.remaining', {
-                      duration: formatDuration(remaining * 1000),
-                    })
-                  : ''}
-              </span>
-            </div>
-            <div className="mt-4 flex items-center justify-end">
-              <Button variant="ghost" onClick={onCancel}>
-                <IconX size={14} /> {t('generate.progress.cancel')}
-              </Button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function formatDuration(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  if (m === 0) return `${s}s`;
-  return `${m}m ${s % 60}s`;
-}
+// (The old blocking ProgressOverlay modal lived here. It's been replaced
+// by InlineJobStatus near the top of this file plus the /jobs page —
+// generation now runs in the background, the user can keep working.)

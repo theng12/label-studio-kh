@@ -2,8 +2,10 @@ import { ipcMain, dialog, BrowserWindow, shell } from 'electron';
 import {
   exportSingle,
   exportBulk,
+  exportSheetPdf,
   type ExportSettings,
   type SingleExportInput,
+  type SheetPdfInput,
 } from '../services/ExportService';
 import type { Template } from '@shared/types/template';
 import type { Brand } from '@shared/types/brand';
@@ -31,6 +33,10 @@ export function registerExportIpc(): void {
   ipcMain.handle('export:revealInFinder', async (_e, filePath: string) => {
     shell.showItemInFolder(filePath);
   });
+
+  ipcMain.handle('export:sheetPdf', async (_e, input: SheetPdfInput) =>
+    exportSheetPdf(input),
+  );
 
   ipcMain.handle(
     'export:single',

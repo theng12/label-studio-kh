@@ -11,8 +11,10 @@ import Products from './pages/Products';
 import CompanyPage from './pages/Company';
 import DataImport from './pages/DataImport';
 import Generate from './pages/Generate';
+import Jobs from './pages/Jobs';
 import Barcodes from './pages/Barcodes';
 import Files from './pages/Files';
+import History from './pages/History';
 import Settings from './pages/Settings';
 import Support from './pages/Support';
 import { useThemeStore } from './stores/themeStore';
@@ -58,8 +60,10 @@ export default function App() {
           <Route path="/products" element={<Products />} />
           <Route path="/data" element={<DataImport />} />
           <Route path="/generate" element={<Generate />} />
+          <Route path="/jobs" element={<Jobs />} />
           <Route path="/barcodes" element={<Barcodes />} />
           <Route path="/files" element={<Files />} />
+          <Route path="/history" element={<History />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/support" element={<Support />} />
         </Routes>

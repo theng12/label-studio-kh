@@ -46,6 +46,27 @@ export interface Product {
   customFields: ProductCustomFields;
 
   status: ProductStatus;
+
+  // ── Inventory & lifecycle (v7 — added so the CSV column set matches the
+  //    user's external inventory/POS system). Label Studio KH stores them
+  //    but doesn't implement inventory logic (no alerts, no calculations);
+  //    they're round-trip data for CSV import/export. Free-text on purpose
+  //    so non-numeric values like "TBD" or "see notes" survive the round-
+  //    trip without being silently coerced.
+  /** Single expiry date, ISO yyyy-mm-dd. Null when not applicable. */
+  expiryDate: string | null;
+  /** Tax rate as text, e.g. "10" for 10%. Free-text — no calculation. */
+  taxRate: string | null;
+  /** Reorder threshold (units). Free-text per the round-trip-data policy. */
+  reorderPoint: string | null;
+  /** Default reorder batch size (units). Free-text. */
+  reorderQuantity: string | null;
+  /** When true, the user's external system treats this SKU as stock-tracked.
+   *  Default false — Label Studio doesn't act on it either way. */
+  trackInventory: boolean;
+  /** Variant attributes as free text (e.g. "Color: Red, Size: M"). */
+  variantAttributes: string | null;
+
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
 }
@@ -69,6 +90,13 @@ export interface ProductInput {
   tags?: string[];
   customFields?: ProductCustomFields;
   status?: ProductStatus;
+  // v7 inventory & lifecycle (all optional, see Product interface above).
+  expiryDate?: string | null;
+  taxRate?: string | null;
+  reorderPoint?: string | null;
+  reorderQuantity?: string | null;
+  trackInventory?: boolean;
+  variantAttributes?: string | null;
 }
 
 /** List filters applied in ProductService.list. All optional. */

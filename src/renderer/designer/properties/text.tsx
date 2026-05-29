@@ -1,7 +1,14 @@
 import { type TemplateElement } from '../../../shared/types/template';
 import { Field, ColorInput } from '../../components/FormField';
 import { FontPicker } from '../../components/FontPicker';
-import { CsvColumnInput, NumberInput } from './shared';
+import {
+  AlignmentSegmented,
+  CsvColumnInput,
+  NumberInput,
+  VerticalAlignmentSegmented,
+  type HorizontalAlign,
+  type VerticalAlign,
+} from './shared';
 
 export function TextProperties({
   element,
@@ -153,6 +160,33 @@ export function TextProperties({
           }}
         />
       </Field>
+
+      {/* Alignment — horizontal applies to every text element; vertical
+          applies to anything with a height-bound box (multi-line text or
+          single-line text taller than the line). Both surfaced here so the
+          user doesn't have to enable multi-line just to centre text inside
+          the box vertically. */}
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Align">
+          <AlignmentSegmented
+            value={element.align}
+            onChange={(v: HorizontalAlign) => {
+              onPatch({ align: v } as Partial<TemplateElement>);
+              onCommit();
+            }}
+          />
+        </Field>
+        <Field label="Vertical">
+          <VerticalAlignmentSegmented
+            value={element.verticalAlign ?? 'top'}
+            onChange={(v: VerticalAlign) => {
+              onPatch({ verticalAlign: v } as Partial<TemplateElement>);
+              onCommit();
+            }}
+          />
+        </Field>
+      </div>
+
       {element.type === 'text' && (
         <>
           <label className="flex items-center gap-2 text-xs text-fg-base">
@@ -169,37 +203,16 @@ export function TextProperties({
             Multi-line (wrap text inside the box)
           </label>
           {element.multiline && (
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="Line height" hint="1.0 = tight, 1.4 = airy">
-                <NumberInput
-                  value={element.lineHeight ?? 1.2}
-                  step={0.1}
-                  onChange={(v) =>
-                    onPatch({ lineHeight: v } as Partial<TemplateElement>)
-                  }
-                  onCommit={onCommit}
-                />
-              </Field>
-              <Field label="Vertical align">
-                <select
-                  value={element.verticalAlign ?? 'top'}
-                  onChange={(e) => {
-                    onPatch({
-                      verticalAlign: e.target.value as
-                        | 'top'
-                        | 'center'
-                        | 'bottom',
-                    } as Partial<TemplateElement>);
-                    onCommit();
-                  }}
-                  className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
-                >
-                  <option value="top">Top</option>
-                  <option value="center">Center</option>
-                  <option value="bottom">Bottom</option>
-                </select>
-              </Field>
-            </div>
+            <Field label="Line height" hint="1.0 = tight, 1.4 = airy">
+              <NumberInput
+                value={element.lineHeight ?? 1.2}
+                step={0.1}
+                onChange={(v) =>
+                  onPatch({ lineHeight: v } as Partial<TemplateElement>)
+                }
+                onCommit={onCommit}
+              />
+            </Field>
           )}
         </>
       )}

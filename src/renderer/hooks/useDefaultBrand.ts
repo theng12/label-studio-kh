@@ -7,18 +7,19 @@ import { useSettingsStore } from '../stores/settingsStore';
  * Resolve which brand a page should default-select. Order of preference:
  * 1. The user's last explicitly-picked brand (settings.lastUsedBrandId), if it
  *    still exists.
- * 2. The first non-demo brand. Demo brand is alphabetically first ("Demo
- *    brand"), so without this, brand-scoped pages always opened against the
- *    demo brand on first launch.
- * 3. The first brand of any kind (only the demo brand may exist on first run).
+ * 2. The first brand in the list.
  *
  * Also returns a `pickBrand(id)` helper that pages can call when the user
  * changes the brand selector — it persists the choice so the next launch
  * remembers it.
+ *
+ * `visibleBrands` is kept as a separate field for callers that historically
+ * worked off a filtered view (it used to drop the demo brand). The demo
+ * concept has been removed, so the two arrays are identical now; callers
+ * may use whichever reads more clearly.
  */
 export function useDefaultBrand(): {
   brands: Brand[];
-  /** Brands the user should see in pickers — filtered by `hideDemoBrand`. */
   visibleBrands: Brand[];
   defaultBrandId: string | null;
   pickBrand: (id: string) => void;
@@ -27,23 +28,16 @@ export function useDefaultBrand(): {
   const settings = useSettingsStore((s) => s.settings);
   const setSettings = useSettingsStore((s) => s.set);
 
-  const visibleBrands = useMemo(
-    () => (settings?.hideDemoBrand ? brands.filter((b) => !b.isDemo) : brands),
-    [brands, settings?.hideDemoBrand],
-  );
-
   const defaultBrandId = useMemo(() => {
-    if (visibleBrands.length === 0) return null;
+    if (brands.length === 0) return null;
     const last = settings?.lastUsedBrandId;
-    if (last && visibleBrands.some((b) => b.id === last)) return last;
-    const nonDemo = visibleBrands.find((b) => !b.isDemo);
-    if (nonDemo) return nonDemo.id;
-    return visibleBrands[0]!.id;
-  }, [visibleBrands, settings?.lastUsedBrandId]);
+    if (last && brands.some((b) => b.id === last)) return last;
+    return brands[0]!.id;
+  }, [brands, settings?.lastUsedBrandId]);
 
   const pickBrand = (id: string) => {
     void setSettings({ lastUsedBrandId: id });
   };
 
-  return { brands, visibleBrands, defaultBrandId, pickBrand };
+  return { brands, visibleBrands: brands, defaultBrandId, pickBrand };
 }

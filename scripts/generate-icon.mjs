@@ -1,4 +1,4 @@
-// Generates resources/icon.png — a 1024×1024 placeholder app icon.
+// Generates resources/icon.png — a 1024×1024 app icon.
 // Uses Puppeteer (already a runtime dep) to rasterise an inline SVG so we
 // don't need to add `sharp` or another image library just for this.
 //
@@ -6,6 +6,20 @@
 //
 // electron-builder reads this PNG and derives .icns (macOS) and .ico (Windows)
 // from it during npm run build:*.
+//
+// Design (0.6.x):
+//   - Deep-charcoal background (#16181C) — matches the theme's `fg-base`
+//     token, so the icon feels native to the app's dark sidebar mark.
+//   - White price-tag silhouette tilted -8° for a touch of personality
+//     without feeling playful. Standard "address label" shape: rounded
+//     rectangle with a pointed left end + a circular hole where the
+//     string would attach.
+//   - "LS" centered in bold charcoal — large enough to read at 16px
+//     Dock-overflow sizes.
+//   - Small brand-blue "KH" pill below the "LS", quiet but visible.
+//
+// Three colors total (charcoal / white / brand-blue) — the same trio the
+// app uses across sidebar, theme tokens, and CTAs.
 
 import puppeteer from 'puppeteer';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -17,32 +31,82 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '..');
 const out = join(projectRoot, 'resources', 'icon.png');
 
-const BG = '#1063E8'; // brand blue (matches the Demo brand color)
-const FG = '#FFFFFF';
+const BG = '#16181C';   // app fg-base / sidebar mark background
+const TAG = '#FFFFFF';  // tag fill
+const INK = '#16181C';  // text on the tag (matches bg for high contrast)
+const ACCENT = '#1063E8'; // brand-blue — KH pill
 
+// SVG dimensions chosen so the tag occupies ~70% of the 1024 canvas,
+// leaving safe-area for the macOS squircle mask. The path draws a
+// horizontal tag with a pointed left end, rounded right corners, and a
+// circular hole on the left for the "string" detail.
 const html = `<!doctype html>
 <html><head><style>
   html, body { margin: 0; padding: 0; }
-  body { width: 1024px; height: 1024px; background: ${BG};
+  body {
+    width: 1024px; height: 1024px;
+    background: ${BG};
     display: flex; align-items: center; justify-content: center;
-    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
   }
-  .frame { position: relative; width: 720px; height: 720px; }
-  .corner { position: absolute; width: 80px; height: 80px;
-    border-color: ${FG}; border-style: solid; border-width: 0; }
-  .tl { top: 0; left: 0; border-top-width: 16px; border-left-width: 16px; border-top-left-radius: 24px; }
-  .tr { top: 0; right: 0; border-top-width: 16px; border-right-width: 16px; border-top-right-radius: 24px; }
-  .bl { bottom: 0; left: 0; border-bottom-width: 16px; border-left-width: 16px; border-bottom-left-radius: 24px; }
-  .br { bottom: 0; right: 0; border-bottom-width: 16px; border-right-width: 16px; border-bottom-right-radius: 24px; }
-  .text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: ${FG}; font-weight: 800; font-size: 280px; letter-spacing: -8px; }
+  .tilt { transform: rotate(-8deg); transform-origin: center center; }
+  svg { display: block; }
+  text {
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue",
+                 system-ui, sans-serif;
+  }
 </style></head><body>
-  <div class="frame">
-    <div class="corner tl"></div>
-    <div class="corner tr"></div>
-    <div class="corner bl"></div>
-    <div class="corner br"></div>
-    <div class="text">LS</div>
+  <div class="tilt">
+    <svg width="720" height="480" viewBox="0 0 720 480" xmlns="http://www.w3.org/2000/svg">
+      <!-- Tag silhouette: pointed-left, rounded-right, like a classic
+           address / clothing tag. Coordinates chosen so the pointed
+           tip sits at (0, 240) and the rounded right corners use a
+           60-unit corner radius. -->
+      <path d="
+        M 160 0
+        L 660 0
+        Q 720 0, 720 60
+        L 720 420
+        Q 720 480, 660 480
+        L 160 480
+        L 0 240
+        Z
+      " fill="${TAG}" />
+
+      <!-- Hole detail on the left end. Sized + positioned to read as
+           a real eyelet rather than a typo. Filled with the BG color
+           so the canvas behind the tag shows through cleanly. -->
+      <circle cx="170" cy="240" r="38" fill="${BG}" />
+
+      <!-- "LS" wordmark. Centered slightly right of geometric center
+           to balance the pointed left end. 280px is the largest
+           that comfortably fits while leaving room for the KH pill
+           below it. -->
+      <text
+        x="445"
+        y="240"
+        fill="${INK}"
+        font-size="280"
+        font-weight="900"
+        letter-spacing="-8"
+        text-anchor="middle"
+        dominant-baseline="central"
+      >LS</text>
+
+      <!-- "KH" pill: 130 × 48 rounded chip in brand-blue with white
+           letters. Sits just below the LS baseline, anchored to the
+           same X so the two stack on one optical axis. -->
+      <rect x="380" y="375" width="130" height="52" rx="26" fill="${ACCENT}" />
+      <text
+        x="445"
+        y="401"
+        fill="#FFFFFF"
+        font-size="30"
+        font-weight="700"
+        letter-spacing="3"
+        text-anchor="middle"
+        dominant-baseline="central"
+      >KH</text>
+    </svg>
   </div>
 </body></html>`;
 

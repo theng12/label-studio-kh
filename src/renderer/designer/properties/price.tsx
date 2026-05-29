@@ -1,7 +1,12 @@
 import { type TemplateElement } from '../../../shared/types/template';
 import { Field, ColorInput } from '../../components/FormField';
 import { FontPicker } from '../../components/FontPicker';
-import { CsvColumnInput, NumberInput } from './shared';
+import {
+  AlignmentSegmented,
+  CsvColumnInput,
+  NumberInput,
+  type HorizontalAlign,
+} from './shared';
 
 export function PriceProperties({
   element,
@@ -218,20 +223,13 @@ export function PriceProperties({
         </Field>
       )}
       <Field label="Align">
-        <select
+        <AlignmentSegmented
           value={element.align}
-          onChange={(e) => {
-            onPatch({
-              align: e.target.value as 'left' | 'center' | 'right',
-            } as Partial<TemplateElement>);
+          onChange={(v: HorizontalAlign) => {
+            onPatch({ align: v } as Partial<TemplateElement>);
             onCommit();
           }}
-          className="w-full rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
-        >
-          <option value="left">Left</option>
-          <option value="center">Center</option>
-          <option value="right">Right</option>
-        </select>
+        />
       </Field>
     </>
   );

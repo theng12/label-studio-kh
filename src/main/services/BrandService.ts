@@ -1,8 +1,16 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { dirname } from 'node:path';
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  rmSync,
+  unlinkSync,
+} from 'node:fs';
+import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { app } from 'electron';
 import type { Brand, NewBrandInput } from '@shared/types/brand';
 import { paths } from './paths';
+import { getDb } from './Database';
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -106,7 +114,6 @@ export const BrandService = {
     const i = brands.findIndex((b) => b.id === id);
     if (i < 0) return false;
     const target = brands[i]!;
-    if (target.isDemo) return false; // demo brand can be hidden, never deleted
     if (target.deletedAt) return true; // already soft-deleted
     brands[i] = { ...target, deletedAt: nowIso(), updatedAt: nowIso() };
     writeAll(brands);
@@ -135,5 +142,112 @@ export const BrandService = {
     if (kept.length === brands.length) return 0;
     writeAll(kept);
     return brands.length - kept.length;
+  },
+
+  /**
+   * One-time cleanup that rips the seeded "Demo brand" (and everything it
+   * touched) out of the workspace. Run on every boot; cheap no-op after the
+   * first successful pass.
+   *
+   * The demo concept was helpful while the app was unfinished — users had
+   * something to click around in. Now it just clutters the company / brand
+   * pickers with an "Acme Demo Brand" entry the user can't delete. This
+   * function removes:
+   *   - any brand with `isDemo: true` from brands.json (legacy field —
+   *     stripped after this pass since the type no longer carries it)
+   *   - their templates dir (userData/templates/<brandId>/)
+   *   - their assets dir (userData/assets/<brandId>/)
+   *   - sku rows in SQLite for those brand ids
+   *   - generation rows in SQLite for those brand ids
+   *   - the bundled demo-products.csv at userData root
+   */
+  purgeDemoData(): number {
+    const file = paths.brandsFile();
+    if (!existsSync(file)) return 0;
+
+    let parsed: { brands?: unknown } | unknown;
+    try {
+      parsed = JSON.parse(readFileSync(file, 'utf8'));
+    } catch (err) {
+      console.error('purgeDemoData: brands.json unreadable, skipping', err);
+      return 0;
+    }
+
+    // Permissive read — `isDemo` is no longer in the Brand type, but old
+    // on-disk records still have the field. Cast through `unknown` to look
+    // it up without TypeScript pushback.
+    const rawList = (Array.isArray(parsed)
+      ? parsed
+      : ((parsed as { brands?: unknown[] }).brands ?? [])) as Array<
+      Record<string, unknown> & { id?: string }
+    >;
+
+    const demoBrandIds = rawList
+      .filter((b) => b.isDemo === true)
+      .map((b) => b.id)
+      .filter((id): id is string => typeof id === 'string');
+    if (demoBrandIds.length === 0) return 0;
+
+    // 1. Remove the demo brands from brands.json (plus strip the dead
+    //    `isDemo` field from any remaining brand, just to be tidy).
+    const kept = rawList
+      .filter((b) => b.isDemo !== true)
+      .map((b) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { isDemo, ...rest } = b;
+        return rest;
+      });
+    writeFileSync(
+      file,
+      JSON.stringify({ brands: kept }, null, 2),
+      'utf8',
+    );
+
+    // 2. Remove templates + assets directories for the demo brands.
+    for (const brandId of demoBrandIds) {
+      try {
+        rmSync(paths.templatesDir(brandId), { recursive: true, force: true });
+      } catch (err) {
+        console.error(`purgeDemoData: failed to remove templates for ${brandId}`, err);
+      }
+      try {
+        rmSync(paths.assetsDir(brandId), { recursive: true, force: true });
+      } catch (err) {
+        console.error(`purgeDemoData: failed to remove assets for ${brandId}`, err);
+      }
+    }
+
+    // 3. Drop SKU + generation rows tied to those brand IDs. Wrap in a
+    //    transaction so a mid-flight crash doesn't leave a half-cleaned
+    //    workspace.
+    try {
+      const db = getDb();
+      const placeholders = demoBrandIds.map(() => '?').join(',');
+      const tx = db.transaction(() => {
+        db.prepare(
+          `DELETE FROM skus WHERE brand_id IN (${placeholders})`,
+        ).run(...demoBrandIds);
+        db.prepare(
+          `DELETE FROM generations WHERE brand_id IN (${placeholders})`,
+        ).run(...demoBrandIds);
+      });
+      tx();
+    } catch (err) {
+      console.error('purgeDemoData: DB cleanup failed', err);
+    }
+
+    // 4. Remove the bundled sample CSV the demo seeder dropped next to
+    //    userData. If it's already gone or never existed, ignore.
+    try {
+      const sampleCsv = join(app.getPath('userData'), 'demo-products.csv');
+      if (existsSync(sampleCsv)) unlinkSync(sampleCsv);
+    } catch (err) {
+      console.error('purgeDemoData: failed to remove demo-products.csv', err);
+    }
+
+    console.log(
+      `purgeDemoData: removed ${demoBrandIds.length} demo brand(s) and associated data.`,
+    );
+    return demoBrandIds.length;
   },
 };

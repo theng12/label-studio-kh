@@ -14,6 +14,14 @@ const DONATION_DISMISS_KEY = 'lskh.donationDismissedAt';
 export default function Dashboard() {
   const navigate = useNavigate();
   const activeCompanyId = useCompanyStore((s) => s.activeCompanyId);
+  // Resolve the active company's name so the Page subtitle can read
+  // "Workspace for <name>" — gives the user immediate context for which
+  // workspace's numbers they're looking at, without forcing them to glance
+  // back at the sidebar switcher.
+  const activeCompanyName = useCompanyStore(
+    (s) =>
+      s.companies.find((c) => c.id === s.activeCompanyId)?.name ?? null,
+  );
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentBrands, setRecentBrands] = useState<RecentBrand[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -57,7 +65,12 @@ export default function Dashboard() {
   };
 
   return (
-    <Page title="Dashboard">
+    <Page
+      title="Dashboard"
+      subtitle={
+        activeCompanyName ? `Workspace for ${activeCompanyName}` : undefined
+      }
+    >
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Brands" value={stats?.brandCount ?? 0} />
         <StatCard label="SKUs" value={stats?.skuCount ?? 0} />

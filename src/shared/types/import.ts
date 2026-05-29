@@ -1,10 +1,19 @@
 // Standard CSV columns recognised by Label Studio KH (per spec §4.5).
+// The canonical key on the left stays `sku` (legacy internal name); the
+// CSV-facing header is "Product Code" (set in the sample workbook + the
+// ALIASES map). Same idea for product_name → "Product Name", etc.
 export const STANDARD_COLUMNS = [
+  // Identity + classification
   'sku',
+  'secondary_code',
   'product_name',
   'brand',
   'barcode',
   'description',
+  'category',
+  'variant_attributes',
+  'unit',                 // "Unit of Measure"
+  // Legacy columns kept for backward compat with older CSVs / Generate flow
   'variant',
   'unit_qty',
   'unit_word',
@@ -12,6 +21,19 @@ export const STANDARD_COLUMNS = [
   'product_image_path',
   'date',
   'notes',
+  // v7: round-trip with external inventory/POS systems
+  'expiry_date',
+  'tax_rate',
+  'reorder_point',
+  'reorder_quantity',
+  'track_inventory',
+  // Prices — one column per default price group. The legacy "extra_json"
+  // catch-all in ImportService.commit() picks these up automatically;
+  // listing them here just makes them appear in the column-mapping UI.
+  'cost_price',
+  'selling_price',
+  'wholesale_price',
+  'min_selling_price',
 ] as const;
 
 export type StandardColumn = (typeof STANDARD_COLUMNS)[number];

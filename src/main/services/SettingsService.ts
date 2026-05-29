@@ -12,11 +12,10 @@ export interface AppSettings {
   timeSavedMinutesPerLabel: number;
   snapGridMm: number;
   sizeWarningAreaMm2: number;
-  hideDemoBrand: boolean;
   uiLanguage: string;
   /** Last brand the user explicitly picked in Templates / Generate / Data Import.
    *  Used as the default selection on next launch so brand-scoped pages don't
-   *  reset to the alphabetically-first brand (which is usually "Demo brand"). */
+   *  reset to the alphabetically-first brand on every open. */
   lastUsedBrandId: string | null;
   /** Currently-active Company. All brand / product / template lists scope to
    *  this company. Defaulted on first run by CompanyService.ensureBootstrap. */
@@ -38,7 +37,6 @@ function defaults(): AppSettings {
     timeSavedMinutesPerLabel: 4,
     snapGridMm: 1,
     sizeWarningAreaMm2: 400,
-    hideDemoBrand: false,
     uiLanguage: 'en',
     lastUsedBrandId: null,
     activeCompanyId: null,

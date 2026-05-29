@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { getDb } from './Database';
+import { AuditService } from './AuditService';
+import { BrandService } from './BrandService';
 import {
   STANDARD_COLUMNS,
   REQUIRED_COLUMNS,
@@ -57,20 +59,29 @@ export function parseFile(filePath: string): ParsedFile {
 
 // ── Auto-map columns ─────────────────────────────────────────────────────────
 
+// Source-column → standard-column. Keys are already normalised (lowercase,
+// `[\s-]` → `_`) so the autoMap walker can index directly. To add a new
+// header alias, write it in the normalised form (e.g. "Reorder Point" →
+// `reorder_point`).
 const ALIASES: Record<string, string> = {
-  // sku
+  // sku (UI labels this "Product Code")
   sku: 'sku',
-  'sku code': 'sku',
+  sku_code: 'sku',
   productid: 'sku',
-  'product id': 'sku',
+  product_id: 'sku',
   product_code: 'sku',
-  // product_name
+  // secondary_code
+  secondary_code: 'secondary_code',
+  sec_code: 'secondary_code',
+  supplier_code: 'secondary_code',
+  alt_sku: 'secondary_code',
+  // product_name (UI labels this "Product Name")
   product_name: 'product_name',
   product: 'product_name',
   productname: 'product_name',
   name: 'product_name',
   title: 'product_name',
-  // brand
+  // brand (UI labels this "Brand Name")
   brand: 'brand',
   brand_name: 'brand',
   brandname: 'brand',
@@ -82,17 +93,28 @@ const ALIASES: Record<string, string> = {
   // description
   description: 'description',
   desc: 'description',
-  // variant
+  // category (UI labels this "Category Name")
+  category: 'category',
+  category_name: 'category',
+  // unit (UI labels this "Unit of Measure" — the Product Library column,
+  // not the legacy `unit_word` which still has its own aliases below for
+  // backward-compat with old QR-label CSVs).
+  unit_of_measure: 'unit',
+  uom: 'unit',
+  // variant_attributes
+  variant_attributes: 'variant_attributes',
+  attributes: 'variant_attributes',
+  // legacy 'variant' field (older QR-label CSVs)
   variant: 'variant',
   color: 'variant',
   colour: 'variant',
   finish: 'variant',
   size: 'variant',
-  // unit_qty
+  // unit_qty (legacy)
   unit_qty: 'unit_qty',
   qty: 'unit_qty',
   quantity: 'unit_qty',
-  // unit_word
+  // unit_word (legacy)
   unit_word: 'unit_word',
   unit: 'unit_word',
   // product_url
@@ -109,6 +131,35 @@ const ALIASES: Record<string, string> = {
   // notes
   notes: 'notes',
   note: 'notes',
+  // v7 — inventory & lifecycle
+  expiry_date: 'expiry_date',
+  expiry: 'expiry_date',
+  expires: 'expiry_date',
+  expiration: 'expiry_date',
+  expiration_date: 'expiry_date',
+  tax_rate: 'tax_rate',
+  tax: 'tax_rate',
+  vat: 'tax_rate',
+  vat_rate: 'tax_rate',
+  reorder_point: 'reorder_point',
+  min_stock: 'reorder_point',
+  reorder_quantity: 'reorder_quantity',
+  reorder_qty: 'reorder_quantity',
+  track_inventory: 'track_inventory',
+  inventory_tracked: 'track_inventory',
+  stock_tracked: 'track_inventory',
+  // Prices — these flow into product.prices JSON via the commit-time
+  // assembly below.
+  cost_price: 'cost_price',
+  cost: 'cost_price',
+  selling_price: 'selling_price',
+  retail: 'selling_price', // back-compat with old "Retail" group name
+  retail_price: 'selling_price',
+  price: 'selling_price',
+  wholesale_price: 'wholesale_price',
+  wholesale: 'wholesale_price',
+  min_selling_price: 'min_selling_price',
+  min_price: 'min_selling_price',
 };
 
 export function autoMap(columns: string[]): ColumnMapping {
@@ -261,10 +312,14 @@ export function commit(input: CommitInput): CommitResult {
     INSERT INTO skus (
       sku, brand_id, product_name, barcode, description, variant, unit_qty,
       unit_word, product_url, product_image_path, date, notes, extra_json,
+      secondary_code, category, unit, prices, variant_attributes,
+      expiry_date, tax_rate, reorder_point, reorder_quantity, track_inventory,
       last_import_id, created_at, updated_at
     ) VALUES (
       @sku, @brand_id, @product_name, @barcode, @description, @variant, @unit_qty,
       @unit_word, @product_url, @product_image_path, @date, @notes, @extra_json,
+      @secondary_code, @category, @unit, @prices, @variant_attributes,
+      @expiry_date, @tax_rate, @reorder_point, @reorder_quantity, @track_inventory,
       @last_import_id, @created_at, @updated_at
     )
     ON CONFLICT(sku, brand_id) DO UPDATE SET
@@ -279,9 +334,26 @@ export function commit(input: CommitInput): CommitResult {
       date                = excluded.date,
       notes               = excluded.notes,
       extra_json          = excluded.extra_json,
+      secondary_code      = COALESCE(excluded.secondary_code, secondary_code),
+      category            = COALESCE(excluded.category, category),
+      unit                = COALESCE(excluded.unit, unit),
+      prices              = excluded.prices,
+      variant_attributes  = COALESCE(excluded.variant_attributes, variant_attributes),
+      expiry_date         = COALESCE(excluded.expiry_date, expiry_date),
+      tax_rate            = COALESCE(excluded.tax_rate, tax_rate),
+      reorder_point       = COALESCE(excluded.reorder_point, reorder_point),
+      reorder_quantity    = COALESCE(excluded.reorder_quantity, reorder_quantity),
+      track_inventory     = excluded.track_inventory,
       last_import_id      = excluded.last_import_id,
       updated_at          = excluded.updated_at
   `);
+
+  // Existing-product lookup so we can MERGE the prices JSON (don't blank
+  // unmapped tiers) and preserve unmapped scalar fields per spec §11 (the
+  // "imports never overwrite a populated field with null" invariant).
+  const readExistingForMerge = db.prepare(
+    'SELECT prices FROM skus WHERE sku = ? AND brand_id = ?',
+  );
 
   const checkExisting = db.prepare(
     'SELECT 1 FROM skus WHERE sku = ? AND brand_id = ?',
@@ -329,6 +401,54 @@ export function commit(input: CommitInput): CommitResult {
         }
       }
 
+      // Assemble the prices JSON from the four named price columns. Each
+      // empty/unmapped value is dropped (so re-importing without that
+      // column leaves the existing tier untouched via the merge below).
+      const incomingPrices: Record<string, string> = {};
+      const priceMap: Array<[string, string]> = [
+        ['cost_price', 'Cost'],
+        ['selling_price', 'Selling'],
+        ['wholesale_price', 'Wholesale'],
+        ['min_selling_price', 'Min Selling'],
+      ];
+      for (const [stdKey, groupName] of priceMap) {
+        const col = m(stdKey);
+        if (!col) continue;
+        const raw = String(row[col] ?? '').trim();
+        if (!raw) continue;
+        incomingPrices[groupName] = raw;
+      }
+
+      // MERGE prices with existing so a CSV that only carries one price
+      // column doesn't blank the others (matches the AGENTS.md §11 import
+      // invariant: "never blank a populated field on missing column").
+      let existingPrices: Record<string, string> = {};
+      const existingRow = readExistingForMerge.get(sku, brandId) as
+        | { prices: string }
+        | undefined;
+      if (existingRow?.prices) {
+        try {
+          existingPrices = JSON.parse(existingRow.prices) as Record<
+            string,
+            string
+          >;
+        } catch {
+          /* ignore malformed JSON */
+        }
+      }
+      const mergedPrices = { ...existingPrices, ...incomingPrices };
+
+      // Track-inventory normalisation — accept yes/no/true/false/1/0/y/n.
+      const trackInvCol = m('track_inventory');
+      const trackInvRaw = trackInvCol
+        ? String(row[trackInvCol] ?? '').trim().toLowerCase()
+        : '';
+      const trackInventory = ['1', 'true', 'yes', 'y', 'on'].includes(
+        trackInvRaw,
+      )
+        ? 1
+        : 0;
+
       insert.run({
         sku,
         brand_id: brandId,
@@ -345,6 +465,26 @@ export function commit(input: CommitInput): CommitResult {
         date: m('date') ? row[m('date')!] ?? null : null,
         notes: m('notes') ? row[m('notes')!] ?? null : null,
         extra_json: Object.keys(extra).length > 0 ? JSON.stringify(extra) : null,
+        // v4+ Product-Library columns the importer now also writes
+        secondary_code: m('secondary_code')
+          ? row[m('secondary_code')!] ?? null
+          : null,
+        category: m('category') ? row[m('category')!] ?? null : null,
+        unit: m('unit') ? row[m('unit')!] ?? null : null,
+        prices: JSON.stringify(mergedPrices),
+        // v7 inventory & lifecycle
+        variant_attributes: m('variant_attributes')
+          ? row[m('variant_attributes')!] ?? null
+          : null,
+        expiry_date: m('expiry_date') ? row[m('expiry_date')!] ?? null : null,
+        tax_rate: m('tax_rate') ? row[m('tax_rate')!] ?? null : null,
+        reorder_point: m('reorder_point')
+          ? row[m('reorder_point')!] ?? null
+          : null,
+        reorder_quantity: m('reorder_quantity')
+          ? row[m('reorder_quantity')!] ?? null
+          : null,
+        track_inventory: trackInventory,
         last_import_id: importId,
         created_at: nowIso(),
         updated_at: nowIso(),
@@ -358,6 +498,19 @@ export function commit(input: CommitInput): CommitResult {
     `INSERT INTO imports (id, source_filename, brand_id, row_count, warnings_count, errors_count, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(importId, sourceFilename, brandId, rows.length, 0, 0, nowIso());
+
+  // Audit: one summary event per import so it shows in the global History
+  // feed alongside individual product edits. Company resolved from the
+  // target brand.
+  const brand = BrandService.get(brandId);
+  AuditService.log({
+    entityType: 'import',
+    entityId: importId,
+    companyId: brand?.companyId ?? null,
+    action: 'import',
+    summary: `Imported ${sourceFilename ?? 'a file'} into ${brand?.name ?? 'a brand'} — ${inserted} new, ${overwritten} updated${skipped ? `, ${skipped} skipped` : ''}`,
+    after: { inserted, overwritten, skipped, newVersions, rowCount: rows.length },
+  });
 
   return { importId, inserted, overwritten, skipped, newVersions };
 }

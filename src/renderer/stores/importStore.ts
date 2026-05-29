@@ -8,6 +8,7 @@ import type {
   CommitResult,
 } from '../../shared/types/import';
 import { generateEan13FromSeed } from '../../shared/format';
+import { toast } from '../components/Toast';
 
 type Step = 'pickFile' | 'mapAndPreview' | 'dedup' | 'committing' | 'done';
 
@@ -173,8 +174,20 @@ export const useImportStore = create<ImportState>((set, get) => ({
         perSkuActions: perSkuDedup,
       });
       set({ result, step: 'done', committing: false });
+      // Surface a one-line summary as a toast so the user gets instant
+      // confirmation the import succeeded — useful when the Done screen
+      // is offscreen / behind a modal. The Done screen still shows the
+      // detailed counts + "View in Library" CTA.
+      const parts: string[] = [];
+      if (result.inserted) parts.push(`${result.inserted} new`);
+      if (result.overwritten) parts.push(`${result.overwritten} updated`);
+      if (result.newVersions) parts.push(`${result.newVersions} re-versioned`);
+      if (result.skipped) parts.push(`${result.skipped} skipped`);
+      const summary = parts.length > 0 ? parts.join(' · ') : 'no changes';
+      toast.success(`Import complete — ${summary}.`);
     } catch (err) {
       set({ error: String(err), committing: false, step: 'mapAndPreview' });
+      toast.error(`Import failed: ${String(err)}`);
     }
   },
 

@@ -6,108 +6,75 @@ import {
   IconSearch,
   IconPencil,
   IconTrash,
-  IconArrowRight,
-  IconX,
 } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 import { BrandCardSkeletonGrid } from '../components/Skeleton';
 import { useBrandStore } from '../stores/brandStore';
-import { useSettingsStore } from '../stores/settingsStore';
-import { NewBrandWizard } from '../components/NewBrandWizard';
+import { useCompanyStore } from '../stores/companyStore';
+import { BrandFormModal } from '../components/BrandFormModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { toast } from '../components/Toast';
 import type { Brand } from '../../shared/types/brand';
 
-const FIRST_LAUNCH_HINT_KEY = 'brandsFirstLaunchHintDismissed';
+// Renderer-side preview helper. Mirrors BrandFormModal so the card and
+// the modal show the same image. (Custom protocol registered in main.)
+function localFileUrl(path: string): string {
+  const segments = path.split('/').map(encodeURIComponent).join('/');
+  return `lskh-file://${segments}`;
+}
+
+function initialsFor(name: string): string {
+  const stripped = name.replace(/[^A-Za-z0-9]/g, '');
+  return (stripped.slice(0, 2) || 'BR').toUpperCase();
+}
 
 type WizardState =
   | { mode: 'closed' }
   | { mode: 'create' }
   | { mode: 'edit'; brand: Brand };
 
-type BrandStats = { count: number; sizes: string[] };
-
 export default function Brands() {
   const { t } = useTranslation();
   const { brands, loading, refresh, remove } = useBrandStore();
-  const settings = useSettingsStore((s) => s.settings);
-  const refreshSettings = useSettingsStore((s) => s.refresh);
-  const setSettings = useSettingsStore((s) => s.set);
+  const activeCompanyId = useCompanyStore((s) => s.activeCompanyId);
   const [wizard, setWizard] = useState<WizardState>({ mode: 'closed' });
   const [confirmDelete, setConfirmDelete] = useState<Brand | null>(null);
   const [query, setQuery] = useState('');
-  const [stats, setStats] = useState<Map<string, BrandStats>>(new Map());
-  const [hintDismissed, setHintDismissed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(FIRST_LAUNCH_HINT_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
+  const [productCounts, setProductCounts] = useState<Record<string, number>>(
+    {},
+  );
   const navigate = useNavigate();
 
   useEffect(() => {
     void refresh();
-    void refreshSettings();
-  }, [refresh, refreshSettings]);
+  }, [refresh]);
 
+  // Product counts grouped by brand_id — one IPC call covers every
+  // card on the page. Refetches when the active company changes (the
+  // user expects per-workspace numbers) and when the brand list does
+  // (a delete or create can shift counts immediately).
   const brandKey = brands.map((b) => b.id).join(',');
   useEffect(() => {
-    if (brands.length === 0) {
-      setStats(new Map());
-      return;
-    }
     let cancelled = false;
-    setStats(new Map());
-    void Promise.all(
-      brands.map(async (b) => {
-        const templates = await window.api.template.listForBrand(b.id);
-        const seen = new Map<string, { w: number; h: number }>();
-        for (const t of templates) {
-          const key = `${t.width_mm}×${t.height_mm}mm`;
-          if (!seen.has(key)) seen.set(key, { w: t.width_mm, h: t.height_mm });
-        }
-        const sizes = Array.from(seen.entries())
-          .sort(([, a], [, b2]) => a.w * a.h - b2.w * b2.h)
-          .map(([k]) => k);
-        return [b.id, { count: templates.length, sizes }] as const;
-      }),
-    ).then((entries) => {
-      if (cancelled) return;
-      setStats(new Map(entries));
-    });
+    void window.api.products
+      .countsByBrand(activeCompanyId ?? undefined)
+      .then((counts) => {
+        if (!cancelled) setProductCounts(counts);
+      });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brandKey]);
+  }, [brandKey, activeCompanyId]);
 
-  const visible = settings?.hideDemoBrand
-    ? brands.filter((b) => !b.isDemo)
-    : brands;
-  const filtered = visible.filter((b) =>
+  const filtered = brands.filter((b) =>
     b.name.toLowerCase().includes(query.toLowerCase()),
   );
-
-  const showFirstLaunchHint =
-    !hintDismissed &&
-    !loading &&
-    brands.length === 1 &&
-    brands[0]?.isDemo === true;
-  const dismissHint = () => {
-    try {
-      localStorage.setItem(FIRST_LAUNCH_HINT_KEY, '1');
-    } catch {
-      /* ignore */
-    }
-    setHintDismissed(true);
-  };
 
   return (
     <>
       <Page
         title={t('brands.title')}
+        subtitle="A company can carry one or many brands. Brands have an optional icon shown on product cards and exports."
         actions={
           <Button variant="primary" onClick={() => setWizard({ mode: 'create' })}>
             <IconPlus size={14} /> {t('brands.addBrand')}
@@ -128,7 +95,7 @@ export default function Brands() {
             />
           </div>
           <span className="text-xs text-fg-muted">
-            {t('brands.brandCount', { count: visible.length })}
+            {t('brands.brandCount', { count: brands.length })}
           </span>
         </div>
 
@@ -137,17 +104,15 @@ export default function Brands() {
         ) : filtered.length === 0 ? (
           <EmptyState
             onAdd={() => setWizard({ mode: 'create' })}
-            hasBrands={visible.length > 0}
+            hasBrands={brands.length > 0}
           />
         ) : (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((b) => (
               <BrandCard
                 key={b.id}
                 brand={b}
-                stats={stats.get(b.id)}
-                showFirstLaunchHint={showFirstLaunchHint && b.id === brands[0]?.id}
-                onDismissHint={dismissHint}
+                productCount={productCounts[b.id] ?? 0}
                 onOpenTemplates={() => navigate(`/templates?brand=${b.id}`)}
                 onEdit={() => setWizard({ mode: 'edit', brand: b })}
                 onDelete={() => setConfirmDelete(b)}
@@ -158,12 +123,15 @@ export default function Brands() {
       </Page>
 
       {wizard.mode !== 'closed' && (
-        <NewBrandWizard
+        <BrandFormModal
           existing={wizard.mode === 'edit' ? wizard.brand : undefined}
           onClose={() => setWizard({ mode: 'closed' })}
-          onCreated={(brandId) => {
+          onSaved={(brandId) => {
             const wasCreate = wizard.mode === 'create';
             setWizard({ mode: 'closed' });
+            // After create, jump into Templates pre-filtered to the new
+            // brand so the user can keep momentum into "make a label".
+            // Edit just closes (the card refresh picks up the change).
             if (wasCreate) {
               navigate(`/templates?brand=${brandId}&new=1`);
             }
@@ -173,42 +141,25 @@ export default function Brands() {
 
       <ConfirmDialog
         open={!!confirmDelete}
-        title={
-          confirmDelete?.isDemo
-            ? t('brands.delete.demoTitle')
-            : t('brands.delete.title', {
-                name: confirmDelete?.name ?? t('brands.delete.fallbackName'),
-              })
-        }
+        title={t('brands.delete.title', {
+          name: confirmDelete?.name ?? t('brands.delete.fallbackName'),
+        })}
         message={
-          confirmDelete?.isDemo ? (
-            <>{t('brands.delete.demoMessage')}</>
-          ) : (
-            <>
-              {t('brands.delete.messageLine1Pre')}
-              <strong>{t('brands.delete.messageLine1Strong')}</strong>
-              {t('brands.delete.messageLine1Post')}
-              <br />
-              <br />
-              {t('brands.delete.messageLine2')}
-            </>
-          )
+          <>
+            {t('brands.delete.messageLine1Pre')}
+            <strong>{t('brands.delete.messageLine1Strong')}</strong>
+            {t('brands.delete.messageLine1Post')}
+            <br />
+            <br />
+            {t('brands.delete.messageLine2')}
+          </>
         }
-        confirmLabel={
-          confirmDelete?.isDemo
-            ? t('brands.delete.demoConfirmLabel')
-            : t('brands.delete.confirmLabel')
-        }
+        confirmLabel={t('brands.delete.confirmLabel')}
         cancelLabel={t('brands.delete.cancelLabel')}
         tone="danger"
         onConfirm={async () => {
           if (!confirmDelete) return;
-          if (confirmDelete.isDemo) {
-            await setSettings({ hideDemoBrand: true });
-            toast.success(t('brands.delete.demoHidden'));
-          } else {
-            await remove(confirmDelete.id);
-          }
+          await remove(confirmDelete.id);
           setConfirmDelete(null);
         }}
         onCancel={() => setConfirmDelete(null)}
@@ -217,164 +168,84 @@ export default function Brands() {
   );
 }
 
+// Brand card matches the Image Studio KH reference: large square logo
+// area on the left, brand name + "N product(s)" below, Edit button at
+// the bottom. Delete is hidden behind hover so the card stays calm by
+// default. Whole card is clickable to jump into Templates.
 function BrandCard({
   brand,
-  stats,
-  showFirstLaunchHint,
-  onDismissHint,
+  productCount,
   onOpenTemplates,
   onEdit,
   onDelete,
 }: {
   brand: Brand;
-  stats?: BrandStats;
-  showFirstLaunchHint: boolean;
-  onDismissHint: () => void;
+  productCount: number;
   onOpenTemplates: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
+  const logoPath = brand.logos?.[0]?.path ?? brand.logoPath ?? null;
   return (
-    <div
-      className={`group relative flex items-start gap-3 rounded-lg border bg-bg-surface p-4 transition-colors hover:bg-bg-hover ${
-        showFirstLaunchHint
-          ? 'border-accent ring-1 ring-accent/40'
-          : 'border-border-base'
-      }`}
-    >
-      <div
-        className="mt-1 h-6 w-6 shrink-0 rounded border border-border-base"
-        style={{ background: brand.color }}
-        aria-hidden
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-fg-base">
-              {brand.name}
-            </div>
-            {brand.tagline && (
-              <div className="mt-0.5 truncate text-xs text-fg-muted">
-                {brand.tagline}
-              </div>
-            )}
-            <div className="mt-2 text-xs text-fg-subtle">
-              {brand.category ?? t('brands.card.uncategorised')}
-            </div>
-            <BrandStatsLine stats={stats} onCreate={onOpenTemplates} />
-          </div>
-          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            <button
-              onClick={onEdit}
-              title={t('brands.card.editTitle')}
-              className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-fg-base"
-            >
-              <IconPencil size={14} />
-            </button>
-            {!brand.isDemo && (
-              <button
-                onClick={onDelete}
-                title={t('brands.card.deleteTitle')}
-                className="rounded p-1.5 text-fg-muted hover:bg-bg-elevated hover:text-danger"
-              >
-                <IconTrash size={14} />
-              </button>
-            )}
-          </div>
+    <div className="group relative flex flex-col rounded-lg border border-border-base bg-bg-surface p-4 transition-colors hover:bg-bg-hover">
+      <div className="flex items-start gap-4">
+        {/* Logo area — large square, white background so dark logos
+            read cleanly. Fallback when no image: brand-color square
+            with two-letter initials, same treatment as the form
+            modal's preview. */}
+        <div
+          className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border-base bg-white"
+          style={logoPath ? undefined : { background: brand.color }}
+        >
+          {logoPath ? (
+            <img
+              src={localFileUrl(logoPath)}
+              alt={`${brand.name} logo`}
+              className="h-full w-full object-contain p-1"
+            />
+          ) : (
+            <span className="text-base font-bold text-white">
+              {initialsFor(brand.name)}
+            </span>
+          )}
         </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-fg-base">
+            {brand.name}
+          </div>
+          <div className="mt-0.5 text-xs text-fg-muted">
+            {productCount} {productCount === 1 ? 'product' : 'products'}
+          </div>
+          {brand.tagline && (
+            <div className="mt-1 truncate text-[11px] text-fg-subtle">
+              {brand.tagline}
+            </div>
+          )}
+        </div>
+
+        {/* Delete only on hover — keeps the resting state clean. */}
+        <button
+          onClick={onDelete}
+          title={t('brands.card.deleteTitle')}
+          className="absolute right-2 top-2 rounded p-1 text-fg-muted opacity-0 transition-opacity hover:bg-bg-elevated hover:text-danger group-hover:opacity-100"
+        >
+          <IconTrash size={13} />
+        </button>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <Button size="sm" variant="secondary" onClick={onEdit}>
+          <IconPencil size={12} /> Edit
+        </Button>
         <button
           onClick={onOpenTemplates}
-          className="mt-3 flex w-full items-center justify-between rounded border border-border-subtle px-2 py-1 text-xs text-fg-muted transition-colors hover:bg-bg-elevated hover:text-fg-base"
+          className="ml-auto text-[11px] text-fg-muted hover:text-fg-base"
         >
-          <span>{t('brands.card.openTemplates')}</span>
-          <IconArrowRight size={12} />
+          {t('brands.card.openTemplates')} →
         </button>
       </div>
-      {showFirstLaunchHint && (
-        <FirstLaunchHint onOpen={onOpenTemplates} onDismiss={onDismissHint} />
-      )}
-    </div>
-  );
-}
-
-function FirstLaunchHint({
-  onOpen,
-  onDismiss,
-}: {
-  onOpen: () => void;
-  onDismiss: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="pointer-events-none absolute -top-2 -right-2 z-10 animate-pulse">
-      <div className="pointer-events-auto flex items-center gap-1.5 rounded-md border border-accent bg-accent px-2 py-1 text-xs font-medium text-accent-fg shadow-sm">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen();
-          }}
-          className="flex items-center gap-1 hover:underline"
-          title={t('brands.firstLaunchHint.openTooltip')}
-        >
-          {t('brands.firstLaunchHint.tryDemo')}
-          <IconArrowRight size={12} />
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDismiss();
-          }}
-          className="ml-1 rounded p-0.5 hover:bg-accent-hover"
-          title={t('brands.firstLaunchHint.dismiss')}
-          aria-label={t('brands.firstLaunchHint.dismiss')}
-        >
-          <IconX size={12} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function BrandStatsLine({
-  stats,
-  onCreate,
-}: {
-  stats?: BrandStats;
-  onCreate: () => void;
-}) {
-  const { t } = useTranslation();
-  if (!stats) {
-    return (
-      <div className="mt-1.5 h-3 w-32 animate-pulse rounded bg-bg-elevated" />
-    );
-  }
-  if (stats.count === 0) {
-    return (
-      <button
-        onClick={onCreate}
-        className="mt-1.5 text-xs text-fg-subtle hover:text-fg-base"
-      >
-        {t('brands.card.noTemplatesYet')}
-      </button>
-    );
-  }
-  const MAX = 3;
-  const shown = stats.sizes.slice(0, MAX);
-  const rest = stats.sizes.slice(MAX);
-  return (
-    <div className="mt-1.5 truncate text-xs text-fg-muted">
-      {t('brands.card.templateCount', { count: stats.count })}
-      {shown.length > 0 && ' · '}
-      {shown.join(' · ')}
-      {rest.length > 0 && (
-        <span title={rest.join(', ')}>
-          {' · '}
-          {t('brands.card.moreSizes', { count: rest.length })}
-        </span>
-      )}
     </div>
   );
 }

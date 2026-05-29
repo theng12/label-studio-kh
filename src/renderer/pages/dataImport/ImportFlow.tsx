@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   IconFileImport,
@@ -7,7 +8,7 @@ import {
   IconCheck,
   IconX,
   IconDownload,
-  IconSparkles,
+  IconArrowRight,
 } from '@tabler/icons-react';
 import { Button } from '../../components/Button';
 import { useDefaultBrand } from '../../hooks/useDefaultBrand';
@@ -15,7 +16,16 @@ import { useImportStore } from '../../stores/importStore';
 import { STANDARD_COLUMNS, REQUIRED_COLUMNS } from '../../../shared/types/import';
 import type { DedupAction } from '../../../shared/types/import';
 
-export function ImportFlow() {
+interface ImportFlowProps {
+  /** Optional override for the Done screen's "View in Library" CTA.
+   *  When provided, it's called with the imported brandId instead of the
+   *  default `navigate('/products?brand=…')`. The Import modal uses this
+   *  to also close itself after the user clicks View in Library — without
+   *  this, the modal would stay open over the Library view. */
+  onViewInLibrary?: (brandId: string | null) => void;
+}
+
+export function ImportFlow({ onViewInLibrary }: ImportFlowProps = {}) {
   const { t } = useTranslation();
   const im = useImportStore();
   const { visibleBrands, pickBrand } = useDefaultBrand();
@@ -84,7 +94,7 @@ export function ImportFlow() {
       {im.step === 'committing' && (
         <div className="text-sm text-fg-muted">{t('dataImport.import.committing')}</div>
       )}
-      {im.step === 'done' && <StepDone />}
+      {im.step === 'done' && <StepDone onViewInLibrary={onViewInLibrary} />}
     </div>
   );
 }
@@ -95,19 +105,10 @@ function StepPickFile() {
   const { t } = useTranslation();
   const im = useImportStore();
   const [drag, setDrag] = useState(false);
-  const [demoPath, setDemoPath] = useState<string | null>(null);
-
-  useEffect(() => {
-    void window.api.import.demoSamplePath().then(setDemoPath);
-  }, []);
 
   const onPick = async () => {
     const path = await window.api.import.pickFile();
     if (path) await im.loadFile(path);
-  };
-
-  const onTrySample = async () => {
-    if (demoPath) await im.loadFile(demoPath);
   };
 
   const onDrop = async (e: React.DragEvent) => {
@@ -146,14 +147,6 @@ function StepPickFile() {
           <Button variant="primary" onClick={onPick}>
             <IconFileSpreadsheet size={14} /> {t('dataImport.import.pickFile.browse')}
           </Button>
-          {demoPath && (
-            <button
-              onClick={onTrySample}
-              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-accent hover:bg-accent/10 transition-colors"
-            >
-              <IconSparkles size={14} /> {t('dataImport.import.pickFile.trySample')}
-            </button>
-          )}
         </div>
       </div>
 
@@ -858,11 +851,22 @@ function DedupChooser({
 
 // ── Step 4: done ────────────────────────────────────────────────────────────
 
-function StepDone() {
+function StepDone({
+  onViewInLibrary,
+}: {
+  onViewInLibrary?: (brandId: string | null) => void;
+}) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const im = useImportStore();
   const r = im.result;
+  // Brand the import was scoped to — used by the "View in Library" CTA to
+  // jump the Products page back to the Library tab pre-filtered to that
+  // brand so users can immediately see their newly-imported SKUs. Solves
+  // the "I imported a CSV but I can't find the new rows" confusion.
+  const targetBrandId = im.brandId;
   if (!r) return null;
+  const hasInsertedRows = (r.inserted ?? 0) > 0 || (r.newVersions ?? 0) > 0;
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-success/40 bg-success/10 p-4">
@@ -875,10 +879,39 @@ function StepDone() {
           <Stat label={t('dataImport.import.done.skipped')} value={r.skipped} tone="muted" />
           <Stat label={t('dataImport.import.done.newVersions')} value={r.newVersions} tone="muted" />
         </div>
+        {hasInsertedRows && (
+          <div className="mt-3 text-xs text-fg-muted">
+            New rows landed in the <strong>{im.brandId ? 'selected brand' : 'workspace'}</strong>.
+            Click <em>View in Library</em> to see them — the Library will jump
+            to that brand automatically.
+          </div>
+        )}
       </div>
-      <div className="flex items-center justify-end">
-        <Button variant="primary" onClick={im.reset}>
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="secondary" onClick={im.reset}>
           {t('dataImport.import.done.another')}
+        </Button>
+        <Button
+          variant="primary"
+          onClick={() => {
+            if (onViewInLibrary) {
+              // Modal context — close the modal + apply the brand filter
+              // via the callback. The modal owns the close behaviour; we
+              // just hand back the brand id we imported into.
+              onViewInLibrary(targetBrandId ?? null);
+              im.reset();
+              return;
+            }
+            // Standalone /data route — fall back to the deep-link. Products
+            // page reads ?brand= on mount and forces that brand into the
+            // filter (see productsBrandInitialized in Products.tsx).
+            im.reset();
+            const qs = new URLSearchParams();
+            if (targetBrandId) qs.set('brand', targetBrandId);
+            navigate(`/products?${qs.toString()}`);
+          }}
+        >
+          View in Library <IconArrowRight size={14} />
         </Button>
       </div>
     </div>

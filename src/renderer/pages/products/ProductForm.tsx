@@ -29,16 +29,28 @@ import { DEFAULT_PRICE_GROUPS } from '../../../shared/types/company';
 // Phase 3 will add the images section under this same form.
 
 interface Props {
-  /** null = create new, otherwise editing this product */
+  /** The product currently being edited. null when in empty / creating mode. */
   product: Product | null;
+  /** When true, the panel renders the blank-new-product form (Create button
+   *  instead of Save changes). When false AND product is null, the panel
+   *  shows the "No product selected" empty placeholder. */
+  isCreating?: boolean;
   /** The brand selected in the parent sidebar — pre-fills the dropdown when
    *  creating, and is the default landing if no other context is set. */
   defaultBrandId: string;
+  /** Called when the user clicks Cancel or hits the X. Parent should clear
+   *  its selection so the panel falls back to the empty placeholder — the
+   *  panel itself stays mounted (no unmount, no animation). */
   onClose: () => void;
+  /** Called when the user clicks "+ New product" from the empty placeholder.
+   *  Parent flips its state into isCreating=true. */
+  onStartCreate?: () => void;
 }
 
+type FormState = ProductInput & { tagsRaw: string };
+
 // Reusable empty form state so we can reset cleanly between sessions.
-function makeEmptyForm(brandId: string): ProductInput & { tagsRaw: string } {
+function makeEmptyForm(brandId: string): FormState {
   return {
     brandId,
     sku: '',
@@ -51,14 +63,64 @@ function makeEmptyForm(brandId: string): ProductInput & { tagsRaw: string } {
     description: null,
     unit: null,
     prices: {},
+    customFields: {},
     tags: [],
     status: 'active',
+    // v7 inventory/lifecycle — all optional, default to "unset"
+    expiryDate: null,
+    taxRate: null,
+    reorderPoint: null,
+    reorderQuantity: null,
+    trackInventory: false,
+    variantAttributes: null,
     // tagsRaw is the comma-separated editing buffer; we split on save.
     tagsRaw: '',
   };
 }
 
-export function ProductForm({ product, defaultBrandId, onClose }: Props) {
+// Map a saved product into editable form state. Used by BOTH the initial
+// useState seed AND the re-sync effect — critical now that the panel is
+// always-mounted (it no longer remounts per selection like the old modal,
+// so without the effect the form would show the first-selected product's
+// data forever while the header showed a different SKU).
+function productToForm(product: Product): FormState {
+  return {
+    brandId: product.brandId,
+    sku: product.sku,
+    barcode: product.barcode,
+    secondaryCode: product.secondaryCode,
+    name: product.name,
+    category: product.category,
+    subcategory: product.subcategory,
+    colorFinish: product.colorFinish,
+    description: product.description,
+    unit: product.unit,
+    prices: { ...product.prices },
+    customFields: { ...product.customFields },
+    tags: product.tags,
+    status: product.status,
+    expiryDate: product.expiryDate,
+    taxRate: product.taxRate,
+    reorderPoint: product.reorderPoint,
+    reorderQuantity: product.reorderQuantity,
+    trackInventory: product.trackInventory,
+    variantAttributes: product.variantAttributes,
+    tagsRaw: product.tags.join(', '),
+  };
+}
+
+export function ProductForm({
+  product,
+  isCreating = false,
+  defaultBrandId,
+  onClose,
+  onStartCreate,
+}: Props) {
+  // Three render modes:
+  //   - product truthy             → edit-existing form
+  //   - isCreating === true        → blank new-product form
+  //   - neither                    → "No product selected" placeholder
+  const isEmpty = !product && !isCreating;
   const { brands } = useBrandStore();
   const createProduct = useProductStore((s) => s.createProduct);
   const updateProduct = useProductStore((s) => s.updateProduct);
@@ -74,27 +136,32 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
       ? activeCompany.priceGroups
       : [...DEFAULT_PRICE_GROUPS];
 
-  const [form, setForm] = useState(() => {
+  // Company-defined custom fields. Names come from /company → Custom
+  // product fields; ProductForm renders one input per name and reads /
+  // writes its value into `product.customFields[name]`. If the company
+  // hasn't defined any, the section hides entirely.
+  const customFieldDefs = activeCompany?.customFields ?? [];
+
+  const [form, setForm] = useState<FormState>(() =>
+    product ? productToForm(product) : makeEmptyForm(defaultBrandId),
+  );
+
+  // Re-sync the form whenever the selected product changes (or we switch
+  // into create mode). The panel is always-mounted now, so the useState
+  // seed above only runs once — without this effect, selecting a different
+  // product would update the header ("Edit theng5") but leave the form
+  // fields showing the previously-selected product. Keyed on product.id
+  // (not the object identity) so a no-op parent re-render doesn't clobber
+  // in-progress edits.
+  useEffect(() => {
     if (product) {
-      return {
-        brandId: product.brandId,
-        sku: product.sku,
-        barcode: product.barcode,
-        secondaryCode: product.secondaryCode,
-        name: product.name,
-        category: product.category,
-        subcategory: product.subcategory,
-        colorFinish: product.colorFinish,
-        description: product.description,
-        unit: product.unit,
-        prices: { ...product.prices },
-        tags: product.tags,
-        status: product.status,
-        tagsRaw: product.tags.join(', '),
-      };
+      setForm(productToForm(product));
+    } else if (isCreating) {
+      setForm(makeEmptyForm(defaultBrandId));
     }
-    return makeEmptyForm(defaultBrandId);
-  });
+    setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id, isCreating]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +210,21 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
     });
   };
 
+  // Custom fields use the same delete-on-empty pattern as prices so a
+  // cleared input doesn't leave a stale "" value on the product.
+  const updateCustomField = (name: string, raw: string) => {
+    setForm((f) => {
+      const next = { ...(f.customFields ?? {}) };
+      const trimmed = raw.trim();
+      if (trimmed === '') {
+        delete next[name];
+      } else {
+        next[name] = trimmed;
+      }
+      return { ...f, customFields: next };
+    });
+  };
+
   const onSave = async () => {
     setError(null);
     const sku = form.sku.trim();
@@ -173,8 +255,15 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
       description: form.description || null,
       unit: form.unit || null,
       prices: form.prices,
+      customFields: form.customFields ?? {},
       tags,
       status: form.status,
+      expiryDate: form.expiryDate ?? null,
+      taxRate: form.taxRate ?? null,
+      reorderPoint: form.reorderPoint ?? null,
+      reorderQuantity: form.reorderQuantity ?? null,
+      trackInventory: form.trackInventory ?? false,
+      variantAttributes: form.variantAttributes ?? null,
     };
 
     setSaving(true);
@@ -294,30 +383,59 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
     applyUpdated(updated);
   };
 
+  // Empty-state placeholder for the inline side panel — shown when nothing
+  // is selected and the user isn't creating. Matches Image Studio KH's
+  // panel idle state: a centered card with a "+ New product" CTA so users
+  // can start creating without going back to the toolbar.
+  if (isEmpty) {
+    return (
+      <aside className="flex h-full min-h-0 flex-col rounded-lg border border-border-base bg-bg-surface">
+        <div className="flex items-center justify-between gap-3 border-b border-border-subtle px-5 py-3">
+          <h3 className="text-sm font-semibold text-fg-base">Product details</h3>
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
+          <div className="text-sm font-medium text-fg-base">No product selected</div>
+          <p className="mx-auto mt-2 max-w-xs text-xs text-fg-muted">
+            Click any product in the list to view and edit its details here,
+            or start a new one.
+          </p>
+          {onStartCreate && (
+            <div className="mt-5">
+              <Button variant="primary" onClick={onStartCreate}>
+                <IconPlus size={13} /> New product
+              </Button>
+            </div>
+          )}
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <>
-      <div
-        role="dialog"
-        aria-modal="true"
+      {/* Inline side panel — NOT a modal. No backdrop, no fixed-inset,
+          no Esc-to-close. Sits as the right column of the Products
+          page layout. Per AGENTS.md §6, entity create/edit still uses
+          explicit Cancel + Save (Create) — the side-panel form is the
+          same try-then-commit semantics as the previous modal, just
+          docked instead of overlaid. */}
+      <aside
         aria-labelledby="product-form-title"
-        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-        onMouseDown={(e) => {
-          if (e.target === e.currentTarget && !confirmDelete) onClose();
-        }}
+        className="flex h-full min-h-0 flex-col rounded-lg border border-border-base bg-bg-surface"
       >
-        <div className="w-full max-w-3xl rounded-lg border border-border-base bg-bg-surface shadow-2xl">
+        <div className="flex h-full flex-col">
           {/* Header */}
           <div className="flex items-center justify-between gap-3 border-b border-border-subtle px-5 py-3">
             <h3
               id="product-form-title"
-              className="text-sm font-semibold text-fg-base"
+              className="truncate text-sm font-semibold text-fg-base"
             >
               {product ? `Edit ${product.sku}` : 'New product'}
             </h3>
             <button
               onClick={onClose}
-              aria-label="Close (Esc)"
-              title="Close (Esc)"
+              aria-label="Close panel"
+              title="Close panel"
               className="rounded p-1 text-fg-muted hover:bg-bg-hover hover:text-fg-base"
             >
               <IconX size={16} />
@@ -325,10 +443,12 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
           </div>
 
           {/* Scrollable body. onPaste lives here so ⌘V anywhere inside the
-              modal funnels images through the importer; non-image paste
-              (e.g. into the description) keeps its default behavior. */}
+              panel funnels images through the importer; non-image paste
+              (e.g. into the description) keeps its default behavior.
+              flex-1 + min-h-0 = take all remaining height in the panel
+              without forcing the footer offscreen. */}
           <div
-            className="scrollbar-thin max-h-[70vh] overflow-y-auto px-5 py-4"
+            className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-5 py-4"
             onPaste={(e) => void onPaste(e)}
           >
             {error && (
@@ -339,7 +459,10 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
 
             {/* Identity row */}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Field label="SKU *" hint="Required. Unique per brand. Trim whitespace; case-sensitive.">
+              <Field
+                label="Product Code *"
+                hint="Required. Unique per brand. Trim whitespace; case-sensitive. (CSV column: Product Code)"
+              >
                 {/* Plain input so we can attach a ref for focus on open;
                     TextInput doesn't forward refs. */}
                 <input
@@ -385,13 +508,13 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
 
             {/* Classification */}
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Field label="Name">
+              <Field label="Product Name">
                 <TextInput
                   value={form.name ?? ''}
                   onChange={(e) => update('name', e.target.value || null)}
                 />
               </Field>
-              <Field label="Category">
+              <Field label="Category Name">
                 <TextInput
                   value={form.category ?? ''}
                   onChange={(e) => update('category', e.target.value || null)}
@@ -409,10 +532,18 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
                   onChange={(e) => update('colorFinish', e.target.value || null)}
                 />
               </Field>
-              <Field label="Unit" hint="e.g. sqm, piece, box">
+              <Field label="Unit of Measure" hint="e.g. sqm, piece, box">
                 <TextInput
                   value={form.unit ?? ''}
                   onChange={(e) => update('unit', e.target.value || null)}
+                />
+              </Field>
+              <Field label="Variant Attributes" hint='e.g. "Color: Red, Size: M"'>
+                <TextInput
+                  value={form.variantAttributes ?? ''}
+                  onChange={(e) =>
+                    update('variantAttributes', e.target.value || null)
+                  }
                 />
               </Field>
               <Field label="Status">
@@ -482,6 +613,87 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
               </div>
             </div>
             )}
+
+            {/* Custom fields — definitions come from /company → Custom
+                product fields. One free-text input per defined name; the
+                values land in product.customFields[name]. Section hides
+                when the company hasn't defined any. */}
+            {customFieldDefs.length > 0 && (
+              <div className="mt-4">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-fg-subtle">
+                  Custom fields
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {customFieldDefs.map((def) => (
+                    <Field key={def.name} label={def.name}>
+                      <TextInput
+                        value={(form.customFields ?? {})[def.name] ?? ''}
+                        onChange={(e) =>
+                          updateCustomField(def.name, e.target.value)
+                        }
+                        placeholder=""
+                      />
+                    </Field>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Inventory & lifecycle — Label Studio stores these so they
+                round-trip through CSV import/export with the user's
+                external inventory system. The app itself doesn't act on
+                them (no stock counters, no reorder alerts, no tax math).
+                Free-text on purpose so non-numeric values survive. */}
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-fg-subtle">
+                Inventory & lifecycle
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <Field label="Expiry Date" hint="ISO yyyy-mm-dd. Leave blank if N/A.">
+                  <TextInput
+                    type="date"
+                    value={form.expiryDate ?? ''}
+                    onChange={(e) =>
+                      update('expiryDate', e.target.value || null)
+                    }
+                  />
+                </Field>
+                <Field label="Tax Rate" hint="Percent, e.g. 10 for 10%.">
+                  <TextInput
+                    value={form.taxRate ?? ''}
+                    onChange={(e) => update('taxRate', e.target.value || null)}
+                    placeholder="0"
+                    inputMode="decimal"
+                  />
+                </Field>
+                <Field label="Reorder Point" hint="Units at which to reorder.">
+                  <TextInput
+                    value={form.reorderPoint ?? ''}
+                    onChange={(e) =>
+                      update('reorderPoint', e.target.value || null)
+                    }
+                    inputMode="numeric"
+                  />
+                </Field>
+                <Field label="Reorder Quantity" hint="Default reorder batch.">
+                  <TextInput
+                    value={form.reorderQuantity ?? ''}
+                    onChange={(e) =>
+                      update('reorderQuantity', e.target.value || null)
+                    }
+                    inputMode="numeric"
+                  />
+                </Field>
+              </div>
+              <label className="mt-3 flex items-center gap-2 text-xs text-fg-base">
+                <input
+                  type="checkbox"
+                  checked={form.trackInventory ?? false}
+                  onChange={(e) => update('trackInventory', e.target.checked)}
+                />
+                Track inventory — your external system treats this SKU as stock-tracked.
+              </label>
+            </div>
 
             {/* Images section */}
             <div className="mt-6">
@@ -574,7 +786,7 @@ export function ProductForm({ product, defaultBrandId, onClose }: Props) {
             </div>
           </div>
         </div>
-      </div>
+      </aside>
 
       {product && (
         <ConfirmDialog

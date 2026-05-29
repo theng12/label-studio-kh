@@ -49,6 +49,9 @@ export function registerProductIpc(): void {
   ipcMain.handle('products:categories', (_e, brandId?: string) =>
     ProductService.categories(brandId),
   );
+  ipcMain.handle('products:countsByBrand', (_e, companyId?: string) =>
+    ProductService.countsByBrand(companyId),
+  );
 
   // Image operations on products. Phase 2 wires these to the actual
   // file-import pipeline (sharp + content-hash dedup). Phase 1 ships

@@ -12,6 +12,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from './Database';
 import { BrandService } from './BrandService';
+import { AuditService } from './AuditService';
 import {
   importProductImageFromPath,
   scanImagesRecursive,
@@ -94,6 +95,13 @@ interface SkuRowFromDb {
   // v5 — denormalized parent company. Always populated for new rows;
   // older rows backfilled by CompanyService.ensureBootstrap.
   company_id: string | null;
+  // v7 — inventory & lifecycle (round-trip data; Label Studio doesn't act).
+  expiry_date: string | null;
+  tax_rate: string | null;
+  reorder_point: string | null;
+  reorder_quantity: string | null;
+  track_inventory: number; // SQLite boolean (0/1)
+  variant_attributes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -118,6 +126,13 @@ function rowToProduct(row: SkuRowFromDb): Product {
     tags: parseJson<string[]>(row.tags, []),
     customFields: parseJson<ProductCustomFields>(row.custom_fields, {}),
     status: (row.status as ProductStatus) ?? 'active',
+    // v7 inventory & lifecycle
+    expiryDate: row.expiry_date,
+    taxRate: row.tax_rate,
+    reorderPoint: row.reorder_point,
+    reorderQuantity: row.reorder_quantity,
+    trackInventory: !!row.track_inventory,
+    variantAttributes: row.variant_attributes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -133,7 +148,10 @@ const PRODUCT_COLUMNS = `
   id, sku, brand_id, product_name, barcode, description,
   secondary_code, category, subcategory, color_finish, unit,
   images, prices, tags, custom_fields, status,
-  company_id, created_at, updated_at
+  company_id,
+  expiry_date, tax_rate, reorder_point, reorder_quantity,
+  track_inventory, variant_attributes,
+  created_at, updated_at
 `;
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -218,12 +236,18 @@ export const ProductService = {
          id, sku, brand_id, product_name, barcode, description,
          secondary_code, category, subcategory, color_finish, unit,
          images, prices, tags, custom_fields, status,
-         company_id, created_at, updated_at
+         company_id,
+         expiry_date, tax_rate, reorder_point, reorder_quantity,
+         track_inventory, variant_attributes,
+         created_at, updated_at
        ) VALUES (
          @id, @sku, @brand_id, @product_name, @barcode, @description,
          @secondary_code, @category, @subcategory, @color_finish, @unit,
          @images, @prices, @tags, @custom_fields, @status,
-         @company_id, @created_at, @updated_at
+         @company_id,
+         @expiry_date, @tax_rate, @reorder_point, @reorder_quantity,
+         @track_inventory, @variant_attributes,
+         @created_at, @updated_at
        )`,
     ).run({
       id,
@@ -243,11 +267,31 @@ export const ProductService = {
       custom_fields: JSON.stringify(input.customFields ?? {}),
       status: input.status ?? 'active',
       company_id: companyId,
+      expiry_date: input.expiryDate ?? null,
+      tax_rate: input.taxRate ?? null,
+      reorder_point: input.reorderPoint ?? null,
+      reorder_quantity: input.reorderQuantity ?? null,
+      track_inventory: input.trackInventory ? 1 : 0,
+      variant_attributes: input.variantAttributes ?? null,
       created_at: ts,
       updated_at: ts,
     });
 
-    return ProductService.get(id)!;
+    const created = ProductService.get(id)!;
+    AuditService.log({
+      entityType: 'product',
+      entityId: id,
+      companyId,
+      action: 'create',
+      summary: `Created product ${sku}${input.name ? ` — ${input.name}` : ''}`,
+      after: {
+        sku,
+        name: input.name ?? null,
+        brandId: input.brandId,
+        status: input.status ?? 'active',
+      },
+    });
+    return created;
   },
 
   /** Partial update — fields not in the patch keep their current value.
@@ -282,6 +326,12 @@ export const ProductService = {
          tags = @tags,
          custom_fields = @custom_fields,
          status = @status,
+         expiry_date = @expiry_date,
+         tax_rate = @tax_rate,
+         reorder_point = @reorder_point,
+         reorder_quantity = @reorder_quantity,
+         track_inventory = @track_inventory,
+         variant_attributes = @variant_attributes,
          updated_at = @updated_at
        WHERE id = @id`,
     ).run({
@@ -307,17 +357,88 @@ export const ProductService = {
       tags: JSON.stringify(patch.tags ?? current.tags),
       custom_fields: JSON.stringify(patch.customFields ?? current.customFields),
       status: patch.status ?? current.status,
+      expiry_date:
+        patch.expiryDate !== undefined ? patch.expiryDate : current.expiryDate,
+      tax_rate: patch.taxRate !== undefined ? patch.taxRate : current.taxRate,
+      reorder_point:
+        patch.reorderPoint !== undefined
+          ? patch.reorderPoint
+          : current.reorderPoint,
+      reorder_quantity:
+        patch.reorderQuantity !== undefined
+          ? patch.reorderQuantity
+          : current.reorderQuantity,
+      track_inventory:
+        (patch.trackInventory !== undefined
+          ? patch.trackInventory
+          : current.trackInventory)
+          ? 1
+          : 0,
+      variant_attributes:
+        patch.variantAttributes !== undefined
+          ? patch.variantAttributes
+          : current.variantAttributes,
       updated_at: nowIso(),
     });
 
-    return ProductService.get(id);
+    const updated = ProductService.get(id);
+    // Audit: log only the keys that actually changed. `images` mutations
+    // go through the dedicated image ops below (image:add etc.), so we
+    // exclude them here to avoid noisy "images: [array]" diffs on every
+    // scalar edit. The image ops log their own granular events.
+    const { images: _ignoredImages, ...auditablePatch } = patch;
+    void _ignoredImages;
+    AuditService.logUpdate({
+      entityType: 'product',
+      entityId: id,
+      companyId: getCompanyIdForBrand(updated?.brandId ?? current.brandId),
+      beforeRow: current as unknown as Record<string, unknown>,
+      patch: auditablePatch as Record<string, unknown>,
+      summary: `Edited ${current.sku}`,
+    });
+    return updated;
   },
 
   /** Hard-delete. No tombstones for products (spec §22). */
   remove(id: string): boolean {
     const db = getDb();
+    // Snapshot before delete so the audit log can show what was removed.
+    const before = ProductService.get(id);
     const r = db.prepare('DELETE FROM skus WHERE id = ?').run(id);
+    if (r.changes > 0 && before) {
+      AuditService.log({
+        entityType: 'product',
+        entityId: id,
+        companyId: getCompanyIdForBrand(before.brandId),
+        action: 'delete',
+        summary: `Deleted product ${before.sku}${before.name ? ` — ${before.name}` : ''}`,
+        before: {
+          sku: before.sku,
+          name: before.name,
+          brandId: before.brandId,
+          imageCount: before.images.length,
+        },
+      });
+    }
     return r.changes > 0;
+  },
+
+  /** Product count grouped by brand_id. Single-query alternative to
+   *  calling list({ brandId }).length once per brand — used by the
+   *  Brands page card grid. Optional company scope mirrors the rest
+   *  of the service. */
+  countsByBrand(companyId?: string): Record<string, number> {
+    const db = getDb();
+    const where = companyId ? 'WHERE company_id = ?' : '';
+    const params = companyId ? [companyId] : [];
+    const rows = db
+      .prepare(
+        `SELECT brand_id, COUNT(*) AS c FROM skus ${where} GROUP BY brand_id`,
+      )
+      .all(...params) as Array<{ brand_id: string; c: number }>;
+    const out: Record<string, number> = {};
+    for (const r of rows) out[r.brand_id] = r.c;
+    return out;
   },
 
   /** Distinct, non-empty categories. Scoped to a brand when provided,
@@ -372,33 +493,47 @@ export const ProductService = {
              id, sku, brand_id, product_name, barcode, description,
              secondary_code, category, subcategory, color_finish, unit,
              images, prices, tags, custom_fields, status,
-             company_id, created_at, updated_at
+             company_id,
+             expiry_date, tax_rate, reorder_point, reorder_quantity,
+             track_inventory, variant_attributes,
+             created_at, updated_at
            ) VALUES (
              @id, @sku, @brand_id, @product_name, @barcode, @description,
              @secondary_code, @category, @subcategory, @color_finish, @unit,
              @images, @prices, @tags, @custom_fields, @status,
-             @company_id, @created_at, @updated_at
+             @company_id,
+             @expiry_date, @tax_rate, @reorder_point, @reorder_quantity,
+             @track_inventory, @variant_attributes,
+             @created_at, @updated_at
            )
            ON CONFLICT(sku, brand_id) DO UPDATE SET
-             product_name   = excluded.product_name,
-             barcode        = excluded.barcode,
-             description    = excluded.description,
-             secondary_code = excluded.secondary_code,
-             category       = excluded.category,
-             subcategory    = excluded.subcategory,
-             color_finish   = excluded.color_finish,
-             unit           = excluded.unit,
-             prices         = excluded.prices,
-             tags           = excluded.tags,
-             custom_fields  = excluded.custom_fields,
-             status         = excluded.status,
-             company_id     = excluded.company_id,
-             updated_at     = excluded.updated_at`,
+             product_name       = excluded.product_name,
+             barcode            = excluded.barcode,
+             description        = excluded.description,
+             secondary_code     = excluded.secondary_code,
+             category           = excluded.category,
+             subcategory        = excluded.subcategory,
+             color_finish       = excluded.color_finish,
+             unit               = excluded.unit,
+             prices             = excluded.prices,
+             tags               = excluded.tags,
+             custom_fields      = excluded.custom_fields,
+             status             = excluded.status,
+             company_id         = excluded.company_id,
+             expiry_date        = excluded.expiry_date,
+             tax_rate           = excluded.tax_rate,
+             reorder_point      = excluded.reorder_point,
+             reorder_quantity   = excluded.reorder_quantity,
+             track_inventory    = excluded.track_inventory,
+             variant_attributes = excluded.variant_attributes,
+             updated_at         = excluded.updated_at`,
         ).run({
           id,
           sku,
           brand_id: row.brandId,
-          // Partial-update merge: undefined in the import row → keep existing
+          // Partial-update merge: undefined in the import row → keep existing.
+          // For nullable text columns we let an explicit null pass through;
+          // for the boolean we fall back to existing or false.
           product_name: row.name ?? existing?.name ?? null,
           barcode: row.barcode ?? existing?.barcode ?? null,
           description: row.description ?? existing?.description ?? null,
@@ -414,6 +549,16 @@ export const ProductService = {
           custom_fields: JSON.stringify(mergedCustom),
           status: row.status ?? existing?.status ?? 'active',
           company_id: companyId,
+          // v7 inventory/lifecycle — partial-update with merge semantics.
+          expiry_date: row.expiryDate ?? existing?.expiryDate ?? null,
+          tax_rate: row.taxRate ?? existing?.taxRate ?? null,
+          reorder_point: row.reorderPoint ?? existing?.reorderPoint ?? null,
+          reorder_quantity:
+            row.reorderQuantity ?? existing?.reorderQuantity ?? null,
+          track_inventory:
+            (row.trackInventory ?? existing?.trackInventory ?? false) ? 1 : 0,
+          variant_attributes:
+            row.variantAttributes ?? existing?.variantAttributes ?? null,
           created_at: existing?.createdAt ?? ts,
           updated_at: ts,
         });
@@ -439,7 +584,18 @@ export const ProductService = {
         `This product already has the maximum of ${MAX_IMAGES_PER_PRODUCT} images.`,
       );
     }
-    return ProductService.update(id, { images: [...current.images, relativePath] });
+    const result = ProductService.update(id, {
+      images: [...current.images, relativePath],
+    });
+    AuditService.log({
+      entityType: 'image',
+      entityId: id,
+      companyId: getCompanyIdForBrand(current.brandId),
+      action: 'image:add',
+      summary: `Added an image to ${current.sku} (now ${current.images.length + 1})`,
+      after: { path: relativePath },
+    });
+    return result;
   },
 
   removeImageFromProduct(id: string, relativePath: string): Product | null {
@@ -447,7 +603,16 @@ export const ProductService = {
     if (!current) return null;
     const next = current.images.filter((p) => p !== relativePath);
     if (next.length === current.images.length) return current;
-    return ProductService.update(id, { images: next });
+    const result = ProductService.update(id, { images: next });
+    AuditService.log({
+      entityType: 'image',
+      entityId: id,
+      companyId: getCompanyIdForBrand(current.brandId),
+      action: 'image:remove',
+      summary: `Removed an image from ${current.sku} (now ${next.length})`,
+      before: { path: relativePath },
+    });
+    return result;
   },
 
   setMainImage(id: string, relativePath: string): Product | null {
@@ -458,7 +623,16 @@ export const ProductService = {
       relativePath,
       ...current.images.filter((p) => p !== relativePath),
     ];
-    return ProductService.update(id, { images: next });
+    const result = ProductService.update(id, { images: next });
+    AuditService.log({
+      entityType: 'image',
+      entityId: id,
+      companyId: getCompanyIdForBrand(current.brandId),
+      action: 'image:set-main',
+      summary: `Set a new main image for ${current.sku}`,
+      after: { path: relativePath },
+    });
+    return result;
   },
 
   /** Drop a folder of images on the company → app figures out which SKU
@@ -580,6 +754,14 @@ export const ProductService = {
         throw new Error('Reorder: new order must be a permutation of existing images.');
       }
     }
-    return ProductService.update(id, { images: newOrder });
+    const result = ProductService.update(id, { images: newOrder });
+    AuditService.log({
+      entityType: 'image',
+      entityId: id,
+      companyId: getCompanyIdForBrand(current.brandId),
+      action: 'image:reorder',
+      summary: `Reordered images on ${current.sku}`,
+    });
+    return result;
   },
 };

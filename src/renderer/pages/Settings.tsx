@@ -6,6 +6,7 @@ import {
   IconHelp,
   IconChevronDown,
   IconChevronRight,
+  IconFolderOpen,
 } from '@tabler/icons-react';
 import { Page } from '../components/Page';
 import { Button } from '../components/Button';
@@ -41,6 +42,14 @@ export default function Settings() {
     if (folder) await update({ defaultSaveLocation: folder });
   };
 
+  const onRevealFolder = async () => {
+    if (!s?.defaultSaveLocation) return;
+    // revealInFinder works on a folder path the same way as on a file:
+    // it opens the parent in Finder with the target selected. For an
+    // empty target (no file inside), it just opens the folder.
+    await window.api.export.revealInFinder(s.defaultSaveLocation);
+  };
+
   return (
     <Page title={t('settings.title')}>
       <Row label={t('settings.theme')} description={t('settings.themeDescription')}>
@@ -71,9 +80,32 @@ export default function Settings() {
         description={t('settings.saveLocationDescription')}
       >
         <div className="flex items-center gap-2">
-          <code className="max-w-xs truncate rounded bg-bg-elevated px-2 py-1 text-xs text-fg-muted">
+          {/* Clickable path — clicking the path opens the folder in
+              Finder (or the OS file-manager equivalent on Win/Linux).
+              The button next to it just exists for users who don't
+              realise the path itself is interactive. */}
+          <button
+            type="button"
+            onClick={() => void onRevealFolder()}
+            disabled={!s?.defaultSaveLocation}
+            title={
+              s?.defaultSaveLocation
+                ? 'Reveal in Finder'
+                : 'No save location set'
+            }
+            className="max-w-xs truncate rounded bg-bg-elevated px-2 py-1 text-left font-mono text-xs text-fg-muted transition-colors hover:bg-bg-hover hover:text-fg-base disabled:cursor-not-allowed disabled:opacity-60"
+          >
             {s?.defaultSaveLocation ?? '—'}
-          </code>
+          </button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void onRevealFolder()}
+            disabled={!s?.defaultSaveLocation}
+            title="Open this folder in Finder"
+          >
+            <IconFolderOpen size={13} /> Reveal
+          </Button>
           <Button size="sm" variant="secondary" onClick={onPickFolder}>
             Change…
           </Button>
@@ -119,17 +151,6 @@ export default function Settings() {
             })
           }
           className="w-24 rounded-md border border-border-base bg-bg-surface px-2 py-1.5 text-sm"
-        />
-      </Row>
-
-      <Row
-        label="Hide demo brand"
-        description="Hides the seeded Demo brand from the brand list."
-      >
-        <input
-          type="checkbox"
-          checked={s?.hideDemoBrand ?? false}
-          onChange={(e) => void update({ hideDemoBrand: e.target.checked })}
         />
       </Row>
 

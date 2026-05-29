@@ -3,21 +3,21 @@ import { Page } from '../components/Page';
 import { Button } from '../components/Button';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Donations — single NOWPayments widget URL.
+// Donations — single NOWPayments hosted donation page.
+//
+// We use the *hosted* donation page (https://nowpayments.io/donation/<slug>)
+// rather than the embed-widget URL. Same UX for the donor (coin / network
+// picker, conversion, payout), but: (1) shorter, branded URL, (2) no
+// `api_key` exposed in the link, (3) shared across every Studio-KH app for
+// consistency. Slug is configured in the NOWPayments dashboard.
 //
 // Per-coin direct-send wallet rows used to live here too, but were removed:
 // NOWPayments already gives donors a polished coin/network picker covering
 // 200+ assets, so maintaining a parallel hand-curated wallet list added
-// surface area without meaningfully changing the donor experience. If we
-// ever want to add direct-send addresses back, restore from commit `8b7be4a`.
-//
-// The `api_key` in the URL is the *public* widget key — NOWPayments designs
-// widget keys to be embedded in HTML anyone can view-source on, distinct
-// from the private REST API key. Safe to commit.
+// surface area without meaningfully changing the donor experience.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const NOWPAYMENTS_DONATION_URL =
-  'https://nowpayments.io/embeds/donation-widget?api_key=92d6495a-2be6-4996-b8ba-aabef74d232e';
+const NOWPAYMENTS_DONATION_URL = 'https://nowpayments.io/donation/studiokh';
 
 const nowpaymentsConfigured =
   !!NOWPAYMENTS_DONATION_URL && !NOWPAYMENTS_DONATION_URL.includes('TODO_');

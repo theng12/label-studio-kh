@@ -50,9 +50,16 @@ export interface CompanyInput {
 }
 
 /** Default price tiers used when bootstrapping the first company on a
- *  fresh install or upgrade. Users can edit these per-company on the
- *  /company page after that. */
-export const DEFAULT_PRICE_GROUPS: PriceGroups = ['Retail', 'Wholesale'];
+ *  fresh install or upgrade. Aligned with the user's external inventory/
+ *  POS system so CSV columns ("Cost Price", "Selling Price", "Wholesale
+ *  Price", "Min Selling Price") map directly into product.prices by
+ *  group name. Users can edit these per-company on the /company page. */
+export const DEFAULT_PRICE_GROUPS: PriceGroups = [
+  'Cost',
+  'Selling',
+  'Wholesale',
+  'Min Selling',
+];
 
 /** Cap on custom fields per spec §2. Enforced in the UI in a later
  *  phase; today the array isn't size-checked at runtime. */

@@ -2,6 +2,7 @@ import { useDesignerStore } from '../../stores/designerStore';
 import {
   defaultAspectLock,
   isAspectLocked,
+  normalizeRotation,
   type TemplateElement,
 } from '../../../shared/types/template';
 import { IconTrash, IconArrowUp, IconArrowDown } from '@tabler/icons-react';
@@ -207,6 +208,66 @@ function ElementProperties({
           />
         </Field>
       </div>
+
+      {/* Rotation row: numeric degrees + quick-action buttons. Setting back
+          to 0 stores `undefined` so the JSON shape stays clean for legacy
+          templates with no rotation. */}
+      <Field label="Rotation (°)">
+        <div className="flex items-center gap-1.5">
+          <div className="flex-1">
+            <NumberInput
+              value={element.rotation ?? 0}
+              step={1}
+              onChange={(v) => {
+                const n = normalizeRotation(v);
+                onPatch({
+                  rotation: n === 0 ? undefined : n,
+                } as Partial<TemplateElement>);
+              }}
+              onCommit={onCommit}
+            />
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Rotate 90° counter-clockwise"
+            onClick={() => {
+              const n = normalizeRotation((element.rotation ?? 0) - 90);
+              onPatch({
+                rotation: n === 0 ? undefined : n,
+              } as Partial<TemplateElement>);
+              onCommit();
+            }}
+          >
+            −90°
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Reset rotation to 0°"
+            onClick={() => {
+              onPatch({ rotation: undefined } as Partial<TemplateElement>);
+              onCommit();
+            }}
+          >
+            0°
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Rotate 90° clockwise"
+            onClick={() => {
+              const n = normalizeRotation((element.rotation ?? 0) + 90);
+              onPatch({
+                rotation: n === 0 ? undefined : n,
+              } as Partial<TemplateElement>);
+              onCommit();
+            }}
+          >
+            +90°
+          </Button>
+        </div>
+      </Field>
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-1.5 text-xs text-fg-base">

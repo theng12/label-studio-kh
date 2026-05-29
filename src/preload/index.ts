@@ -15,6 +15,7 @@ import type {
   ProductInput,
 } from '../shared/types/product';
 import type { Company, CompanyInput } from '../shared/types/company';
+import type { SheetLayout } from '../shared/sheetLayout';
 
 interface ImportListEntry {
   id: string;
@@ -153,8 +154,6 @@ const api = {
   },
   import: {
     pickFile: (): Promise<string | null> => ipcRenderer.invoke('import:pickFile'),
-    demoSamplePath: (): Promise<string | null> =>
-      ipcRenderer.invoke('import:demoSamplePath'),
     parseFile: (path: string): Promise<ParsedFile> =>
       ipcRenderer.invoke('import:parseFile', path),
     autoMap: (columns: string[]): Promise<ColumnMapping> =>
@@ -330,6 +329,11 @@ const api = {
       ipcRenderer.invoke('products:bulkUpsert', rows),
     categories: (brandId?: string): Promise<string[]> =>
       ipcRenderer.invoke('products:categories', brandId),
+    /** Product count grouped by brand_id. Optional company scope.
+     *  Used by /brands cards to render "N products" badges without
+     *  pulling the full product list per brand. */
+    countsByBrand: (companyId?: string): Promise<Record<string, number>> =>
+      ipcRenderer.invoke('products:countsByBrand', companyId),
     addImage: (id: string, relativePath: string): Promise<Product | null> =>
       ipcRenderer.invoke('products:addImage', id, relativePath),
     removeImage: (id: string, relativePath: string): Promise<Product | null> =>
@@ -413,7 +417,6 @@ const api = {
       timeSavedMinutesPerLabel: number;
       snapGridMm: number;
       sizeWarningAreaMm2: number;
-      hideDemoBrand: boolean;
       uiLanguage: string;
       lastUsedBrandId: string | null;
       activeCompanyId: string | null;
@@ -438,6 +441,17 @@ const api = {
       batchId?: string;
     }): Promise<{ files: string[]; errors: string[] }> =>
       ipcRenderer.invoke('export:single', input),
+    /** Export one combined N-up PDF (multiple labels per sheet) to a file. */
+    sheetPdf: (input: {
+      template: Template;
+      brand: Brand | null;
+      rows: Record<string, string>[];
+      sheet: SheetLayout;
+      outputDir: string;
+      filename?: string;
+      overwrite?: boolean;
+    }): Promise<{ file: string }> =>
+      ipcRenderer.invoke('export:sheetPdf', input),
     bulk: (payload: {
       runId: string;
       template: Template;
@@ -456,6 +470,96 @@ const api = {
       ipcRenderer.on(channel, handler);
       return () => ipcRenderer.removeListener(channel, handler);
     },
+  },
+  print: {
+    /** Enumerate installed OS printers (incl. thermal/roll printers with
+     *  drivers). Used to populate the printer picker on the Generate page. */
+    listPrinters: (): Promise<
+      Array<{
+        name: string;
+        displayName: string;
+        description: string;
+        isDefault: boolean;
+        status: number;
+      }>
+    > => ipcRenderer.invoke('print:listPrinters'),
+    /** Render + print labels. silent=true prints straight to deviceName
+     *  with no dialog; silent=false shows the native print dialog. */
+    labels: (input: {
+      template: Template;
+      brand: Brand | null;
+      rows: Record<string, string>[];
+      deviceName?: string;
+      copies?: number;
+      silent?: boolean;
+      /** Provide to tile N-up onto A4/Letter sheets; omit for one-per-page. */
+      sheet?: SheetLayout | null;
+    }): Promise<{ printed: number; copies: number }> =>
+      ipcRenderer.invoke('print:labels', input),
+  },
+  audit: {
+    /** Global audit-log feed for the History page. Newest first.
+     *  Optional filters by company + entity type; offset/limit for paging. */
+    listRecent: (opts?: {
+      companyId?: string | null;
+      entityType?:
+        | 'product'
+        | 'image'
+        | 'brand'
+        | 'company'
+        | 'template'
+        | 'import'
+        | null;
+      limit?: number;
+      offset?: number;
+    }): Promise<
+      Array<{
+        id: number;
+        entityType: string;
+        entityId: string | null;
+        companyId: string | null;
+        action: string;
+        summary: string | null;
+        before: unknown;
+        after: unknown;
+        createdAt: string;
+      }>
+    > => ipcRenderer.invoke('audit:listRecent', opts),
+    countRecent: (opts?: {
+      companyId?: string | null;
+      entityType?:
+        | 'product'
+        | 'image'
+        | 'brand'
+        | 'company'
+        | 'template'
+        | 'import'
+        | null;
+    }): Promise<number> => ipcRenderer.invoke('audit:countRecent', opts),
+  },
+  generations: {
+    /** Historical batches grouped from the `generations` table. Newest first;
+     *  capped at `limit` (default 100). Used by the Jobs page to show
+     *  generation history alongside the in-memory running-jobs list. */
+    listBatches: (
+      companyId?: string,
+      limit?: number,
+    ): Promise<
+      Array<{
+        batchId: string;
+        brandId: string;
+        brandName: string | null;
+        templateId: string;
+        companyId: string | null;
+        sizeLabels: string[];
+        formats: string[];
+        fileCount: number;
+        skuCount: number;
+        startedAt: string;
+        finishedAt: string;
+        totalBytes: number | null;
+      }>
+    > => ipcRenderer.invoke('generations:listBatches', companyId, limit),
   },
   updater: {
     /** Quit the app and install the previously-downloaded update. */
